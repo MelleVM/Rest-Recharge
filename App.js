@@ -1,5 +1,5 @@
-import React, { useEffect } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet } from 'react-native';
+import React, { useEffect, useState } from 'react';
+import { SafeAreaView, StatusBar, StyleSheet, ActivityIndicator, View } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
@@ -12,7 +12,9 @@ import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import HomeScreen from './src/screens/HomeScreen';
 import TimerScreen from './src/screens/TimerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
+import OnboardingScreen from './src/screens/OnboardingScreen';
 import NotificationService from './src/utils/NotificationService';
+import StorageService from './src/utils/StorageService';
 
 const Tab = createBottomTabNavigator();
 
@@ -35,16 +37,56 @@ const theme = {
 };
 
 function App() {
+  const [isLoading, setIsLoading] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
   useEffect(() => {
-    NotificationService.configure();
+    const initialize = async () => {
+      NotificationService.configure();
+      
+      // Check if onboarding has been completed
+      const onboardingCompleted = await StorageService.getItem('onboardingCompleted');
+      setShowOnboarding(!onboardingCompleted);
+      setIsLoading(false);
+    };
+    
+    initialize();
   }, []);
+
+  const handleOnboardingComplete = () => {
+    setShowOnboarding(false);
+  };
+
+  if (isLoading) {
+    return (
+      <PaperProvider theme={theme}>
+        <View style={styles.loadingContainer}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+          <ActivityIndicator size="large" color="#4ECDC4" />
+        </View>
+      </PaperProvider>
+    );
+  }
+
+  if (showOnboarding) {
+    return (
+      <PaperProvider theme={theme}>
+        <SafeAreaView style={styles.container}>
+          <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+          <OnboardingScreen onComplete={handleOnboardingComplete} />
+        </SafeAreaView>
+      </PaperProvider>
+    );
+  }
 
   return (
     <PaperProvider theme={theme}>
-      <NavigationContainer>
-        <SafeAreaView style={styles.container}>
-          <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
-          <Tab.Navigator
+      <View style={styles.rootContainer}>
+        <SafeAreaView style={styles.safeAreaTop} />
+        <NavigationContainer>
+          <View style={styles.container}>
+            <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+            <Tab.Navigator
             screenOptions={({ route }) => ({
               tabBarIcon: ({ focused, color, size }) => {
                 if (route.name === 'Home') {
@@ -82,15 +124,29 @@ function App() {
             <Tab.Screen name="Timer" component={TimerScreen} />
             <Tab.Screen name="Settings" component={SettingsScreen} />
           </Tab.Navigator>
-        </SafeAreaView>
-      </NavigationContainer>
+          </View>
+        </NavigationContainer>
+      </View>
     </PaperProvider>
   );
 }
 
 const styles = StyleSheet.create({
+  rootContainer: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  safeAreaTop: {
+    backgroundColor: '#FFF9F0',
+  },
   container: {
     flex: 1,
+    backgroundColor: '#FFFFFF',
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
     backgroundColor: '#FFF9F0',
   },
 });

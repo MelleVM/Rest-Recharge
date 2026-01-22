@@ -4,7 +4,6 @@ import { Switch, Surface, Text, useTheme } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faMobile } from '@fortawesome/free-solid-svg-icons/faMobile';
-import { faMoon } from '@fortawesome/free-solid-svg-icons/faMoon';
 import { faCircleInfo } from '@fortawesome/free-solid-svg-icons/faCircleInfo';
 import { faCircleQuestion } from '@fortawesome/free-solid-svg-icons/faCircleQuestion';
 import { faShield } from '@fortawesome/free-solid-svg-icons/faShield';
@@ -12,9 +11,17 @@ import { faTrashCan } from '@fortawesome/free-solid-svg-icons/faTrashCan';
 import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faHourglass } from '@fortawesome/free-solid-svg-icons/faHourglass';
-import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
 import { faTimes } from '@fortawesome/free-solid-svg-icons/faTimes';
 import { faCheck } from '@fortawesome/free-solid-svg-icons/faCheck';
+import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
+import { faUser } from '@fortawesome/free-solid-svg-icons/faUser';
+import { faBriefcase } from '@fortawesome/free-solid-svg-icons/faBriefcase';
+import { faGraduationCap } from '@fortawesome/free-solid-svg-icons/faGraduationCap';
+import { faHeart } from '@fortawesome/free-solid-svg-icons/faHeart';
+import { faBatteryHalf } from '@fortawesome/free-solid-svg-icons/faBatteryHalf';
+import { faVirus } from '@fortawesome/free-solid-svg-icons/faVirus';
+import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
+import { faBan } from '@fortawesome/free-solid-svg-icons/faBan';
 import PushNotification from 'react-native-push-notification';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
@@ -99,14 +106,33 @@ const InputModal = React.memo(({ visible, onClose, title, value, onChangeText, o
   );
 });
 
+const PURPOSE_OPTIONS = [
+  { id: 'work', label: 'Work / Office', icon: faBriefcase, color: '#74B9FF' },
+  { id: 'study', label: 'Study / Learning', icon: faGraduationCap, color: '#A29BFE' },
+  { id: 'health', label: 'Health & Recovery', icon: faHeart, color: '#FF6B6B' },
+  { id: 'general', label: 'General Wellness', icon: faSun, color: '#FFE66D' },
+];
+
+const CONDITION_OPTIONS = [
+  { id: 'chronic_fatigue', label: 'Chronic Tiredness', icon: faBatteryHalf, color: '#636E72' },
+  { id: 'post_covid', label: 'Post-COVID Recovery', icon: faVirus, color: '#00B894' },
+  { id: 'burnout', label: 'Burnout', icon: faFire, color: '#FF6B6B' },
+  { id: 'none', label: 'None of these', icon: faBan, color: '#B2BEC3' },
+];
+
 const SettingsScreen = ({ navigation }) => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
-  const [darkModeEnabled, setDarkModeEnabled] = useState(false);
+  const [wakeupNotificationEnabled, setWakeupNotificationEnabled] = useState(true);
   const [restInterval, setRestInterval] = useState(120);
   const [restDuration, setRestDuration] = useState(20);
-  const [temporaryInterval, setTemporaryInterval] = useState(null);
   const [activeModal, setActiveModal] = useState(null);
+  
+  // Profile/Onboarding data
+  const [purpose, setPurpose] = useState(null);
+  const [condition, setCondition] = useState(null);
+  const [usualWakeupTime, setUsualWakeupTime] = useState({ hour: 7, minute: 0 });
+  
   const theme = useTheme();
 
   useEffect(() => {
@@ -118,10 +144,17 @@ const SettingsScreen = ({ navigation }) => {
       const settings = await NotificationService.getSettings();
       setNotificationsEnabled(settings.notificationsEnabled ?? true);
       setVibrationEnabled(settings.vibrationEnabled ?? true);
-      setDarkModeEnabled(settings.darkModeEnabled ?? false);
+      setWakeupNotificationEnabled(settings.wakeupNotificationEnabled ?? true);
       setRestInterval(settings.restInterval ?? 120);
       setRestDuration(settings.restDuration ?? 20);
-      setTemporaryInterval(settings.temporaryInterval);
+      
+      // Load onboarding/profile data
+      const onboardingData = await StorageService.getItem('onboardingData');
+      if (onboardingData) {
+        setPurpose(onboardingData.purpose || null);
+        setCondition(onboardingData.condition || null);
+        setUsualWakeupTime(onboardingData.usualWakeupTime || { hour: 7, minute: 0 });
+      }
     } catch (error) {
       console.log('Error loading settings:', error);
     }
@@ -131,11 +164,10 @@ const SettingsScreen = ({ navigation }) => {
     try {
       const settings = { 
         notificationsEnabled, 
-        vibrationEnabled, 
-        darkModeEnabled,
+        vibrationEnabled,
+        wakeupNotificationEnabled,
         restInterval,
-        restDuration,
-        temporaryInterval
+        restDuration
       };
       await StorageService.setItem('settings', settings);
 
@@ -144,13 +176,21 @@ const SettingsScreen = ({ navigation }) => {
           { channelId: 'eye-rest-reminders', channelName: 'Eye Rest Reminders', vibrate: vibrationEnabled },
           (created) => console.log(`Channel created: ${created}`)
         );
+        
+        // Update wake-up notification based on setting
+        if (wakeupNotificationEnabled) {
+          await NotificationService.scheduleWakeupNotification();
+        } else {
+          NotificationService.cancelWakeupNotification();
+        }
       } else {
         PushNotification.deleteChannel('eye-rest-reminders');
+        NotificationService.cancelWakeupNotification();
       }
     } catch (error) {
       console.log('Error saving settings:', error);
     }
-  }, [notificationsEnabled, vibrationEnabled, darkModeEnabled, restInterval, restDuration, temporaryInterval]);
+  }, [notificationsEnabled, vibrationEnabled, wakeupNotificationEnabled, restInterval, restDuration]);
 
   useEffect(() => {
     saveSettings();
@@ -166,7 +206,11 @@ const SettingsScreen = ({ navigation }) => {
           text: 'Reset',
           onPress: async () => {
             try {
+              // Cancel all notifications
               PushNotification.cancelAllLocalNotifications();
+              
+              // Cancel wake-up notification specifically
+              NotificationService.cancelWakeupNotification();
               
               if (NotificationService.clearTimerState) {
                 await NotificationService.clearTimerState();
@@ -176,14 +220,18 @@ const SettingsScreen = ({ navigation }) => {
                 await NotificationService.stopTimerNotification();
               }
               
+              // Clear all storage (includes restHistory, wakeupTime, stats, onboardingData, etc.)
               await StorageService.clear();
               
+              // Reset local state
               setNotificationsEnabled(true);
               setVibrationEnabled(true);
-              setDarkModeEnabled(false);
+              setWakeupNotificationEnabled(true);
               setRestInterval(120);
               setRestDuration(20);
-              setTemporaryInterval(null);
+              setPurpose(null);
+              setCondition(null);
+              setUsualWakeupTime({ hour: 7, minute: 0 });
               
               Alert.alert(
                 'Reset Complete ✨', 
@@ -228,35 +276,42 @@ const SettingsScreen = ({ navigation }) => {
     setActiveModal(null);
   };
 
-  const handleTempIntervalSave = async (value) => {
-    const newTempInterval = parseInt(value, 10);
-    if (!isNaN(newTempInterval) && newTempInterval > 0) {
-      setTemporaryInterval(newTempInterval);
-      await NotificationService.setTemporaryInterval(newTempInterval);
-      Alert.alert(
-        'Temporary Interval Set',
-        `Reminders will now occur every ${newTempInterval} minutes until you clear this setting.`
-      );
-    }
+  const handlePurposeSelect = async (purposeId) => {
+    setPurpose(purposeId);
+    const onboardingData = await StorageService.getItem('onboardingData') || {};
+    onboardingData.purpose = purposeId;
+    await StorageService.setItem('onboardingData', onboardingData);
     setActiveModal(null);
   };
 
-  const clearTemporaryInterval = async () => {
-    setTemporaryInterval(null);
-    await NotificationService.clearTemporaryInterval();
-    Alert.alert(
-      'Temporary Interval Cleared',
-      `Reminders will now follow your normal interval setting of ${restInterval} minutes.`
-    );
+  const handleConditionSelect = async (conditionId) => {
+    setCondition(conditionId);
+    const onboardingData = await StorageService.getItem('onboardingData') || {};
+    onboardingData.condition = conditionId;
+    await StorageService.setItem('onboardingData', onboardingData);
+    setActiveModal(null);
   };
 
-  const setTenMinuteInterval = async () => {
-    setTemporaryInterval(10);
-    await NotificationService.setTemporaryInterval(10);
-    Alert.alert(
-      'Testing Mode Activated',
-      'Reminders will now occur every 10 minutes for testing purposes.'
-    );
+  const handleWakeupTimeSave = async (hour, minute) => {
+    setUsualWakeupTime({ hour, minute });
+    await NotificationService.updateWakeupTime(hour, minute);
+    setActiveModal(null);
+  };
+
+  const getPurposeLabel = () => {
+    const option = PURPOSE_OPTIONS.find(o => o.id === purpose);
+    return option ? option.label : 'Not set';
+  };
+
+  const getConditionLabel = () => {
+    const option = CONDITION_OPTIONS.find(o => o.id === condition);
+    return option ? option.label : 'Not set';
+  };
+
+  const formatWakeupTime = () => {
+    const h = usualWakeupTime.hour.toString().padStart(2, '0');
+    const m = usualWakeupTime.minute.toString().padStart(2, '0');
+    return `${h}:${m}`;
   };
 
   const SettingItem = ({ icon, iconBg, title, subtitle, rightComponent, onPress }) => (
@@ -280,9 +335,39 @@ const SettingsScreen = ({ navigation }) => {
     <>
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Settings ⚙️</Text>
+          <Text style={styles.title}>Settings</Text>
           <Text style={styles.subtitle}>Rest & Recharge</Text>
         </View>
+
+        <Text style={styles.sectionTitle}>Your Profile</Text>
+        <Surface style={styles.section}>
+          <SettingItem
+            icon={faUser}
+            iconBg="#74B9FF"
+            title="Purpose"
+            subtitle={getPurposeLabel()}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={() => setActiveModal('purpose')}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faHeart}
+            iconBg="#FF6B6B"
+            title="Health Condition"
+            subtitle={getConditionLabel()}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={() => setActiveModal('condition')}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faSun}
+            iconBg="#FFE66D"
+            title="Usual Wake-up Time"
+            subtitle={formatWakeupTime()}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={() => setActiveModal('wakeupTime')}
+          />
+        </Surface>
 
         <Text style={styles.sectionTitle}>Notifications</Text>
         <Surface style={styles.section}>
@@ -296,6 +381,21 @@ const SettingsScreen = ({ navigation }) => {
                 value={notificationsEnabled}
                 onValueChange={setNotificationsEnabled}
                 color="#4ECDC4"
+              />
+            }
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faSun}
+            iconBg="#FFE66D"
+            title="Wake-up Reminder"
+            subtitle="Daily notification at wake-up time"
+            rightComponent={
+              <Switch
+                value={wakeupNotificationEnabled}
+                onValueChange={setWakeupNotificationEnabled}
+                color="#4ECDC4"
+                disabled={!notificationsEnabled}
               />
             }
           />
@@ -334,59 +434,6 @@ const SettingsScreen = ({ navigation }) => {
             subtitle={`Rest for ${restDuration} minutes`}
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
             onPress={() => setActiveModal('duration')}
-          />
-          <View style={styles.divider} />
-          <SettingItem
-            icon={faStopwatch}
-            iconBg="#A29BFE"
-            title="Temporary Interval"
-            subtitle={temporaryInterval ? `Currently set to ${temporaryInterval} minutes` : "Use normal interval"}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={() => {
-              if (temporaryInterval) {
-                Alert.alert(
-                  'Temporary Interval',
-                  `Current temporary interval: ${temporaryInterval} minutes`,
-                  [
-                    { text: 'Clear', onPress: clearTemporaryInterval, style: 'destructive' },
-                    { text: 'Change', onPress: () => setActiveModal('tempInterval') },
-                    { text: 'Cancel', style: 'cancel' }
-                  ]
-                );
-              } else {
-                setActiveModal('tempInterval');
-              }
-            }}
-          />
-        </Surface>
-
-        <Text style={styles.sectionTitle}>Testing</Text>
-        <Surface style={styles.section}>
-          <SettingItem
-            icon={faStopwatch}
-            iconBg="#FF6B6B"
-            title="10-Minute Test Mode"
-            subtitle="Set reminders to every 10 minutes"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={setTenMinuteInterval}
-          />
-        </Surface>
-
-        <Text style={styles.sectionTitle}>Appearance</Text>
-        <Surface style={styles.section}>
-          <SettingItem
-            icon={faMoon}
-            iconBg="#636E72"
-            title="Dark Mode"
-            subtitle="Coming soon!"
-            rightComponent={
-              <Switch
-                value={darkModeEnabled}
-                onValueChange={setDarkModeEnabled}
-                color="#4ECDC4"
-                disabled={true}
-              />
-            }
           />
         </Surface>
 
@@ -450,15 +497,194 @@ const SettingsScreen = ({ navigation }) => {
         note="How long each eye rest should last"
       />
 
-      <InputModal
-        visible={activeModal === 'tempInterval'}
-        onClose={() => setActiveModal(null)}
-        title="Set Temporary Interval"
-        value={temporaryInterval ? temporaryInterval.toString() : ''}
-        onSave={handleTempIntervalSave}
-        label="Minutes between reminders (temporary)"
-        note="This will override your normal interval until you clear it"
-      />
+      {/* Purpose Selection Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeModal === 'purpose'}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Select Purpose</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              {PURPOSE_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionItem,
+                    purpose === option.id && styles.optionItemSelected,
+                    purpose === option.id && { borderColor: option.color },
+                  ]}
+                  onPress={() => handlePurposeSelect(option.id)}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
+                    <FontAwesomeIcon icon={option.icon} size={20} color={option.color} />
+                  </View>
+                  <Text style={styles.optionLabel}>{option.label}</Text>
+                  {purpose === option.id && (
+                    <View style={[styles.optionCheck, { backgroundColor: option.color }]}>
+                      <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Condition Selection Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeModal === 'condition'}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Health Condition</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              {CONDITION_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionItem,
+                    condition === option.id && styles.optionItemSelected,
+                    condition === option.id && { borderColor: option.color },
+                  ]}
+                  onPress={() => handleConditionSelect(option.id)}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
+                    <FontAwesomeIcon icon={option.icon} size={20} color={option.color} />
+                  </View>
+                  <Text style={styles.optionLabel}>{option.label}</Text>
+                  {condition === option.id && (
+                    <View style={[styles.optionCheck, { backgroundColor: option.color }]}>
+                      <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Wake-up Time Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeModal === 'wakeupTime'}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Wake-up Time</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <View style={styles.timePickerRow}>
+                <View style={styles.timeColumn}>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setUsualWakeupTime(prev => ({
+                      ...prev,
+                      hour: (prev.hour + 1) % 24
+                    }))}
+                  >
+                    <Text style={styles.timeButtonText}>▲</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.timeValue}>
+                    {usualWakeupTime.hour.toString().padStart(2, '0')}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setUsualWakeupTime(prev => ({
+                      ...prev,
+                      hour: (prev.hour - 1 + 24) % 24
+                    }))}
+                  >
+                    <Text style={styles.timeButtonText}>▼</Text>
+                  </TouchableOpacity>
+                </View>
+                <Text style={styles.timeSeparator}>:</Text>
+                <View style={styles.timeColumn}>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setUsualWakeupTime(prev => ({
+                      ...prev,
+                      minute: (prev.minute + 15) % 60
+                    }))}
+                  >
+                    <Text style={styles.timeButtonText}>▲</Text>
+                  </TouchableOpacity>
+                  <Text style={styles.timeValue}>
+                    {usualWakeupTime.minute.toString().padStart(2, '0')}
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.timeButton}
+                    onPress={() => setUsualWakeupTime(prev => ({
+                      ...prev,
+                      minute: (prev.minute - 15 + 60) % 60
+                    }))}
+                  >
+                    <Text style={styles.timeButtonText}>▼</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+              <View style={styles.quickTimeRow}>
+                {[6, 7, 8, 9].map((h) => (
+                  <TouchableOpacity
+                    key={h}
+                    style={[
+                      styles.quickTimeBtn,
+                      usualWakeupTime.hour === h && usualWakeupTime.minute === 0 && styles.quickTimeBtnActive,
+                    ]}
+                    onPress={() => setUsualWakeupTime({ hour: h, minute: 0 })}
+                  >
+                    <Text style={[
+                      styles.quickTimeTxt,
+                      usualWakeupTime.hour === h && usualWakeupTime.minute === 0 && styles.quickTimeTxtActive,
+                    ]}>
+                      {h}:00
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+            <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => setActiveModal(null)}
+              >
+                <Text style={styles.cancelButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.saveButton]}
+                onPress={() => handleWakeupTimeSave(usualWakeupTime.hour, usualWakeupTime.minute)}
+              >
+                <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" style={styles.buttonIcon} />
+                <Text style={styles.saveButtonText}>Save</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
     </>
   );
 };
@@ -661,6 +887,98 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#636E72',
     fontStyle: 'italic',
+  },
+  optionItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 14,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  optionItemSelected: {
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+  },
+  optionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  optionLabel: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#2D3436',
+    marginLeft: 12,
+  },
+  optionCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timePickerRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  timeColumn: {
+    alignItems: 'center',
+  },
+  timeButton: {
+    width: 50,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+  },
+  timeButtonText: {
+    fontSize: 16,
+    color: '#636E72',
+  },
+  timeValue: {
+    fontSize: 48,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginVertical: 8,
+    width: 70,
+    textAlign: 'center',
+  },
+  timeSeparator: {
+    fontSize: 40,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginHorizontal: 8,
+  },
+  quickTimeRow: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  quickTimeBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 10,
+  },
+  quickTimeBtnActive: {
+    backgroundColor: '#4ECDC4',
+  },
+  quickTimeTxt: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#636E72',
+  },
+  quickTimeTxtActive: {
+    color: '#FFFFFF',
   },
 });
 

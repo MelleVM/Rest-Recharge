@@ -12,7 +12,8 @@ class NotificationService {
       darkModeEnabled: false,
       restInterval: 120,
       restDuration: 20,
-      temporaryInterval: null
+      temporaryInterval: null,
+      wakeupNotificationEnabled: true,
     };
   }
 
@@ -40,6 +41,7 @@ class NotificationService {
 
     this.createDefaultChannel();
     this.createTimerChannel();
+    this.createWakeupChannel();
   };
 
   createDefaultChannel = () => {
@@ -69,6 +71,77 @@ class NotificationService {
       },
       (created) => console.log(`Timer channel created: ${created}`)
     );
+  };
+
+  createWakeupChannel = () => {
+    PushNotification.createChannel(
+      {
+        channelId: 'wakeup-reminder',
+        channelName: 'Wake-up Reminder',
+        channelDescription: 'Daily reminder to log your wake-up time',
+        playSound: true,
+        soundName: 'default',
+        importance: 4,
+        vibrate: true,
+      },
+      (created) => console.log(`Wakeup channel created: ${created}`)
+    );
+  };
+
+  scheduleWakeupNotification = async () => {
+    PushNotification.cancelLocalNotification('wakeup-daily');
+    
+    const settings = await this.getSettings();
+    if (!settings.notificationsEnabled || !settings.wakeupNotificationEnabled) {
+      console.log('Wakeup notification disabled');
+      return null;
+    }
+    
+    const onboardingData = await StorageService.getItem('onboardingData');
+    if (!onboardingData || !onboardingData.usualWakeupTime) {
+      console.log('No usual wakeup time set');
+      return null;
+    }
+    
+    const { hour, minute } = onboardingData.usualWakeupTime;
+    
+    const now = new Date();
+    const wakeupTime = new Date();
+    wakeupTime.setHours(hour, minute, 0, 0);
+    
+    if (wakeupTime <= now) {
+      wakeupTime.setDate(wakeupTime.getDate() + 1);
+    }
+    
+    PushNotification.localNotificationSchedule({
+      channelId: 'wakeup-reminder',
+      id: 'wakeup-daily',
+      title: '☀️ Good Morning!',
+      message: 'Tap to log your wake-up time and start your rest schedule',
+      date: wakeupTime,
+      allowWhileIdle: true,
+      vibrate: settings.vibrationEnabled,
+      playSound: true,
+      soundName: 'default',
+      repeatType: 'day',
+    });
+    
+    console.log('Wakeup notification scheduled for:', wakeupTime.toLocaleTimeString());
+    return wakeupTime;
+  };
+
+  cancelWakeupNotification = () => {
+    PushNotification.cancelLocalNotification('wakeup-daily');
+    console.log('Wakeup notification cancelled');
+  };
+
+  updateWakeupTime = async (hour, minute) => {
+    const onboardingData = await StorageService.getItem('onboardingData') || {};
+    onboardingData.usualWakeupTime = { hour, minute };
+    await StorageService.setItem('onboardingData', onboardingData);
+    
+    await this.scheduleWakeupNotification();
+    return onboardingData;
   };
 
   startTimerNotification = async (endTime) => {
@@ -183,14 +256,18 @@ class NotificationService {
     const pausedState = await StorageService.getItem('timerPaused');
     
     if (pausedState) {
-      return { isPaused: true, remaining: pausedState.remaining };
+      return { isPaused: true, remaining: pausedState.remaining, isActive: true };
     }
     
     if (endTime) {
       const now = Date.now();
-      const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
+      const remaining = Math.floor((endTime - now) / 1000);
+      
       if (remaining > 0) {
         return { isActive: true, remaining, endTime };
+      } else {
+        // Timer has completed - return completed state
+        return { isActive: true, isCompleted: true, remaining: 0, endTime };
       }
     }
     

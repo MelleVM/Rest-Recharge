@@ -1,12 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform } from 'react-native';
+import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform, ScrollView } from 'react-native';
 import { Text, Surface, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faPlay } from '@fortawesome/free-solid-svg-icons/faPlay';
 import { faPause } from '@fortawesome/free-solid-svg-icons/faPause';
 import { faRotateRight } from '@fortawesome/free-solid-svg-icons/faRotateRight';
-import { faCheck } from '@fortawesome/free-solid-svg-icons/faCheck';
 import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
@@ -16,16 +15,36 @@ const STROKE_WIDTH = 10;
 const RADIUS = (TIMER_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
+const MOTIVATIONAL_QUOTES = [
+  { text: "Rest is not idleness, it is the key to greater productivity.", author: "John Lubbock" },
+  { text: "Take care of your body. It's the only place you have to live.", author: "Jim Rohn" },
+  { text: "Almost everything will work again if you unplug it for a few minutes.", author: "Anne Lamott" },
+  { text: "Your calm mind is the ultimate weapon against your challenges.", author: "Bryant McGill" },
+  { text: "The time to relax is when you don't have time for it.", author: "Sydney J. Harris" },
+  { text: "Tension is who you think you should be. Relaxation is who you are.", author: "Chinese Proverb" },
+  { text: "Rest when you're weary. Refresh and renew yourself.", author: "Ralph Marston" },
+  { text: "Sometimes the most productive thing you can do is rest.", author: "Mark Black" },
+  { text: "Your eyes are the windows to your soul. Take care of them.", author: "Unknown" },
+  { text: "A moment of patience in a moment of anger saves a thousand moments of regret.", author: "Ali Ibn Abi Talib" },
+  { text: "Breathe. Let go. And remind yourself that this very moment is the only one you know you have for sure.", author: "Oprah Winfrey" },
+  { text: "Self-care is not selfish. You cannot serve from an empty vessel.", author: "Eleanor Brown" },
+  { text: "In the midst of movement and chaos, keep stillness inside of you.", author: "Deepak Chopra" },
+  { text: "Give your stress wings and let it fly away.", author: "Terri Guillemets" },
+  { text: "The greatest weapon against stress is our ability to choose one thought over another.", author: "William James" },
+];
+
 const TimerScreen = () => {
   const [isActive, setIsActive] = useState(false);
   const [isPaused, setIsPaused] = useState(false);
   const [time, setTime] = useState(0);
-  const [completedRests, setCompletedRests] = useState(0);
-  const [endTime, setEndTime] = useState(null);
+  const [currentQuote, setCurrentQuote] = useState(() => 
+    MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]
+  );
   const [totalTime, setTotalTime] = useState(0);
-  const countdownInterval = useRef(null);
-  const appState = useRef(AppState.currentState);
   const endTimeRef = useRef(null);
+  const animationFrameRef = useRef(null);
+  const lastUpdateRef = useRef(0);
+  const appState = useRef(AppState.currentState);
   const isInitialized = useRef(false);
   const isActiveRef = useRef(false);
   const isPausedRef = useRef(false);
@@ -69,16 +88,17 @@ const TimerScreen = () => {
     initialize();
     
     return () => {
-      if (countdownInterval.current) {
-        clearInterval(countdownInterval.current);
-      }
+      stopTimer();
     };
   }, []);
 
-  // Refresh settings when screen comes into focus (e.g., after changing settings)
+  // Refresh settings when screen comes into focus
   useFocusEffect(
     useCallback(() => {
       const refreshSettings = async () => {
+        // Check if timer completed while we were away
+        await checkForCompletedTimer();
+        
         // Only update duration if timer is not active
         if (!isActiveRef.current && !isPausedRef.current) {
           const settings = await NotificationService.getSettings();
@@ -86,7 +106,6 @@ const TimerScreen = () => {
           const durationSeconds = durationMinutes * 60;
           setTime(durationSeconds);
           setTotalTime(durationSeconds);
-          console.log('Timer duration refreshed to:', durationMinutes, 'minutes');
         }
         // Always refresh completed rests count
         await loadCompletedRests();
@@ -98,6 +117,20 @@ const TimerScreen = () => {
     }, [])
   );
 
+  // Check if a timer completed while app was closed/background
+  const checkForCompletedTimer = async () => {
+    const timerState = await NotificationService.getTimerState();
+    console.log('checkForCompletedTimer - timerState:', timerState);
+    
+    if (timerState && timerState.isCompleted) {
+      // Timer completed while app was closed
+      console.log('Timer completed while app was closed, handling completion');
+      await handleTimerCompletedInBackground();
+      return true;
+    }
+    return false;
+  };
+
   const loadSettingsAndRecoverTimer = async () => {
     const settings = await NotificationService.getSettings();
     const durationMinutes = settings.restDuration || 20;
@@ -107,40 +140,31 @@ const TimerScreen = () => {
     // Check for active timer state
     const timerState = await NotificationService.getTimerState();
     
+    console.log('loadSettingsAndRecoverTimer - timerState:', timerState);
+    
     if (timerState) {
-      if (timerState.isPaused) {
-        // Timer was paused
+      if (timerState.isCompleted) {
+        // Timer completed while app was closed
+        console.log('Timer completed in background, handling completion');
+        await handleTimerCompletedInBackground();
+        setTime(durationSeconds);
+      } else if (timerState.isPaused) {
         setTime(timerState.remaining);
         setIsPaused(true);
         setIsActive(true);
       } else if (timerState.isActive) {
-        // Timer was running - calculate current remaining time
-        const now = Date.now();
-        const remaining = Math.floor((timerState.endTime - now) / 1000);
-        
-        if (remaining > 0) {
-          // Timer still has time left
-          setEndTime(timerState.endTime);
-          endTimeRef.current = timerState.endTime;
-          setTime(remaining);
-          setIsActive(true);
-          setIsPaused(false);
-          startCountdownFromEndTime(timerState.endTime);
-        } else {
-          // Timer has completed while app was in background
-          console.log('Timer completed in background, handling completion');
-          await handleTimerCompletedInBackground();
-          // Set time to full duration after completion
-          setTime(durationSeconds);
-        }
+        endTimeRef.current = timerState.endTime;
+        setTime(timerState.remaining);
+        setIsActive(true);
+        setIsPaused(false);
+        startTimerLoop();
       }
     } else {
-      // No active timer, set default time
       setTime(durationSeconds);
     }
   };
 
-  // Handle app state changes (background/foreground)
+  // Handle app state changes
   useEffect(() => {
     const handleAppStateChange = async (nextAppState) => {
       console.log('App state changed:', appState.current, '->', nextAppState);
@@ -148,22 +172,27 @@ const TimerScreen = () => {
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         console.log('App has come to the foreground!');
         
-        // Clear any existing interval
-        if (countdownInterval.current) {
-          clearInterval(countdownInterval.current);
-          countdownInterval.current = null;
-        }
-        
-        // Only recover if already initialized
         if (isInitialized.current) {
-          await recoverTimerFromBackground();
+          // Check if timer completed
+          const completed = await checkForCompletedTimer();
+          
+          if (!completed && endTimeRef.current) {
+            // Timer still running, update time and restart loop
+            const now = Date.now();
+            const remaining = Math.floor((endTimeRef.current - now) / 1000);
+            
+            if (remaining > 0) {
+              setTime(remaining);
+              startTimerLoop();
+            }
+          }
+          
+          // Refresh stats
+          await loadCompletedRests();
         }
       } else if (nextAppState.match(/inactive|background/)) {
-        // App going to background - clear interval to save resources
-        if (countdownInterval.current) {
-          clearInterval(countdownInterval.current);
-          countdownInterval.current = null;
-        }
+        // App going to background - stop the animation loop
+        stopTimer();
       }
       
       appState.current = nextAppState;
@@ -176,51 +205,30 @@ const TimerScreen = () => {
     };
   }, []);
 
-  const recoverTimerFromBackground = async () => {
-    const timerState = await NotificationService.getTimerState();
-    const settings = await NotificationService.getSettings();
-    const durationMinutes = settings.restDuration || 20;
-    const durationSeconds = durationMinutes * 60;
-    
-    if (timerState) {
-      if (timerState.isPaused) {
-        setTime(timerState.remaining);
-        setIsPaused(true);
-        setIsActive(true);
-      } else if (timerState.isActive) {
-        const now = Date.now();
-        const remaining = Math.floor((timerState.endTime - now) / 1000);
-        
-        if (remaining > 0) {
-          setEndTime(timerState.endTime);
-          endTimeRef.current = timerState.endTime;
-          setTime(remaining);
-          setIsActive(true);
-          setIsPaused(false);
-          startCountdownFromEndTime(timerState.endTime);
-        } else {
-          // Timer completed in background
-          console.log('Timer completed while in background');
-          await handleTimerCompletedInBackground();
-          setTime(durationSeconds);
-          setTotalTime(durationSeconds);
-        }
-      }
-    } else {
-      // No active timer state - update to current settings if not active
-      if (!isActiveRef.current && !isPausedRef.current) {
-        setTime(durationSeconds);
-        setTotalTime(durationSeconds);
-      }
+  // Save rest to history
+  const saveRestToHistory = async (timestamp) => {
+    try {
+      const history = await StorageService.getItem('restHistory') || [];
+      history.push({
+        timestamp,
+        date: new Date(timestamp).toLocaleDateString(),
+        time: new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+      // Keep only last 30 days of history
+      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
+      const filteredHistory = history.filter(h => h.timestamp > thirtyDaysAgo);
+      await StorageService.setItem('restHistory', filteredHistory);
+    } catch (error) {
+      console.log('Error saving rest history:', error);
     }
-    
-    // Refresh completed rests count
-    await loadCompletedRests();
   };
 
   // Handle timer that completed while app was in background
   const handleTimerCompletedInBackground = async () => {
     console.log('Handling timer completion from background');
+    
+    // Save to history
+    await saveRestToHistory(Date.now());
     
     // Update completed rests count
     const stats = await StorageService.getItem('stats') || {};
@@ -240,11 +248,16 @@ const TimerScreen = () => {
     // Reset UI state
     setIsActive(false);
     setIsPaused(false);
-    setEndTime(null);
     endTimeRef.current = null;
     
-    // Vibrate to indicate completion
+    // Reset to default duration
     const settings = await NotificationService.getSettings();
+    const durationMinutes = settings.restDuration || 20;
+    const durationSeconds = durationMinutes * 60;
+    setTime(durationSeconds);
+    setTotalTime(durationSeconds);
+    
+    // Vibrate to indicate completion
     if (settings.vibrationEnabled) {
       Vibration.vibrate([0, 500, 200, 500]);
     }
@@ -271,25 +284,64 @@ const TimerScreen = () => {
     }
   };
 
+  // Stop the timer loop
+  const stopTimer = () => {
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+  };
+
+  // Start timer using requestAnimationFrame for smooth updates
+  const startTimerLoop = () => {
+    stopTimer();
+    lastUpdateRef.current = Date.now();
+    
+    const tick = () => {
+      if (!endTimeRef.current) return;
+      
+      const now = Date.now();
+      const remaining = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
+      
+      // Only update state once per second
+      const lastSecond = Math.floor((endTimeRef.current - lastUpdateRef.current) / 1000);
+      if (remaining !== lastSecond || remaining === 0) {
+        lastUpdateRef.current = now;
+        
+        if (remaining <= 0) {
+          handleTimerCompletedWhileActive();
+          return;
+        }
+        
+        setTime(remaining);
+        
+        // Update notification every 5 seconds
+        if (remaining % 5 === 0) {
+          NotificationService.updateTimerNotification(remaining);
+        }
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(tick);
+    };
+    
+    animationFrameRef.current = requestAnimationFrame(tick);
+  };
+
   const start = async () => {
     if (!isActive || isPaused) {
-      const newEndTime = Date.now() + time * 1000;
-      setEndTime(newEndTime);
+      const currentTime = isPaused ? time : time;
+      const newEndTime = Date.now() + currentTime * 1000;
       endTimeRef.current = newEndTime;
       setIsActive(true);
       setIsPaused(false);
       
       await NotificationService.startTimerNotification(newEndTime);
-      startCountdownFromEndTime(newEndTime);
+      startTimerLoop();
     }
   };
 
   const pause = async () => {
-    if (countdownInterval.current) {
-      clearInterval(countdownInterval.current);
-      countdownInterval.current = null;
-    }
-    
+    stopTimer();
     setIsPaused(true);
     endTimeRef.current = null;
     
@@ -297,10 +349,7 @@ const TimerScreen = () => {
   };
 
   const reset = async () => {
-    if (countdownInterval.current) {
-      clearInterval(countdownInterval.current);
-      countdownInterval.current = null;
-    }
+    stopTimer();
     
     const settings = await NotificationService.getSettings();
     const durationMinutes = settings.restDuration || 20;
@@ -310,50 +359,32 @@ const TimerScreen = () => {
     setIsPaused(false);
     setTime(durationSeconds);
     setTotalTime(durationSeconds);
-    setEndTime(null);
     endTimeRef.current = null;
     
     await NotificationService.stopTimerNotification();
     await NotificationService.clearTimerState();
   };
 
-  // Start countdown based on end time
-  const startCountdownFromEndTime = (targetEndTime) => {
-    if (countdownInterval.current) {
-      clearInterval(countdownInterval.current);
-    }
-    
-    countdownInterval.current = setInterval(() => {
-      const now = Date.now();
-      const remaining = Math.max(0, Math.floor((targetEndTime - now) / 1000));
-      
-      if (remaining <= 0) {
-        clearInterval(countdownInterval.current);
-        countdownInterval.current = null;
-        handleTimerCompletedWhileActive();
-      } else {
-        setTime(remaining);
-        
-        if (remaining % 5 === 0) {
-          NotificationService.updateTimerNotification(remaining);
-        }
-      }
-    }, 1000);
+  // Get a new random quote
+  const getNewQuote = () => {
+    const newQuote = MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)];
+    setCurrentQuote(newQuote);
   };
 
   // Handle timer completion while app is active
   const handleTimerCompletedWhileActive = async () => {
     console.log('Timer completed while app is active');
     
+    stopTimer();
     setIsActive(false);
     setIsPaused(false);
-    setEndTime(null);
     endTimeRef.current = null;
     
-    // Update completed rests count
-    const newCount = completedRests + 1;
-    setCompletedRests(newCount);
-    await saveCompletedRests(newCount);
+    // Save to history
+    await saveRestToHistory(Date.now());
+    
+    // Show a new motivational quote
+    getNewQuote();
     
     // Clear timer state and stop notification
     await NotificationService.stopTimerNotification();
@@ -385,7 +416,7 @@ const TimerScreen = () => {
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
   return (
-    <View style={styles.container}>
+    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
       <View style={styles.header}>
         <Text style={styles.title}>Eye Rest</Text>
         <Text style={styles.subtitle}>Rest & Recharge</Text>
@@ -453,14 +484,9 @@ const TimerScreen = () => {
         </TouchableOpacity>
       </View>
 
-      <Surface style={styles.statsCard}>
-        <View style={styles.statsIcon}>
-          <FontAwesomeIcon icon={faCheck} size={32} color="#FFE66D" />
-        </View>
-        <View style={styles.statsContent}>
-          <Text style={styles.statsNumber}>{completedRests}</Text>
-          <Text style={styles.statsLabel}>Eye rests completed</Text>
-        </View>
+      <Surface style={styles.quoteCard}>
+        <Text style={styles.quoteText}>"{currentQuote.text}"</Text>
+        <Text style={styles.quoteAuthor}>— {currentQuote.author}</Text>
       </Surface>
 
       <View style={styles.tipContainer}>
@@ -468,7 +494,9 @@ const TimerScreen = () => {
           Resting for 20 minutes every two hours has been proven to be beneficial for recharging your battery.
         </Text>
       </View>
-    </View>
+
+      <View style={styles.bottomPadding} />
+    </ScrollView>
   );
 };
 
@@ -476,7 +504,12 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#FFF9F0',
+  },
+  contentContainer: {
     padding: 20,
+  },
+  bottomPadding: {
+    height: 80,
   },
   header: {
     marginBottom: 30,
@@ -534,35 +567,26 @@ const styles = StyleSheet.create({
   resetButton: {
     backgroundColor: '#F0F0F0',
   },
-  statsCard: {
-    flexDirection: 'row',
+  quoteCard: {
     borderRadius: 24,
-    padding: 20,
+    padding: 24,
     marginBottom: 20,
     backgroundColor: '#FFFFFF',
     elevation: 4,
   },
-  statsIcon: {
-    width: 60,
-    height: 60,
-    borderRadius: 20,
-    backgroundColor: '#FFFBE5',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statsContent: {
-    flex: 1,
-    marginLeft: 16,
-    justifyContent: 'center',
-  },
-  statsNumber: {
-    fontSize: 28,
-    fontWeight: 'bold',
+  quoteText: {
+    fontSize: 16,
+    fontStyle: 'italic',
     color: '#2D3436',
+    lineHeight: 24,
+    textAlign: 'center',
   },
-  statsLabel: {
+  quoteAuthor: {
     fontSize: 14,
     color: '#636E72',
+    marginTop: 12,
+    textAlign: 'center',
+    fontWeight: '500',
   },
   tipContainer: {
     marginBottom: 20,
