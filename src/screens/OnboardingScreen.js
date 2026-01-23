@@ -176,6 +176,17 @@ const OnboardingScreen = ({ onComplete }) => {
     
     // Schedule daily wake-up notification
     await NotificationService.scheduleWakeupNotification();
+    
+    // Schedule first rest reminder based on the answered wake-up time
+    // Calculate when the first reminder should be (wake-up time + rest interval)
+    const now = new Date();
+    const wakeupToday = new Date();
+    wakeupToday.setHours(answers.wakeupTime.hour, answers.wakeupTime.minute, 0, 0);
+    
+    // If user's usual wake-up time has already passed today, schedule based on current time
+    // Otherwise, schedule based on their wake-up time
+    const baseTime = wakeupToday > now ? wakeupToday : now;
+    await NotificationService.scheduleReminders(baseTime);
   };
 
   const formatTime = (hour, minute) => {

@@ -22,9 +22,18 @@ import { faBatteryHalf } from '@fortawesome/free-solid-svg-icons/faBatteryHalf';
 import { faVirus } from '@fortawesome/free-solid-svg-icons/faVirus';
 import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
 import { faBan } from '@fortawesome/free-solid-svg-icons/faBan';
+import { faSeedling } from '@fortawesome/free-solid-svg-icons/faSeedling';
+import { faLeaf } from '@fortawesome/free-solid-svg-icons/faLeaf';
+import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
+import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
+import { faWrench } from '@fortawesome/free-solid-svg-icons/faWrench';
+import { faStore } from '@fortawesome/free-solid-svg-icons/faStore';
+import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
 import PushNotification from 'react-native-push-notification';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
+import { ToastEvent } from '../components/RewardToast';
+import { ResetEvent } from '../../App';
 
 // Separate Modal Component to prevent re-renders
 const InputModal = React.memo(({ visible, onClose, title, value, onChangeText, onSave, label, note }) => {
@@ -120,6 +129,15 @@ const CONDITION_OPTIONS = [
   { id: 'none', label: 'None of these', icon: faBan, color: '#B2BEC3' },
 ];
 
+const PLANT_TYPES = [
+  { id: 'classic', name: 'Classic', icon: faSeedling, color: '#4CAF50', price: 0, description: 'The original plant' },
+  { id: 'rose', name: 'Rose', icon: faLeaf, color: '#E91E63', price: 100, description: 'A beautiful rose bush' },
+  { id: 'sunflower', name: 'Sunflower', icon: faSeedling, color: '#FFC107', price: 150, description: 'Bright and cheerful' },
+  { id: 'bonsai', name: 'Bonsai', icon: faTree, color: '#795548', price: 200, description: 'Ancient and wise' },
+  { id: 'cherry', name: 'Cherry Blossom', icon: faTree, color: '#F8BBD9', price: 300, description: 'Delicate pink blooms' },
+  { id: 'cactus', name: 'Cactus', icon: faSeedling, color: '#8BC34A', price: 250, description: 'Low maintenance friend' },
+];
+
 const SettingsScreen = ({ navigation }) => {
   const [notificationsEnabled, setNotificationsEnabled] = useState(true);
   const [vibrationEnabled, setVibrationEnabled] = useState(true);
@@ -132,6 +150,13 @@ const SettingsScreen = ({ navigation }) => {
   const [purpose, setPurpose] = useState(null);
   const [condition, setCondition] = useState(null);
   const [usualWakeupTime, setUsualWakeupTime] = useState({ hour: 7, minute: 0 });
+  
+  // Garden data
+  const [gardenData, setGardenData] = useState({
+    points: 0,
+    unlockedPlants: ['classic'],
+    selectedPlantType: 'classic',
+  });
   
   const theme = useTheme();
 
@@ -155,9 +180,88 @@ const SettingsScreen = ({ navigation }) => {
         setCondition(onboardingData.condition || null);
         setUsualWakeupTime(onboardingData.usualWakeupTime || { hour: 7, minute: 0 });
       }
+      
+      // Load garden data
+      const storedGardenData = await StorageService.getItem('gardenData');
+      if (storedGardenData) {
+        setGardenData(storedGardenData);
+      }
     } catch (error) {
       console.log('Error loading settings:', error);
     }
+  };
+  
+  // Purchase a plant type
+  const purchasePlant = async (plantType) => {
+    if (gardenData.unlockedPlants.includes(plantType.id)) {
+      // Already owned, just select it
+      const updatedGardenData = { ...gardenData, selectedPlantType: plantType.id };
+      await StorageService.setItem('gardenData', updatedGardenData);
+      setGardenData(updatedGardenData);
+      setActiveModal(null);
+      return;
+    }
+    
+    if (gardenData.points < plantType.price) {
+      Alert.alert('Not enough points', `You need ${plantType.price - gardenData.points} more points to unlock this plant.`);
+      return;
+    }
+    
+    Alert.alert(
+      `Unlock ${plantType.name}?`,
+      `This will cost ${plantType.price} points.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Unlock',
+          onPress: async () => {
+            const updatedGardenData = {
+              ...gardenData,
+              points: gardenData.points - plantType.price,
+              unlockedPlants: [...gardenData.unlockedPlants, plantType.id],
+              selectedPlantType: plantType.id,
+            };
+            await StorageService.setItem('gardenData', updatedGardenData);
+            setGardenData(updatedGardenData);
+            setActiveModal(null);
+          },
+        },
+      ]
+    );
+  };
+
+  // Dev functions
+  const devAddPoints = async (amount) => {
+    const updatedGardenData = {
+      ...gardenData,
+      points: gardenData.points + amount,
+    };
+    await StorageService.setItem('gardenData', updatedGardenData);
+    setGardenData(updatedGardenData);
+    ToastEvent.show('gems', amount, 'Dev bonus!');
+  };
+
+  const devAddRest = async () => {
+    const now = new Date();
+    const newRest = {
+      timestamp: now.getTime(),
+      date: now.toLocaleDateString(),
+      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+    };
+    
+    const history = await StorageService.getItem('restHistory') || [];
+    history.push(newRest);
+    await StorageService.setItem('restHistory', history);
+    
+    // Also award points
+    const updatedGardenData = {
+      ...gardenData,
+      points: gardenData.points + 10,
+    };
+    await StorageService.setItem('gardenData', updatedGardenData);
+    setGardenData(updatedGardenData);
+    
+    ToastEvent.show('gems', 10, 'Rest logged!');
   };
 
   const saveSettings = useCallback(async () => {
@@ -233,20 +337,8 @@ const SettingsScreen = ({ navigation }) => {
               setCondition(null);
               setUsualWakeupTime({ hour: 7, minute: 0 });
               
-              Alert.alert(
-                'Reset Complete ✨', 
-                'All data has been reset to defaults.',
-                [
-                  { 
-                    text: 'OK', 
-                    onPress: () => {
-                      if (navigation && navigation.navigate) {
-                        navigation.navigate('Home');
-                      }
-                    }
-                  }
-                ]
-              );
+              // Emit reset event to trigger onboarding
+              ResetEvent.emit();
             } catch (error) {
               console.error('Error during reset:', error);
               Alert.alert('Oops! 😅', 'Something went wrong while resetting data.');
@@ -437,6 +529,24 @@ const SettingsScreen = ({ navigation }) => {
           />
         </Surface>
 
+        <Text style={styles.sectionTitle}>Garden Shop</Text>
+        <Surface style={styles.section}>
+          <View style={styles.shopHeader}>
+            <View style={styles.pointsDisplay}>
+              <FontAwesomeIcon icon={faGem} size={16} color="#A29BFE" />
+              <Text style={styles.pointsAmount}>{gardenData.points} points</Text>
+            </View>
+          </View>
+          <SettingItem
+            icon={faStore}
+            iconBg="#4CAF50"
+            title="Plant Collection"
+            subtitle={`${gardenData.unlockedPlants.length}/${PLANT_TYPES.length} plants unlocked`}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={() => setActiveModal('plantShop')}
+          />
+        </Surface>
+
         <Text style={styles.sectionTitle}>About</Text>
         <Surface style={styles.section}>
           <SettingItem
@@ -462,6 +572,27 @@ const SettingsScreen = ({ navigation }) => {
             subtitle="How we protect your data"
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
             onPress={() => {}}
+          />
+        </Surface>
+
+        <Text style={styles.sectionTitle}>Developer Options</Text>
+        <Surface style={styles.section}>
+          <SettingItem
+            icon={faGem}
+            iconBg="#A29BFE"
+            title="Add 100 Points"
+            subtitle="For testing purchases"
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={() => devAddPoints(100)}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faWrench}
+            iconBg="#636E72"
+            title="Add Rest"
+            subtitle="Simulate completing a rest (+10 points)"
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={devAddRest}
           />
         </Surface>
 
@@ -681,6 +812,74 @@ const SettingsScreen = ({ navigation }) => {
                 <Text style={styles.saveButtonText}>Save</Text>
               </TouchableOpacity>
             </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Plant Shop Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeModal === 'plantShop'}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalContent, styles.shopModalContent]}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Plant Collection</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.shopPointsHeader}>
+              <FontAwesomeIcon icon={faGem} size={18} color="#A29BFE" />
+              <Text style={styles.shopPointsText}>{gardenData.points} points available</Text>
+            </View>
+            <ScrollView style={styles.plantList}>
+              {PLANT_TYPES.map((plant) => {
+                const isUnlocked = gardenData.unlockedPlants.includes(plant.id);
+                const isSelected = gardenData.selectedPlantType === plant.id;
+                const canAfford = gardenData.points >= plant.price;
+                
+                return (
+                  <TouchableOpacity
+                    key={plant.id}
+                    style={[
+                      styles.plantItem,
+                      isSelected && styles.plantItemSelected,
+                    ]}
+                    onPress={() => purchasePlant(plant)}
+                  >
+                    <View style={[styles.plantIcon, { backgroundColor: plant.color + '20' }]}>
+                      <FontAwesomeIcon icon={plant.icon} size={24} color={plant.color} />
+                    </View>
+                    <View style={styles.plantInfo}>
+                      <Text style={styles.plantName}>{plant.name}</Text>
+                      <Text style={styles.plantDescription}>{plant.description}</Text>
+                    </View>
+                    <View style={styles.plantPrice}>
+                      {isUnlocked ? (
+                        isSelected ? (
+                          <View style={styles.selectedBadge}>
+                            <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
+                          </View>
+                        ) : (
+                          <Text style={styles.ownedText}>Owned</Text>
+                        )
+                      ) : (
+                        <View style={[styles.priceBadge, !canAfford && styles.priceBadgeDisabled]}>
+                          {!canAfford && <FontAwesomeIcon icon={faLock} size={10} color="#B2BEC3" />}
+                          <FontAwesomeIcon icon={faGem} size={10} color={canAfford ? '#A29BFE' : '#B2BEC3'} />
+                          <Text style={[styles.priceText, !canAfford && styles.priceTextDisabled]}>
+                            {plant.price}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
           </View>
         </View>
       </Modal>
@@ -979,6 +1178,118 @@ const styles = StyleSheet.create({
   },
   quickTimeTxtActive: {
     color: '#FFFFFF',
+  },
+  shopHeader: {
+    padding: 16,
+    paddingBottom: 0,
+  },
+  pointsDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F0FF',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    borderRadius: 20,
+    alignSelf: 'flex-start',
+  },
+  pointsAmount: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#6C5CE7',
+  },
+  shopModalContent: {
+    maxHeight: '80%',
+  },
+  shopPointsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    padding: 16,
+    backgroundColor: '#F3F0FF',
+    marginHorizontal: 16,
+    borderRadius: 12,
+    marginBottom: 8,
+  },
+  shopPointsText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#6C5CE7',
+  },
+  plantList: {
+    maxHeight: 400,
+    paddingHorizontal: 16,
+  },
+  plantItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 14,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 16,
+    marginBottom: 10,
+    borderWidth: 2,
+    borderColor: 'transparent',
+  },
+  plantItemSelected: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#E8F5E9',
+  },
+  plantIcon: {
+    width: 50,
+    height: 50,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  plantInfo: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  plantName: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#2D3436',
+  },
+  plantDescription: {
+    fontSize: 12,
+    color: '#636E72',
+    marginTop: 2,
+  },
+  plantPrice: {
+    alignItems: 'flex-end',
+  },
+  priceBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#F3F0FF',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+  },
+  priceBadgeDisabled: {
+    backgroundColor: '#F0F0F0',
+  },
+  priceText: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#6C5CE7',
+  },
+  priceTextDisabled: {
+    color: '#B2BEC3',
+  },
+  ownedText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    fontWeight: '600',
+  },
+  selectedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#4CAF50',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 });
 

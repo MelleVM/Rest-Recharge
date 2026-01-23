@@ -1,14 +1,29 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform, ScrollView } from 'react-native';
+import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform, ScrollView, Modal } from 'react-native';
 import { Text, Surface, useTheme } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faPlay } from '@fortawesome/free-solid-svg-icons/faPlay';
 import { faPause } from '@fortawesome/free-solid-svg-icons/faPause';
 import { faRotateRight } from '@fortawesome/free-solid-svg-icons/faRotateRight';
+import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
+import { faEye } from '@fortawesome/free-solid-svg-icons/faEye';
+import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
+import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
+import { ToastEvent } from '../components/RewardToast';
+
+// Plant colors (synced with GardenScreen)
+const PLANT_COLORS = {
+  classic: '#4CAF50',
+  rose: '#E91E63',
+  sunflower: '#FFC107',
+  bonsai: '#795548',
+  cherry: '#F48FB1',
+  succulent: '#66BB6A',
+};
 
 const TIMER_SIZE = 280;
 const STROKE_WIDTH = 10;
@@ -41,6 +56,9 @@ const TimerScreen = () => {
     MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]
   );
   const [totalTime, setTotalTime] = useState(0);
+  const [completedRests, setCompletedRests] = useState(0);
+  const [gardenData, setGardenData] = useState({ points: 0 });
+  const [showTutorial, setShowTutorial] = useState(false);
   const endTimeRef = useRef(null);
   const animationFrameRef = useRef(null);
   const lastUpdateRef = useRef(0);
@@ -107,8 +125,18 @@ const TimerScreen = () => {
           setTime(durationSeconds);
           setTotalTime(durationSeconds);
         }
-        // Always refresh completed rests count
+        // Always refresh completed rests count and garden data
         await loadCompletedRests();
+        const storedGardenData = await StorageService.getItem('gardenData');
+        if (storedGardenData) {
+          setGardenData(storedGardenData);
+        }
+        
+        // Check if this is the first time visiting timer
+        const hasSeenTutorial = await StorageService.getItem('timerTutorialSeen');
+        if (!hasSeenTutorial) {
+          setShowTutorial(true);
+        }
       };
       
       if (isInitialized.current) {
@@ -116,6 +144,11 @@ const TimerScreen = () => {
       }
     }, [])
   );
+
+  const dismissTutorial = async () => {
+    setShowTutorial(false);
+    await StorageService.setItem('timerTutorialSeen', true);
+  };
 
   // Check if a timer completed while app was closed/background
   const checkForCompletedTimer = async () => {
@@ -237,6 +270,18 @@ const TimerScreen = () => {
     stats.totalRests = newCount;
     await StorageService.setItem('stats', stats);
     setCompletedRests(newCount);
+    
+    // Award gems for completing rest
+    const currentGardenData = await StorageService.getItem('gardenData') || { points: 0 };
+    const updatedGardenData = {
+      ...currentGardenData,
+      points: (currentGardenData.points || 0) + 10,
+    };
+    await StorageService.setItem('gardenData', updatedGardenData);
+    setGardenData(updatedGardenData);
+    
+    // Show toast notification
+    ToastEvent.show('gems', 10, 'Rest completed!');
     
     // Clear timer state
     await NotificationService.clearTimerState();
@@ -383,6 +428,18 @@ const TimerScreen = () => {
     // Save to history
     await saveRestToHistory(Date.now());
     
+    // Award gems for completing rest
+    const currentGardenData = await StorageService.getItem('gardenData') || { points: 0 };
+    const updatedGardenData = {
+      ...currentGardenData,
+      points: (currentGardenData.points || 0) + 10,
+    };
+    await StorageService.setItem('gardenData', updatedGardenData);
+    setGardenData(updatedGardenData);
+    
+    // Show toast notification
+    ToastEvent.show('gems', 10, 'Rest completed!');
+    
     // Show a new motivational quote
     getNewQuote();
     
@@ -415,12 +472,65 @@ const TimerScreen = () => {
   const progress = totalTime > 0 ? (totalTime - time) / totalTime : 0;
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
+  // Get plant color for gems display
+  const plantColor = PLANT_COLORS[gardenData.selectedPlantType] || PLANT_COLORS.classic;
+
   return (
-    <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Eye Rest</Text>
-        <Text style={styles.subtitle}>Rest & Recharge</Text>
-      </View>
+    <>
+      {/* First-time Tutorial Modal */}
+      <Modal
+        visible={showTutorial}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={dismissTutorial}
+      >
+        <View style={styles.tutorialOverlay}>
+          <View style={styles.tutorialModal}>
+            <Text style={styles.tutorialTitle}>Eye Rest Timer</Text>
+            <Text style={styles.tutorialText}>
+              Give your eyes a break with timed rest sessions. Close your eyes and relax while the timer counts down.
+            </Text>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faPlay} size={16} color="#4ECDC4" />
+              <Text style={styles.tutorialStepText}>
+                Press play to start your rest session
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faEye} size={16} color="#FF6B6B" />
+              <Text style={styles.tutorialStepText}>
+                Close your eyes and relax until the timer ends
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faGem} size={16} color={plantColor} />
+              <Text style={styles.tutorialStepText}>
+                Earn 10 gems for each completed rest
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.tutorialButton, { backgroundColor: plantColor }]}
+              onPress={dismissTutorial}
+            >
+              <Text style={styles.tutorialButtonText}>Got It!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.title}>Eye Rest</Text>
+              <Text style={styles.subtitle}>Rest & Recharge</Text>
+            </View>
+            <View style={[styles.gemDisplay, { backgroundColor: plantColor + '20' }]}>
+              <FontAwesomeIcon icon={faGem} size={18} color={plantColor} />
+              <Text style={[styles.gemText, { color: plantColor }]}>{gardenData.points || 0}</Text>
+            </View>
+          </View>
+        </View>
 
       <View style={styles.timerContainer}>
         <View style={styles.timerWrapper}>
@@ -496,7 +606,8 @@ const TimerScreen = () => {
       </View>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 };
 
@@ -506,13 +617,34 @@ const styles = StyleSheet.create({
     backgroundColor: '#FFF9F0',
   },
   contentContainer: {
-    padding: 20,
+    paddingHorizontal: 24,
+    paddingTop: 20,
+    paddingBottom: 20,
   },
   bottomPadding: {
     height: 80,
   },
   header: {
     marginBottom: 30,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  gemDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F0FF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  gemText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6C5CE7',
   },
   title: {
     fontSize: 36,
@@ -597,6 +729,66 @@ const styles = StyleSheet.create({
     color: '#636E72',
     textAlign: 'center',
     fontStyle: 'italic',
+  },
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  tutorialModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  tutorialEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  tutorialTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  tutorialText: {
+    fontSize: 15,
+    color: '#636E72',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  tutorialStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  tutorialStepText: {
+    fontSize: 14,
+    color: '#2D3436',
+    flex: 1,
+  },
+  tutorialButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginTop: 16,
+  },
+  tutorialButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

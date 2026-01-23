@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, AppState, Modal } from 'react-native';
 import { Text, Surface, useTheme, ActivityIndicator } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import NotificationService from '../utils/NotificationService';
 import StorageService from '../utils/StorageService';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faEyeSlash } from '@fortawesome/free-solid-svg-icons/faEyeSlash';
 import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
@@ -20,10 +19,38 @@ import { faTrash } from '@fortawesome/free-solid-svg-icons/faTrash';
 import { faSeedling } from '@fortawesome/free-solid-svg-icons/faSeedling';
 import { faLeaf } from '@fortawesome/free-solid-svg-icons/faLeaf';
 import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
-import { faCoins } from '@fortawesome/free-solid-svg-icons/faCoins';
-import { faDroplet } from '@fortawesome/free-solid-svg-icons/faDroplet';
+import { faCircle } from '@fortawesome/free-solid-svg-icons/faCircle';
+import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
+import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
+import { ToastEvent } from '../components/RewardToast';
+
+// Plant types with colors (synced with GardenScreen)
+const PLANT_TYPES = {
+  classic: { name: 'Classic Tree', color: '#4CAF50' },
+  rose: { name: 'Rose', color: '#E91E63' },
+  sunflower: { name: 'Sunflower', color: '#FFC107' },
+  bonsai: { name: 'Bonsai', color: '#795548' },
+  cherry: { name: 'Cherry Blossom', color: '#F48FB1' },
+  succulent: { name: 'Succulent', color: '#66BB6A' },
+};
+
+// Get icon based on stage and plant type
+const getStageIcon = (stage, plantId = 'classic') => {
+  // Sunflower uses sun icon at later stages
+  if (plantId === 'sunflower') {
+    if (stage === 0) return faCircle;
+    if (stage <= 2) return faSeedling;
+    return faSun;
+  }
+  // Default progression
+  if (stage === 0) return faCircle;
+  if (stage <= 2) return faSeedling;
+  if (stage === 3) return faLeaf;
+  return faTree;
+};
 
 const HomeScreen = () => {
+  const navigation = useNavigation();
   const [wakeupTime, setWakeupTime] = useState(null);
   const [nextReminderTime, setNextReminderTime] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -49,6 +76,7 @@ const HomeScreen = () => {
   const [showRestModal, setShowRestModal] = useState(false);
   const [editingRest, setEditingRest] = useState(null);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
+  const [showTutorial, setShowTutorial] = useState(false);
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
   const theme = useTheme();
@@ -189,11 +217,28 @@ const HomeScreen = () => {
       if (storedStats) {
         setStats(storedStats);
       }
+      
+      // Load garden data
+      const storedGardenData = await StorageService.getItem('gardenData');
+      if (storedGardenData) {
+        setGardenData(storedGardenData);
+      }
+      
+      // Check if this is the first time visiting home
+      const hasSeenTutorial = await StorageService.getItem('homeTutorialSeen');
+      if (!hasSeenTutorial) {
+        setShowTutorial(true);
+      }
     } catch (error) {
       console.log('Error loading data:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const dismissTutorial = async () => {
+    setShowTutorial(false);
+    await StorageService.setItem('homeTutorialSeen', true);
   };
 
   const logWakeupTime = async () => {
@@ -282,6 +327,9 @@ const HomeScreen = () => {
         const updatedStats = { ...stats, totalRests: stats.totalRests + 1 };
         await StorageService.setItem('stats', updatedStats);
         setStats(updatedStats);
+        
+        // Award points and grow plant
+        await awardPointsForRest();
       }
 
       // Filter to keep only last 30 days
@@ -314,6 +362,90 @@ const HomeScreen = () => {
     } catch (error) {
       console.log('Error deleting rest:', error);
     }
+  };
+
+  // Plant growth stages and points
+  const PLANT_STAGES = ['seed', 'sprout', 'seedling', 'growing', 'mature', 'blooming'];
+  const POINTS_PER_REST = 10;
+  const POINTS_TO_GROW = 50; // Points needed to advance to next stage
+  
+  // Award points and update plant growth
+  const awardPointsForRest = async () => {
+    const newPoints = gardenData.points + POINTS_PER_REST;
+    const currentStageIndex = PLANT_STAGES.indexOf(gardenData.currentPlant);
+    
+    let newPlant = gardenData.currentPlant;
+    let newPlantsGrown = gardenData.plantsGrown;
+    let remainingPoints = newPoints;
+    
+    // Check if plant should grow
+    if (currentStageIndex < PLANT_STAGES.length - 1) {
+      const pointsNeeded = (currentStageIndex + 1) * POINTS_TO_GROW;
+      if (newPoints >= pointsNeeded) {
+        newPlant = PLANT_STAGES[currentStageIndex + 1];
+      }
+    } else if (newPoints >= PLANT_STAGES.length * POINTS_TO_GROW) {
+      // Plant is fully grown, start a new one
+      newPlant = 'seed';
+      newPlantsGrown = gardenData.plantsGrown + 1;
+      remainingPoints = 0;
+    }
+    
+    const updatedGardenData = {
+      ...gardenData,
+      points: remainingPoints,
+      currentPlant: newPlant,
+      plantsGrown: newPlantsGrown,
+      plantHealth: Math.min(100, gardenData.plantHealth + 5),
+    };
+    
+    await StorageService.setItem('gardenData', updatedGardenData);
+    setGardenData(updatedGardenData);
+    
+    // Show toast notification for earned gems
+    ToastEvent.show('gems', POINTS_PER_REST, 'Rest completed!');
+  };
+
+  // Get plant icon based on growth stage
+  const getPlantIcon = (stage) => {
+    switch (stage) {
+      case 'seed': return faSeedling;
+      case 'sprout': return faSeedling;
+      case 'seedling': return faLeaf;
+      case 'growing': return faLeaf;
+      case 'mature': return faTree;
+      case 'blooming': return faTree;
+      default: return faSeedling;
+    }
+  };
+
+  // Get plant color based on growth stage
+  const getPlantColor = (stage) => {
+    switch (stage) {
+      case 'seed': return '#8B4513';
+      case 'sprout': return '#90EE90';
+      case 'seedling': return '#32CD32';
+      case 'growing': return '#228B22';
+      case 'mature': return '#006400';
+      case 'blooming': return '#FF69B4';
+      default: return '#90EE90';
+    }
+  };
+
+  // Get plant size based on growth stage
+  const getPlantSize = (stage) => {
+    const sizes = { seed: 24, sprout: 32, seedling: 40, growing: 48, mature: 56, blooming: 64 };
+    return sizes[stage] || 32;
+  };
+
+  // Calculate progress to next stage
+  const getGrowthProgress = () => {
+    const currentStageIndex = PLANT_STAGES.indexOf(gardenData.currentPlant);
+    const pointsForCurrentStage = currentStageIndex * POINTS_TO_GROW;
+    const pointsForNextStage = (currentStageIndex + 1) * POINTS_TO_GROW;
+    const progressPoints = gardenData.points - pointsForCurrentStage;
+    const neededPoints = pointsForNextStage - pointsForCurrentStage;
+    return Math.min(1, Math.max(0, progressPoints / neededPoints));
   };
 
   // Generate hours for the hour picker (based on selected date)
@@ -533,52 +665,188 @@ const HomeScreen = () => {
   const selectedDateRests = getRestsForDate(selectedDate);
   const isSelectedToday = isSameDay(selectedDate, new Date());
 
+  // Get plant theme color for gems display
+  const plantTheme = PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
+  const plantColor = plantTheme.color;
+
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-      <View style={styles.header}>
-        <Text style={styles.greeting}>
-          {greeting} {greetingIcon}
-        </Text>
-        <Text style={styles.title}>Rest & Recharge</Text>
-      </View>
+    <>
+      {/* First-time Tutorial Modal */}
+      <Modal
+        visible={showTutorial}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={dismissTutorial}
+      >
+        <View style={styles.tutorialOverlay}>
+          <View style={styles.tutorialModal}>
+            <Text style={styles.tutorialEmoji}>👋</Text>
+            <Text style={styles.tutorialTitle}>Welcome to Rest & Recharge!</Text>
+            <Text style={styles.tutorialText}>
+              Take regular breaks to rest your eyes and stay refreshed throughout the day.
+            </Text>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faSun} size={16} color="#FFE66D" />
+              <Text style={styles.tutorialStepText}>
+                Log your wake-up time each morning
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faBell} size={16} color="#FF6B6B" />
+              <Text style={styles.tutorialStepText}>
+                Get reminders for regular eye rests
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faGem} size={16} color={plantColor} />
+              <Text style={styles.tutorialStepText}>
+                Earn gems and grow your virtual garden
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.tutorialButton, { backgroundColor: plantColor }]}
+              onPress={dismissTutorial}
+            >
+              <Text style={styles.tutorialButtonText}>Get Started</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+        <View style={styles.header}>
+          <View style={styles.headerTop}>
+            <Text style={styles.greeting}>
+              {greeting} {greetingIcon}
+            </Text>
+            <View
+              style={[styles.gemDisplay, { backgroundColor: plantColor + '20' }]}
+            >
+              <FontAwesomeIcon icon={faGem} size={18} color={plantColor} />
+              <Text style={[styles.gemText, { color: plantColor }]}>
+                {gardenData.points}
+              </Text>
+            </View>
+          </View>
+          <Text style={styles.title}>Rest & Recharge</Text>
+        </View>
+
+      {/* Plant Widget - Clickable */}
+      {(() => {
+        const plantType =
+          PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
+        const plantProgress = gardenData.plantProgress?.[
+          gardenData.selectedPlantType
+        ] || { stage: 0, points: 0 };
+        const isFullyGrown = plantProgress.stage >= 5;
+        // Progress within current stage (matches GardenScreen calculation)
+        const stageProgressPercent = isFullyGrown
+          ? 100
+          : (plantProgress.points / 30) * 100;
+        return (
+          <TouchableOpacity
+            onPress={() => navigation.navigate('Garden')}
+            activeOpacity={0.7}
+          >
+            <Surface
+              style={[styles.plantWidget, { borderLeftColor: plantType.color }]}
+            >
+              <View
+                style={[
+                  styles.plantWidgetIcon,
+                  { backgroundColor: plantType.color },
+                ]}
+              >
+                <FontAwesomeIcon
+                  icon={getStageIcon(
+                    plantProgress.stage,
+                    gardenData.selectedPlantType,
+                  )}
+                  size={28}
+                  color="#FFFFFF"
+                />
+              </View>
+              <View style={styles.plantWidgetContent}>
+                <Text style={styles.plantWidgetName}>{plantType.name}</Text>
+                <View style={styles.plantWidgetProgressRow}>
+                  <View style={styles.plantWidgetProgressBar}>
+                    <View
+                      style={[
+                        styles.plantWidgetProgressFill,
+                        {
+                          width: `${stageProgressPercent}%`,
+                          backgroundColor: plantType.color,
+                        },
+                      ]}
+                    />
+                  </View>
+                  <Text
+                    style={[
+                      styles.plantWidgetPercent,
+                      { color: plantType.color },
+                    ]}
+                  >
+                    {Math.round(stageProgressPercent)}%
+                  </Text>
+                </View>
+                <Text style={styles.plantWidgetStage}>
+                  {isFullyGrown
+                    ? '✨ Fully Grown!'
+                    : `Stage ${plantProgress.stage + 1} of 6`}
+                </Text>
+              </View>
+            </Surface>
+          </TouchableOpacity>
+        );
+      })()}
 
       {/* Status Cards Row */}
       <View style={styles.statusCardsRow}>
-        {/* Wake-up Card - Compact */}
+        {/* Wake-up Card */}
         <TouchableOpacity
           onPress={!wakeupTime ? logWakeupTime : null}
           activeOpacity={wakeupTime ? 1 : 0.7}
-          style={[styles.statusCard, wakeupTime ? styles.statusCardCompleted : styles.statusCardAction]}
+          style={[
+            styles.statusCard,
+            { borderLeftColor: wakeupTime ? '#4ECDC4' : '#FFE66D' },
+          ]}
         >
-          <View style={[styles.statusIconContainer, wakeupTime ? styles.statusIconCompleted : styles.statusIconAction]}>
+          <View
+            style={[
+              styles.statusIconContainer,
+              { backgroundColor: wakeupTime ? '#4ECDC4' : '#FFE66D' },
+            ]}
+          >
             <FontAwesomeIcon
               icon={wakeupTime ? faCheck : faSun}
-              size={20}
+              size={18}
               color="#FFFFFF"
             />
           </View>
           <View style={styles.statusContent}>
-            <Text style={[styles.statusLabel, wakeupTime && styles.statusLabelCompleted]}>
-              {wakeupTime ? 'Woke up' : 'Wake-up'}
+            <Text style={styles.statusLabel}>
+              {wakeupTime ? 'Woke up' : 'Log wake-up'}
             </Text>
-            <Text style={[styles.statusValue, wakeupTime && styles.statusValueCompleted]}>
-              {wakeupTime ? wakeupTime.formattedTime : 'Tap to log'}
+            <Text style={styles.statusValue}>
+              {wakeupTime ? wakeupTime.formattedTime : 'Tap here'}
             </Text>
           </View>
         </TouchableOpacity>
 
-        {/* Next Reminder Card - Compact */}
-        <Surface style={[styles.statusCard, styles.statusCardReminder]}>
-          <View style={styles.statusIconReminder}>
-            <FontAwesomeIcon icon={faBell} size={20} color="#FF6B6B" />
+        {/* Next Reminder Card */}
+        <View style={[styles.statusCard, { borderLeftColor: '#FF6B6B' }]}>
+          <View
+            style={[styles.statusIconContainer, { backgroundColor: '#FF6B6B' }]}
+          >
+            <FontAwesomeIcon icon={faBell} size={18} color="#FFFFFF" />
           </View>
           <View style={styles.statusContent}>
-            <Text style={styles.statusLabel}>Next Rest</Text>
+            <Text style={styles.statusLabel}>Next rest</Text>
             <Text style={styles.statusValue}>
               {nextReminderTime ? nextReminderTime.formattedTime : '--:--'}
             </Text>
           </View>
-        </Surface>
+        </View>
       </View>
 
       {/* Last Wake-up Info (shown when no wake-up today) */}
@@ -591,7 +859,7 @@ const HomeScreen = () => {
         </View>
       )}
 
-      <Text style={styles.sectionTitle}>Activity</Text>
+      <Text style={styles.sectionTitle}>Your Rest History</Text>
 
       {/* Week Overview */}
       <Surface style={styles.weekOverviewCard}>
@@ -610,7 +878,10 @@ const HomeScreen = () => {
               onPress={() => setSelectedDate(date)}
               activeOpacity={0.7}
             >
-              <DaySummaryCard date={date} isSelected={isSameDay(date, selectedDate)} />
+              <DaySummaryCard
+                date={date}
+                isSelected={isSameDay(date, selectedDate)}
+              />
             </TouchableOpacity>
           ))}
         </ScrollView>
@@ -665,7 +936,7 @@ const HomeScreen = () => {
           <View style={styles.restListContainer}>
             <View style={styles.restListHeader}>
               <Text style={styles.restListTitle}>Completed Rests</Text>
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.addRestButton}
                 onPress={openAddRestModal}
                 activeOpacity={0.7}
@@ -674,18 +945,20 @@ const HomeScreen = () => {
                 <Text style={styles.addRestButtonText}>Add</Text>
               </TouchableOpacity>
             </View>
-            {[...selectedDateRests].sort((a, b) => b.timestamp - a.timestamp).map((rest, index) => (
-              <TouchableOpacity 
-                key={index} 
-                style={styles.restListItem}
-                onPress={() => openEditRestModal(rest)}
-                activeOpacity={0.7}
-              >
-                <FontAwesomeIcon icon={faCheck} size={14} color="#4ECDC4" />
-                <Text style={styles.restListTime}>{rest.time}</Text>
-                <FontAwesomeIcon icon={faPencil} size={12} color="#B2BEC3" />
-              </TouchableOpacity>
-            ))}
+            {[...selectedDateRests]
+              .sort((a, b) => b.timestamp - a.timestamp)
+              .map((rest, index) => (
+                <TouchableOpacity
+                  key={index}
+                  style={styles.restListItem}
+                  onPress={() => openEditRestModal(rest)}
+                  activeOpacity={0.7}
+                >
+                  <FontAwesomeIcon icon={faCheck} size={14} color="#4ECDC4" />
+                  <Text style={styles.restListTime}>{rest.time}</Text>
+                  <FontAwesomeIcon icon={faPencil} size={12} color="#B2BEC3" />
+                </TouchableOpacity>
+              ))}
           </View>
         )}
 
@@ -696,7 +969,7 @@ const HomeScreen = () => {
                 ? 'No rests completed yet today'
                 : 'No rests on this day'}
             </Text>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.addRestButtonLarge}
               onPress={openAddRestModal}
               activeOpacity={0.7}
@@ -721,22 +994,22 @@ const HomeScreen = () => {
               <Text style={styles.modalTitle}>
                 {editingRest ? 'Edit Rest' : 'Log Rest'}
               </Text>
-              <TouchableOpacity 
-                onPress={() => setShowRestModal(false)} 
+              <TouchableOpacity
+                onPress={() => setShowRestModal(false)}
                 style={styles.modalCloseButton}
               >
                 <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
               </TouchableOpacity>
             </View>
-            
+
             <View style={styles.modalBody}>
               <Text style={styles.modalLabel}>Select Hour</Text>
-              <ScrollView 
-                horizontal 
+              <ScrollView
+                horizontal
                 showsHorizontalScrollIndicator={false}
                 contentContainerStyle={styles.hourPickerContainer}
               >
-                {getAvailableHours().map((hour) => (
+                {getAvailableHours().map(hour => (
                   <TouchableOpacity
                     key={hour}
                     style={[
@@ -745,23 +1018,26 @@ const HomeScreen = () => {
                     ]}
                     onPress={() => setSelectedHour(hour)}
                   >
-                    <Text style={[
-                      styles.hourButtonText,
-                      selectedHour === hour && styles.hourButtonTextSelected,
-                    ]}>
+                    <Text
+                      style={[
+                        styles.hourButtonText,
+                        selectedHour === hour && styles.hourButtonTextSelected,
+                      ]}
+                    >
                       {hour.toString().padStart(2, '0')}:00
                     </Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
               <Text style={styles.modalNote}>
-                Logging rest for {formatDateHeader(selectedDate)} at {selectedHour.toString().padStart(2, '0')}:00
+                Logging rest for {formatDateHeader(selectedDate)} at{' '}
+                {selectedHour.toString().padStart(2, '0')}:00
               </Text>
             </View>
-            
+
             <View style={styles.modalFooter}>
               {editingRest && (
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.deleteButton}
                   onPress={() => deleteRest(editingRest)}
                 >
@@ -769,16 +1045,13 @@ const HomeScreen = () => {
                 </TouchableOpacity>
               )}
               <View style={styles.modalFooterButtons}>
-                <TouchableOpacity 
+                <TouchableOpacity
                   style={styles.cancelButton}
                   onPress={() => setShowRestModal(false)}
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity 
-                  style={styles.saveButton}
-                  onPress={saveRest}
-                >
+                <TouchableOpacity style={styles.saveButton} onPress={saveRest}>
                   <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" />
                   <Text style={styles.saveButtonText}>Save</Text>
                 </TouchableOpacity>
@@ -796,7 +1069,8 @@ const HomeScreen = () => {
       </View>
 
       <View style={styles.bottomPadding} />
-    </ScrollView>
+      </ScrollView>
+    </>
   );
 };
 
@@ -812,6 +1086,173 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
+  gardenCard: {
+    marginHorizontal: 20,
+    marginTop: 20,
+    borderRadius: 24,
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    elevation: 4,
+  },
+  gardenHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  gardenTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2D3436',
+  },
+  pointsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    backgroundColor: '#FFFBE5',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  pointsText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#F4A460',
+  },
+  gardenContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 20,
+  },
+  plantContainer: {
+    width: 100,
+    height: 120,
+    justifyContent: 'flex-end',
+    alignItems: 'center',
+  },
+  plantPot: {
+    width: 60,
+    height: 40,
+    borderRadius: 8,
+    borderTopLeftRadius: 4,
+    borderTopRightRadius: 4,
+    justifyContent: 'flex-start',
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  plantSoil: {
+    width: '100%',
+    height: 15,
+    backgroundColor: '#5D4037',
+  },
+  plantStem: {
+    position: 'absolute',
+    bottom: 35,
+  },
+  gardenInfo: {
+    flex: 1,
+  },
+  plantStage: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 8,
+  },
+  growthBarContainer: {
+    height: 8,
+    backgroundColor: '#E8F5E9',
+    borderRadius: 4,
+    overflow: 'hidden',
+    marginBottom: 6,
+  },
+  growthBar: {
+    height: '100%',
+    backgroundColor: '#4CAF50',
+    borderRadius: 4,
+  },
+  growthText: {
+    fontSize: 12,
+    color: '#636E72',
+  },
+  plantsGrownText: {
+    fontSize: 12,
+    color: '#4CAF50',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  gardenTip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 16,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  gardenTipText: {
+    fontSize: 12,
+    color: '#636E72',
+    fontStyle: 'italic',
+    flex: 1,
+  },
+  plantWidget: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 14,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    borderLeftWidth: 4,
+  },
+  plantWidgetIcon: {
+    width: 52,
+    height: 52,
+    borderRadius: 14,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  plantWidgetContent: {
+    flex: 1,
+    marginLeft: 14,
+  },
+  plantWidgetName: {
+    fontSize: 15,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 6,
+  },
+  plantWidgetProgressRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  plantWidgetProgressBar: {
+    flex: 1,
+    height: 8,
+    backgroundColor: '#F0F0F0',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  plantWidgetProgressFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  plantWidgetPercent: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    minWidth: 36,
+  },
+  plantWidgetStage: {
+    fontSize: 12,
+    color: '#636E72',
+    marginTop: 4,
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFF9F0',
@@ -826,6 +1267,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingTop: 20,
     paddingBottom: 10,
+  },
+  headerTop: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  gemDisplay: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: '#F3F0FF',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  gemText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#6C5CE7',
   },
   greeting: {
     fontSize: 18,
@@ -848,67 +1308,36 @@ const styles = StyleSheet.create({
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 14,
-    borderRadius: 20,
+    padding: 12,
+    borderRadius: 14,
     backgroundColor: '#FFFFFF',
-    elevation: 3,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-  },
-  statusCardAction: {
-    backgroundColor: '#FFFFFF',
-    borderWidth: 2,
-    borderColor: '#FFE66D',
-    borderStyle: 'dashed',
-  },
-  statusCardCompleted: {
-    backgroundColor: '#E8F8F5',
-    borderWidth: 0,
-  },
-  statusCardReminder: {
-    backgroundColor: '#FFFFFF',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    borderLeftWidth: 4,
   },
   statusIconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  statusIconAction: {
-    backgroundColor: '#FFE66D',
-  },
-  statusIconCompleted: {
-    backgroundColor: '#4ECDC4',
-  },
-  statusIconReminder: {
-    width: 40,
-    height: 40,
-    borderRadius: 12,
-    backgroundColor: '#FFF0F0',
+    width: 38,
+    height: 38,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   statusContent: {
-    marginLeft: 10,
+    marginLeft: 12,
     flex: 1,
   },
   statusLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#636E72',
-    fontWeight: '600',
-  },
-  statusLabelCompleted: {
-    color: '#4ECDC4',
+    fontWeight: '500',
+    marginBottom: 2,
   },
   statusValue: {
-    fontSize: 16,
+    fontSize: 17,
     fontWeight: 'bold',
-    color: '#2D3436',
-  },
-  statusValueCompleted: {
     color: '#2D3436',
   },
   lastWakeupHint: {
@@ -923,19 +1352,24 @@ const styles = StyleSheet.create({
     color: '#B2BEC3',
   },
   sectionTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#2D3436',
+    fontSize: 14,
+    fontWeight: '500',
+    fontStyle: 'italic',
+    color: '#636E72',
     marginHorizontal: 24,
-    marginTop: 30,
-    marginBottom: 16,
+    marginTop: 24,
+    marginBottom: 12,
   },
   weekOverviewCard: {
     marginHorizontal: 20,
     borderRadius: 24,
     padding: 16,
     backgroundColor: '#FFFFFF',
-    elevation: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   weekOverviewScroll: {
     flexDirection: 'row',
@@ -1004,7 +1438,11 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 20,
     backgroundColor: '#FFFFFF',
-    elevation: 4,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
   },
   timelineHeader: {
     flexDirection: 'row',
@@ -1388,6 +1826,66 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 100,
+  },
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  tutorialModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  tutorialEmoji: {
+    fontSize: 48,
+    marginBottom: 16,
+  },
+  tutorialTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  tutorialText: {
+    fontSize: 15,
+    color: '#636E72',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  tutorialStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  tutorialStepText: {
+    fontSize: 14,
+    color: '#2D3436',
+    flex: 1,
+  },
+  tutorialButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginTop: 16,
+  },
+  tutorialButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

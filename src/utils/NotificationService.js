@@ -14,8 +14,53 @@ class NotificationService {
       restDuration: 20,
       temporaryInterval: null,
       wakeupNotificationEnabled: true,
+      quietHoursStart: 22, // 10 PM
+      quietHoursEnd: 7,    // 7 AM
     };
   }
+
+  // Check if a given time is during quiet hours (night time)
+  isQuietHours = (date, settings) => {
+    const hour = date.getHours();
+    const start = settings.quietHoursStart ?? 22;
+    const end = settings.quietHoursEnd ?? 7;
+    
+    // Handle overnight quiet hours (e.g., 22:00 to 07:00)
+    if (start > end) {
+      return hour >= start || hour < end;
+    }
+    // Handle same-day quiet hours (e.g., 01:00 to 06:00)
+    return hour >= start && hour < end;
+  };
+
+  // Get the next time after quiet hours end (2 hours after usual wake-up time)
+  getNextActiveTime = async (date, settings) => {
+    const nextActive = new Date(date);
+    
+    if (this.isQuietHours(date, settings)) {
+      // Get the user's usual wake-up time
+      const onboardingData = await StorageService.getItem('onboardingData');
+      let wakeupHour = settings.quietHoursEnd ?? 7; // Default to quiet hours end
+      let wakeupMinute = 0;
+      
+      if (onboardingData && onboardingData.usualWakeupTime) {
+        wakeupHour = onboardingData.usualWakeupTime.hour;
+        wakeupMinute = onboardingData.usualWakeupTime.minute || 0;
+      }
+      
+      // Schedule 2 hours after usual wake-up time
+      nextActive.setHours(wakeupHour, wakeupMinute, 0, 0);
+      nextActive.setHours(nextActive.getHours() + 2);
+      
+      // If we're past midnight but before wake-up, it's the same day
+      // If we're before midnight, it's the next day
+      if (date.getHours() >= (settings.quietHoursStart ?? 22)) {
+        nextActive.setDate(nextActive.getDate() + 1);
+      }
+    }
+    
+    return nextActive;
+  };
 
   configure = () => {
     PushNotification.configure({
@@ -296,15 +341,28 @@ class NotificationService {
     const maxHours = 12;
     const reminderCount = Math.floor(maxHours / intervalHours);
     
+    // Check if wake-up is during quiet hours - if so, schedule first reminder anyway
+    const isNightWakeup = this.isQuietHours(now, settings);
+    
     for (let i = 1; i <= reminderCount; i++) {
       const reminderTime = new Date(now);
       reminderTime.setMinutes(reminderTime.getMinutes() + (i * intervalMinutes));
       
-      if (reminderTime.getDate() === now.getDate()) {
+      // Skip reminders during quiet hours, EXCEPT for the first one if user woke up at night
+      if (this.isQuietHours(reminderTime, settings) && !(isNightWakeup && i === 1)) {
+        continue;
+      }
+      
+      // For night wake-ups, allow reminders even if they cross into the next day
+      const isSameDay = reminderTime.getDate() === now.getDate();
+      const isNextDayNightWakeup = isNightWakeup && reminderTime.getDate() === now.getDate() + 1;
+      
+      if (isSameDay || isNextDayNightWakeup) {
         const nextReminder = {
           id: `reminder-${i}`,
           timestamp: reminderTime.getTime(),
           formattedTime: reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+          date: reminderTime.toLocaleDateString(),
         };
         
         reminders.push(nextReminder);
@@ -320,6 +378,11 @@ class NotificationService {
           playSound: true,
           soundName: 'default',
         });
+        
+        // For night wake-ups, only schedule the first reminder
+        if (isNightWakeup) {
+          break;
+        }
       }
     }
     
@@ -344,7 +407,13 @@ class NotificationService {
     const intervalMinutes = settings.temporaryInterval || settings.restInterval;
     
     const now = new Date();
-    const reminderTime = new Date(now.getTime() + intervalMinutes * 60 * 1000);
+    let reminderTime = new Date(now.getTime() + intervalMinutes * 60 * 1000);
+    
+    // If the reminder would be during quiet hours, schedule for 2 hours after usual wake-up time
+    if (this.isQuietHours(reminderTime, settings)) {
+      reminderTime = await this.getNextActiveTime(reminderTime, settings);
+      console.log('Reminder moved to 2 hours after wake-up:', reminderTime.toLocaleTimeString());
+    }
     
     const nextReminder = {
       id: 'next-reminder',
