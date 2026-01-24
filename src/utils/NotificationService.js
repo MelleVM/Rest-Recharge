@@ -2,6 +2,7 @@ import PushNotification from 'react-native-push-notification';
 import PushNotificationIOS from '@react-native-community/push-notification-ios';
 import { Platform } from 'react-native';
 import StorageService from './StorageService';
+import LiveActivityService from './LiveActivityService';
 
 class NotificationService {
   constructor() {
@@ -96,7 +97,7 @@ class NotificationService {
         channelName: 'Eye Rest Reminders',
         channelDescription: 'Reminders to rest your eyes',
         playSound: true,
-        soundName: 'default',
+        soundName: 'alarm.wav',
         importance: 4,
         vibrate: true,
       },
@@ -198,25 +199,33 @@ class NotificationService {
     const seconds = remaining % 60;
     const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-    PushNotification.cancelLocalNotification('999');
+    // Try to start Live Activity (iOS 16.1+)
+    const liveActivityStarted = await LiveActivityService.startTimer(remaining);
+    
+    if (liveActivityStarted) {
+      console.log('Live Activity started for timer');
+    } else {
+      // Fallback to notification if Live Activity not available
+      PushNotification.cancelLocalNotification('999');
 
-    PushNotification.localNotification({
-      channelId: 'eye-rest-timer',
-      id: '999',
-      title: '👁️ Eye Rest in Progress',
-      message: `${timeString} remaining - Close your eyes and relax`,
-      ongoing: true,
-      autoCancel: false,
-      vibrate: false,
-      playSound: false,
-      priority: 'max',
-      visibility: 'public',
-      importance: 'max',
-      ignoreInForeground: false,
-      onlyAlertOnce: true,
-      largeIcon: '',
-      smallIcon: 'ic_notification',
-    });
+      PushNotification.localNotification({
+        channelId: 'eye-rest-timer',
+        id: '999',
+        title: '👁️ Eye Rest in Progress',
+        message: `${timeString} remaining - Close your eyes and relax`,
+        ongoing: true,
+        autoCancel: false,
+        vibrate: false,
+        playSound: false,
+        priority: 'max',
+        visibility: 'public',
+        importance: 'max',
+        ignoreInForeground: false,
+        onlyAlertOnce: true,
+        largeIcon: '',
+        smallIcon: 'ic_notification',
+      });
+    }
 
     const completionTime = new Date(endTime);
     PushNotification.localNotificationSchedule({
@@ -228,40 +237,51 @@ class NotificationService {
       allowWhileIdle: true,
       vibrate: true,
       playSound: true,
-      soundName: 'default',
+      soundName: 'alarm.wav',
     });
 
     console.log('Timer notification started:', timeString);
   };
 
-  updateTimerNotification = (remainingSeconds) => {
+  updateTimerNotification = async (remainingSeconds) => {
     if (remainingSeconds <= 0) return;
     
     const minutes = Math.floor(remainingSeconds / 60);
     const seconds = remainingSeconds % 60;
     const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-    PushNotification.localNotification({
-      channelId: 'eye-rest-timer',
-      id: '999',
-      title: '👁️ Eye Rest in Progress',
-      message: `${timeString} remaining - Close your eyes and relax`,
-      ongoing: true,
-      autoCancel: false,
-      vibrate: false,
-      playSound: false,
-      priority: 'max',
-      visibility: 'public',
-      importance: 'max',
-      ignoreInForeground: false,
-      onlyAlertOnce: true,
-      largeIcon: '',
-      smallIcon: 'ic_notification',
-    });
+    // Try to update Live Activity first
+    const updated = await LiveActivityService.updateTimer(remainingSeconds, false);
+    
+    if (!updated) {
+      // Fallback to notification update
+      PushNotification.localNotification({
+        channelId: 'eye-rest-timer',
+        id: '999',
+        title: '👁️ Eye Rest in Progress',
+        message: `${timeString} remaining - Close your eyes and relax`,
+        ongoing: true,
+        autoCancel: false,
+        vibrate: false,
+        playSound: false,
+        priority: 'max',
+        visibility: 'public',
+        importance: 'max',
+        ignoreInForeground: false,
+        onlyAlertOnce: true,
+        largeIcon: '',
+        smallIcon: 'ic_notification',
+      });
+    }
   };
 
   stopTimerNotification = async () => {
     await StorageService.removeItem('timerEndTime');
+    
+    // Stop Live Activity if active
+    await LiveActivityService.stopTimer();
+    
+    // Also cancel notifications
     PushNotification.cancelLocalNotification('999');
     PushNotification.cancelLocalNotification('998');
     console.log('Timer notification stopped');
@@ -274,6 +294,9 @@ class NotificationService {
 
     await StorageService.setItem('timerPaused', { remaining: remainingSeconds });
     await StorageService.removeItem('timerEndTime');
+
+    // Update Live Activity to paused state
+    await LiveActivityService.updateTimer(remainingSeconds, true);
 
     PushNotification.cancelLocalNotification('998');
 
@@ -540,7 +563,7 @@ class NotificationService {
       title: '🔔 Test Notification',
       message: 'Notifications are working!',
       playSound: true,
-      soundName: 'default',
+      soundName: 'alarm.wav',
     });
   };
 }
