@@ -47,7 +47,8 @@ const QUESTIONS = [
     subtitle: 'This helps us personalize your experience',
     type: 'single',
     options: [
-      { id: 'chronic_fatigue', label: 'Chronic Tiredness', icon: faBatteryHalf, color: '#636E72' },
+      { id: 'chronic_fatigue', label: 'Chronic Fatigue', icon: faBatteryHalf, color: '#636E72' },
+      { id: 'me_cfs', label: 'ME/CFS', icon: faBatteryHalf, color: '#9B59B6' },
       { id: 'post_covid', label: 'Post-COVID Recovery', icon: faVirus, color: '#00B894' },
       { id: 'burnout', label: 'Burnout', icon: faFire, color: '#FF6B6B' },
       { id: 'none', label: 'None of these', icon: faBan, color: '#B2BEC3' },

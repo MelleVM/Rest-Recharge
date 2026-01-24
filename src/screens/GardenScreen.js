@@ -204,7 +204,7 @@ const GardenScreen = () => {
 
   // Select a plant (if unlocked)
   const selectPlant = async (plantType) => {
-    if (!gardenData.unlockedPlants.includes(plantType.id)) {
+    if (!gardenData?.unlockedPlants?.includes(plantType.id)) {
       return;
     }
     const updatedGardenData = { ...gardenData, selectedPlantType: plantType.id };
@@ -216,7 +216,7 @@ const GardenScreen = () => {
 
   // Purchase/unlock a new plant
   const purchasePlant = async (plantType) => {
-    if (gardenData.unlockedPlants.includes(plantType.id)) {
+    if (gardenData?.unlockedPlants?.includes(plantType.id)) {
       // Already owned, just select it
       selectPlant(plantType);
       return;
@@ -238,7 +238,7 @@ const GardenScreen = () => {
             const updatedGardenData = {
               ...gardenData,
               points: gardenData.points - plantType.price,
-              unlockedPlants: [...gardenData.unlockedPlants, plantType.id],
+              unlockedPlants: [...(gardenData.unlockedPlants || []), plantType.id],
               selectedPlantType: plantType.id,
               plantProgress: {
                 ...gardenData.plantProgress,
@@ -414,12 +414,12 @@ const GardenScreen = () => {
       {/* Plant Collection */}
       <Text style={styles.sectionTitle}>Your Plants</Text>
       <Text style={styles.sectionSubtitle}>
-        {gardenData.unlockedPlants.length}/{PLANT_TYPES.length} unlocked • Tap to select
+        {gardenData?.unlockedPlants?.length || 0}/{PLANT_TYPES.length} unlocked • Tap to select
       </Text>
 
       <View style={styles.plantGrid}>
         {PLANT_TYPES.map((plant) => {
-          const isUnlocked = gardenData.unlockedPlants.includes(plant.id);
+          const isUnlocked = gardenData?.unlockedPlants?.includes(plant.id);
           const isSelected = gardenData.selectedPlantType === plant.id;
           const canAfford = gardenData.points >= plant.price;
           const plantProgress = gardenData.plantProgress?.[plant.id] || { stage: 0, points: 0 };

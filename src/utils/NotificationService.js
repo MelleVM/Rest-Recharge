@@ -441,6 +441,40 @@ class NotificationService {
     return nextReminder;
   };
 
+  // Schedule a custom reminder at a specific time
+  scheduleCustomReminder = async (timestamp) => {
+    // Cancel existing reminder notifications
+    PushNotification.cancelLocalNotification('1');
+    
+    const settings = await this.getSettings();
+    const reminderTime = new Date(timestamp);
+    
+    const nextReminder = {
+      id: 'next-reminder',
+      timestamp: reminderTime.getTime(),
+      formattedTime: reminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: reminderTime.toLocaleDateString(),
+    };
+    
+    PushNotification.localNotificationSchedule({
+      channelId: 'eye-rest-reminders',
+      id: '1',
+      title: 'Time for an Eye Rest 👁️',
+      message: `Close your eyes for ${settings.restDuration} minutes to recharge`,
+      date: reminderTime,
+      allowWhileIdle: true,
+      vibrate: settings.vibrationEnabled,
+      playSound: true,
+      soundName: 'default',
+    });
+    
+    await StorageService.setItem('nextReminderTime', nextReminder);
+    
+    console.log('Custom reminder scheduled for:', nextReminder.formattedTime);
+    
+    return nextReminder;
+  };
+
   getSettings = async () => {
     try {
       const settings = await StorageService.getItem('settings');

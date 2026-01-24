@@ -76,9 +76,17 @@ const HomeScreen = () => {
   const [showRestModal, setShowRestModal] = useState(false);
   const [editingRest, setEditingRest] = useState(null);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
+  const [selectedMinute, setSelectedMinute] = useState(Math.floor(new Date().getMinutes() / 5) * 5);
   const [showTutorial, setShowTutorial] = useState(false);
+  const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderHour, setReminderHour] = useState(new Date().getHours());
+  const [reminderMinute, setReminderMinute] = useState(0);
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
+  const hourScrollRef = useRef(null);
+  const minuteScrollRef = useRef(null);
+  const reminderHourScrollRef = useRef(null);
+  const reminderMinuteScrollRef = useRef(null);
   const theme = useTheme();
 
   // Refresh data when screen comes into focus
@@ -286,17 +294,65 @@ const HomeScreen = () => {
   // Open modal to add a new rest
   const openAddRestModal = () => {
     const now = new Date();
-    // If selected date is today, default to current hour, otherwise default to noon
     const defaultHour = isSameDay(selectedDate, now) ? now.getHours() : 12;
     setSelectedHour(defaultHour);
     setEditingRest(null);
     setShowRestModal(true);
   };
 
+  // Auto-scroll to selected hour and minute when rest modal opens
+  useEffect(() => {
+    if (showRestModal) {
+      setTimeout(() => {
+        const itemHeight = 46; // timePickerItem total height (10 padding top + 10 bottom + 18 text + 4 margin top + 4 bottom)
+        const scrollViewHeight = 150; // Height of the scroll view
+        const centerOffset = (scrollViewHeight - itemHeight) / 2;
+        
+        // Scroll hour picker
+        if (hourScrollRef.current) {
+          const hourScrollPosition = selectedHour * itemHeight - centerOffset;
+          hourScrollRef.current.scrollTo({ y: Math.max(0, hourScrollPosition), animated: true });
+        }
+        
+        // Scroll minute picker
+        if (minuteScrollRef.current) {
+          const minuteIndex = selectedMinute / 5; // Convert minute to index (0, 5, 10... -> 0, 1, 2...)
+          const minuteScrollPosition = minuteIndex * itemHeight - centerOffset;
+          minuteScrollRef.current.scrollTo({ y: Math.max(0, minuteScrollPosition), animated: true });
+        }
+      }, 100);
+    }
+  }, [showRestModal, selectedHour, selectedMinute]);
+
+  // Auto-scroll to selected hour and minute when reminder modal opens
+  useEffect(() => {
+    if (showReminderModal) {
+      setTimeout(() => {
+        const itemHeight = 46;
+        const scrollViewHeight = 150;
+        const centerOffset = (scrollViewHeight - itemHeight) / 2;
+        
+        // Scroll hour picker
+        if (reminderHourScrollRef.current) {
+          const hourScrollPosition = reminderHour * itemHeight - centerOffset;
+          reminderHourScrollRef.current.scrollTo({ y: Math.max(0, hourScrollPosition), animated: true });
+        }
+        
+        // Scroll minute picker
+        if (reminderMinuteScrollRef.current) {
+          const minuteIndex = reminderMinute / 5;
+          const minuteScrollPosition = minuteIndex * itemHeight - centerOffset;
+          reminderMinuteScrollRef.current.scrollTo({ y: Math.max(0, minuteScrollPosition), animated: true });
+        }
+      }, 100);
+    }
+  }, [showReminderModal, reminderHour, reminderMinute]);
+
   // Open modal to edit an existing rest
   const openEditRestModal = (rest) => {
     const restDate = new Date(rest.timestamp);
     setSelectedHour(restDate.getHours());
+    setSelectedMinute(Math.floor(restDate.getMinutes() / 5) * 5);
     setEditingRest(rest);
     setShowRestModal(true);
   };
@@ -305,7 +361,7 @@ const HomeScreen = () => {
   const saveRest = async () => {
     try {
       const restDate = new Date(selectedDate);
-      restDate.setHours(selectedHour, 0, 0, 0);
+      restDate.setHours(selectedHour, selectedMinute, 0, 0);
       
       const newRest = {
         timestamp: restDate.getTime(),
@@ -342,6 +398,45 @@ const HomeScreen = () => {
       setEditingRest(null);
     } catch (error) {
       console.log('Error saving rest:', error);
+    }
+  };
+
+  // Open reminder edit modal
+  const openReminderModal = () => {
+    if (nextReminderTime) {
+      const reminderDate = new Date(nextReminderTime.timestamp);
+      setReminderHour(reminderDate.getHours());
+      setReminderMinute(Math.floor(reminderDate.getMinutes() / 5) * 5);
+    } else {
+      const now = new Date();
+      setReminderHour(now.getHours() + 1);
+      setReminderMinute(0);
+    }
+    setShowReminderModal(true);
+  };
+
+  // Save new reminder time
+  const saveReminderTime = async () => {
+    try {
+      const reminderDate = new Date();
+      reminderDate.setHours(reminderHour, reminderMinute, 0, 0);
+      
+      // If the time is in the past, set it for tomorrow
+      if (reminderDate <= new Date()) {
+        reminderDate.setDate(reminderDate.getDate() + 1);
+      }
+      
+      await NotificationService.scheduleCustomReminder(reminderDate.getTime());
+      
+      // Update the displayed time
+      setNextReminderTime({
+        timestamp: reminderDate.getTime(),
+        formattedTime: reminderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      });
+      
+      setShowReminderModal(false);
+    } catch (error) {
+      console.log('Error saving reminder time:', error);
     }
   };
 
@@ -448,19 +543,9 @@ const HomeScreen = () => {
     return Math.min(1, Math.max(0, progressPoints / neededPoints));
   };
 
-  // Generate hours for the hour picker (based on selected date)
+  // Generate hours for the hour picker (all 24 hours)
   const getAvailableHours = () => {
-    const now = new Date();
-    const isToday = isSameDay(selectedDate, now);
-    const dateKey = selectedDate.toLocaleDateString();
-    const wakeupHour = wakeupHours[dateKey] || 6;
-    const maxHour = isToday ? now.getHours() : 23;
-    
-    const hours = [];
-    for (let i = wakeupHour; i <= maxHour; i++) {
-      hours.push(i);
-    }
-    return hours;
+    return Array.from({ length: 24 }, (_, i) => i);
   };
 
   // Navigate to previous day
@@ -714,155 +799,111 @@ const HomeScreen = () => {
       </Modal>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <Text style={styles.greeting}>
-              {greeting} {greetingIcon}
-            </Text>
-            <View
-              style={[styles.gemDisplay, { backgroundColor: plantColor + '20' }]}
-            >
-              <FontAwesomeIcon icon={faGem} size={18} color={plantColor} />
-              <Text style={[styles.gemText, { color: plantColor }]}>
-                {gardenData.points}
-              </Text>
-            </View>
+        {/* Clean Header */}
+        <View style={styles.cleanHeader}>
+          <Text style={styles.cleanHeaderEmoji}>{greetingIcon}</Text>
+          <View>
+            <Text style={styles.cleanHeaderGreeting}>{greeting}</Text>
+            <Text style={styles.cleanHeaderTitle}>Rest & Recharge</Text>
           </View>
-          <Text style={styles.title}>Rest & Recharge</Text>
         </View>
 
-      {/* Plant Widget - Clickable */}
-      {(() => {
-        const plantType =
-          PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
-        const plantProgress = gardenData.plantProgress?.[
-          gardenData.selectedPlantType
-        ] || { stage: 0, points: 0 };
-        const isFullyGrown = plantProgress.stage >= 5;
-        // Progress within current stage (matches GardenScreen calculation)
-        const stageProgressPercent = isFullyGrown
-          ? 100
-          : (plantProgress.points / 30) * 100;
-        return (
-          <TouchableOpacity
-            onPress={() => navigation.navigate('Garden')}
-            activeOpacity={0.7}
-          >
-            <Surface
-              style={[styles.plantWidget, { borderLeftColor: plantType.color }]}
-            >
-              <View
-                style={[
-                  styles.plantWidgetIcon,
-                  { backgroundColor: plantType.color },
-                ]}
+      {/* Unified Content Container */}
+      <View style={styles.contentContainer}>
+        {/* Hero Card - Combined Status */}
+        {(() => {
+          const plantType = PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
+          const plantProgress = gardenData.plantProgress?.[gardenData.selectedPlantType] || { stage: 0, points: 0 };
+          const isFullyGrown = plantProgress.stage >= 5;
+          const stageProgressPercent = isFullyGrown ? 100 : (plantProgress.points / 30) * 100;
+          return (
+            <Surface style={[styles.heroCard, { borderTopColor: plantColor }]}>
+              {/* Top Section - Plant & Gems */}
+              <TouchableOpacity 
+                onPress={() => navigation.navigate('Garden')} 
+                activeOpacity={0.7}
+                style={styles.heroTopSection}
               >
-                <FontAwesomeIcon
-                  icon={getStageIcon(
-                    plantProgress.stage,
-                    gardenData.selectedPlantType,
-                  )}
-                  size={28}
-                  color="#FFFFFF"
-                />
-              </View>
-              <View style={styles.plantWidgetContent}>
-                <Text style={styles.plantWidgetName}>{plantType.name}</Text>
-                <View style={styles.plantWidgetProgressRow}>
-                  <View style={styles.plantWidgetProgressBar}>
-                    <View
-                      style={[
-                        styles.plantWidgetProgressFill,
-                        {
-                          width: `${stageProgressPercent}%`,
-                          backgroundColor: plantType.color,
-                        },
-                      ]}
-                    />
-                  </View>
-                  <Text
-                    style={[
-                      styles.plantWidgetPercent,
-                      { color: plantType.color },
-                    ]}
-                  >
-                    {Math.round(stageProgressPercent)}%
-                  </Text>
+                <View style={[styles.heroPlantIcon, { backgroundColor: plantColor }]}>
+                  <FontAwesomeIcon
+                    icon={getStageIcon(plantProgress.stage, gardenData.selectedPlantType)}
+                    size={32}
+                    color="#FFFFFF"
+                  />
                 </View>
-                <Text style={styles.plantWidgetStage}>
-                  {isFullyGrown
-                    ? '✨ Fully Grown!'
-                    : `Stage ${plantProgress.stage + 1} of 6`}
-                </Text>
+                <View style={styles.heroPlantInfo}>
+                  <Text style={styles.heroPlantName}>{plantType.name}</Text>
+                  <Text style={styles.heroPlantStage}>
+                    {isFullyGrown ? '✨ Fully Grown!' : `Stage ${plantProgress.stage + 1} of 6`}
+                  </Text>
+                  <View style={styles.heroProgressBar}>
+                    <View style={[styles.heroProgressTrack, { backgroundColor: plantColor + '20' }]}>
+                      <View style={[styles.heroProgressFill, { width: `${stageProgressPercent}%`, backgroundColor: plantColor }]} />
+                    </View>
+                    <Text style={[styles.heroProgressText, { color: plantColor }]}>{Math.round(stageProgressPercent)}%</Text>
+                  </View>
+                </View>
+                <View style={styles.heroGemsContainer}>
+                  <FontAwesomeIcon icon={faGem} size={18} color={plantColor} />
+                  <Text style={[styles.heroGemsText, { color: plantColor }]}>{gardenData.points}</Text>
+                </View>
+              </TouchableOpacity>
+
+              {/* Divider */}
+              <View style={styles.heroDivider} />
+
+              {/* Bottom Section - Quick Stats */}
+              <View style={styles.heroStatsRow}>
+                <TouchableOpacity
+                  onPress={!wakeupTime ? logWakeupTime : null}
+                  activeOpacity={wakeupTime ? 1 : 0.7}
+                  style={styles.heroStatItem}
+                >
+                  <View style={[styles.heroStatIcon, { backgroundColor: wakeupTime ? '#E8F8F5' : '#FEF9E7' }]}>
+                    <FontAwesomeIcon icon={wakeupTime ? faCheck : faSun} size={18} color={wakeupTime ? '#1ABC9C' : '#F1C40F'} />
+                  </View>
+                  <View style={styles.heroStatText}>
+                    <Text style={styles.heroStatLabel}>{wakeupTime ? 'Woke up' : 'Wake-up'}</Text>
+                    <Text style={styles.heroStatValue}>{wakeupTime ? wakeupTime.formattedTime : 'Tap to log'}</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.heroStatDivider} />
+
+                <TouchableOpacity
+                  onPress={openReminderModal}
+                  activeOpacity={0.7}
+                  style={styles.heroStatItem}
+                >
+                  <View style={[styles.heroStatIcon, { backgroundColor: '#FDEDEC' }]}>
+                    <FontAwesomeIcon icon={faBell} size={18} color="#E74C3C" />
+                  </View>
+                  <View style={styles.heroStatText}>
+                    <Text style={styles.heroStatLabel}>Next rest</Text>
+                    <Text style={styles.heroStatValue}>{nextReminderTime ? nextReminderTime.formattedTime : 'Tap to set'}</Text>
+                  </View>
+                </TouchableOpacity>
+
+                <View style={styles.heroStatDivider} />
+
+                <View style={styles.heroStatItem}>
+                  <View style={[styles.heroStatIcon, { backgroundColor: '#EBF5FB' }]}>
+                    <FontAwesomeIcon icon={faFire} size={18} color="#3498DB" />
+                  </View>
+                  <View style={styles.heroStatText}>
+                    <Text style={styles.heroStatLabel}>Today</Text>
+                    <Text style={styles.heroStatValue}>{getRestsForDate(new Date()).length} rests</Text>
+                  </View>
+                </View>
               </View>
             </Surface>
-          </TouchableOpacity>
-        );
-      })()}
+          );
+        })()}
 
-      {/* Status Cards Row */}
-      <View style={styles.statusCardsRow}>
-        {/* Wake-up Card */}
-        <TouchableOpacity
-          onPress={!wakeupTime ? logWakeupTime : null}
-          activeOpacity={wakeupTime ? 1 : 0.7}
-          style={[
-            styles.statusCard,
-            { borderLeftColor: wakeupTime ? '#4ECDC4' : '#FFE66D' },
-          ]}
-        >
-          <View
-            style={[
-              styles.statusIconContainer,
-              { backgroundColor: wakeupTime ? '#4ECDC4' : '#FFE66D' },
-            ]}
-          >
-            <FontAwesomeIcon
-              icon={wakeupTime ? faCheck : faSun}
-              size={18}
-              color="#FFFFFF"
-            />
-          </View>
-          <View style={styles.statusContent}>
-            <Text style={styles.statusLabel}>
-              {wakeupTime ? 'Woke up' : 'Log wake-up'}
-            </Text>
-            <Text style={styles.statusValue}>
-              {wakeupTime ? wakeupTime.formattedTime : 'Tap here'}
-            </Text>
-          </View>
-        </TouchableOpacity>
-
-        {/* Next Reminder Card */}
-        <View style={[styles.statusCard, { borderLeftColor: '#FF6B6B' }]}>
-          <View
-            style={[styles.statusIconContainer, { backgroundColor: '#FF6B6B' }]}
-          >
-            <FontAwesomeIcon icon={faBell} size={18} color="#FFFFFF" />
-          </View>
-          <View style={styles.statusContent}>
-            <Text style={styles.statusLabel}>Next rest</Text>
-            <Text style={styles.statusValue}>
-              {nextReminderTime ? nextReminderTime.formattedTime : '--:--'}
-            </Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Last Wake-up Info (shown when no wake-up today) */}
-      {!wakeupTime && lastWakeupInfo && (
-        <View style={styles.lastWakeupHint}>
-          <FontAwesomeIcon icon={faCalendarDay} size={14} color="#B2BEC3" />
-          <Text style={styles.lastWakeupHintText}>
-            Last: {lastWakeupInfo.formattedTime} on {lastWakeupInfo.date}
-          </Text>
-        </View>
-      )}
-
-      <Text style={styles.sectionTitle}>Your Rest History</Text>
-
-      {/* Week Overview */}
-      <Surface style={styles.weekOverviewCard}>
+        {/* Rest History Section */}
+        <Text style={styles.sectionTitle}>Rest History</Text>
+        
+        <Surface style={styles.unifiedCard}>
         <ScrollView
           ref={weekScrollRef}
           horizontal
@@ -887,8 +928,7 @@ const HomeScreen = () => {
         </ScrollView>
       </Surface>
 
-      {/* Day Timeline */}
-      <Surface style={styles.timelineCard}>
+        <Surface style={styles.unifiedCard}>
         <View style={styles.timelineHeader}>
           <TouchableOpacity
             onPress={goToPreviousDay}
@@ -1003,35 +1043,75 @@ const HomeScreen = () => {
             </View>
 
             <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>Select Hour</Text>
-              <ScrollView
-                horizontal
-                showsHorizontalScrollIndicator={false}
-                contentContainerStyle={styles.hourPickerContainer}
-              >
-                {getAvailableHours().map(hour => (
-                  <TouchableOpacity
-                    key={hour}
-                    style={[
-                      styles.hourButton,
-                      selectedHour === hour && styles.hourButtonSelected,
-                    ]}
-                    onPress={() => setSelectedHour(hour)}
+              <Text style={styles.modalLabel}>Select Time</Text>
+              <View style={styles.timePickerRow}>
+                {/* Hour Picker */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Hour</Text>
+                  <ScrollView 
+                    ref={hourScrollRef}
+                    style={styles.timePickerScroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.timePickerScrollContent}
                   >
-                    <Text
-                      style={[
-                        styles.hourButtonText,
-                        selectedHour === hour && styles.hourButtonTextSelected,
-                      ]}
-                    >
-                      {hour.toString().padStart(2, '0')}:00
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
+                    {getAvailableHours().map(hour => (
+                      <TouchableOpacity
+                        key={hour}
+                        style={[
+                          styles.timePickerItem,
+                          selectedHour === hour && styles.timePickerItemSelected,
+                        ]}
+                        onPress={() => setSelectedHour(hour)}
+                      >
+                        <Text
+                          style={[
+                            styles.timePickerItemText,
+                            selectedHour === hour && styles.timePickerItemTextSelected,
+                          ]}
+                        >
+                          {hour.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                
+                <Text style={styles.timePickerSeparator}>:</Text>
+                
+                {/* Minute Picker (5-min intervals) */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Min</Text>
+                  <ScrollView 
+                    ref={minuteScrollRef}
+                    style={styles.timePickerScroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.timePickerScrollContent}
+                  >
+                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(minute => (
+                      <TouchableOpacity
+                        key={minute}
+                        style={[
+                          styles.timePickerItem,
+                          selectedMinute === minute && styles.timePickerItemSelected,
+                        ]}
+                        onPress={() => setSelectedMinute(minute)}
+                      >
+                        <Text
+                          style={[
+                            styles.timePickerItemText,
+                            selectedMinute === minute && styles.timePickerItemTextSelected,
+                          ]}
+                        >
+                          {minute.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
               <Text style={styles.modalNote}>
                 Logging rest for {formatDateHeader(selectedDate)} at{' '}
-                {selectedHour.toString().padStart(2, '0')}:00
+                {selectedHour.toString().padStart(2, '0')}:{selectedMinute.toString().padStart(2, '0')}
               </Text>
             </View>
 
@@ -1061,14 +1141,124 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-      <View style={styles.tipContainer}>
-        <Text style={styles.tipText}>
-          Resting for 20 minutes every two hours has been proven to be
-          beneficial for recharging your battery.
-        </Text>
-      </View>
+      {/* Edit Reminder Time Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showReminderModal}
+        onRequestClose={() => setShowReminderModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>Set Reminder Time</Text>
+              <TouchableOpacity
+                onPress={() => setShowReminderModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
 
-      <View style={styles.bottomPadding} />
+            <View style={styles.modalBody}>
+              <Text style={styles.modalLabel}>When should we remind you?</Text>
+              <View style={styles.timePickerRow}>
+                {/* Hour Picker */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Hour</Text>
+                  <ScrollView 
+                    ref={reminderHourScrollRef}
+                    style={styles.timePickerScroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.timePickerScrollContent}
+                  >
+                    {Array.from({ length: 24 }, (_, i) => i).map(hour => (
+                      <TouchableOpacity
+                        key={hour}
+                        style={[
+                          styles.timePickerItem,
+                          reminderHour === hour && styles.timePickerItemSelected,
+                        ]}
+                        onPress={() => setReminderHour(hour)}
+                      >
+                        <Text
+                          style={[
+                            styles.timePickerItemText,
+                            reminderHour === hour && styles.timePickerItemTextSelected,
+                          ]}
+                        >
+                          {hour.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                
+                <Text style={styles.timePickerSeparator}>:</Text>
+                
+                {/* Minute Picker (5-min intervals) */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Min</Text>
+                  <ScrollView 
+                    ref={reminderMinuteScrollRef}
+                    style={styles.timePickerScroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.timePickerScrollContent}
+                  >
+                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(minute => (
+                      <TouchableOpacity
+                        key={minute}
+                        style={[
+                          styles.timePickerItem,
+                          reminderMinute === minute && styles.timePickerItemSelected,
+                        ]}
+                        onPress={() => setReminderMinute(minute)}
+                      >
+                        <Text
+                          style={[
+                            styles.timePickerItemText,
+                            reminderMinute === minute && styles.timePickerItemTextSelected,
+                          ]}
+                        >
+                          {minute.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+              <Text style={styles.modalNote}>
+                Next reminder at {reminderHour.toString().padStart(2, '0')}:{reminderMinute.toString().padStart(2, '0')}
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <View style={styles.modalFooterButtons}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setShowReminderModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.saveButton} onPress={saveReminderTime}>
+                  <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" />
+                  <Text style={styles.saveButtonText}>Save</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+        <View style={styles.tipContainer}>
+          <Text style={styles.tipText}>
+            Resting for 20 minutes every two hours has been proven to be
+            beneficial for recharging your battery.
+          </Text>
+        </View>
+
+        <View style={styles.bottomPadding} />
+      </View>
       </ScrollView>
     </>
   );
@@ -1263,40 +1453,161 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFF9F0',
   },
-  header: {
-    paddingHorizontal: 24,
+  // Clean Header Styles
+  cleanHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 20,
     paddingTop: 20,
-    paddingBottom: 10,
+    paddingBottom: 8,
+    gap: 14,
   },
-  headerTop: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-  },
-  gemDisplay: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    backgroundColor: '#F3F0FF',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 20,
-  },
-  gemText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#6C5CE7',
-  },
-  greeting: {
-    fontSize: 18,
-    color: '#636E72',
-    fontWeight: '600',
-  },
-  title: {
+  cleanHeaderEmoji: {
     fontSize: 36,
+  },
+  cleanHeaderGreeting: {
+    fontSize: 13,
+    color: '#95A5A6',
+    fontWeight: '500',
+  },
+  cleanHeaderTitle: {
+    fontSize: 22,
     fontWeight: 'bold',
-    color: '#2D3436',
+    color: '#2C3E50',
+    marginTop: 2,
+  },
+  
+  // Unified Content Container
+  contentContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  
+  // Unified Card Style
+  unifiedCard: {
+    borderRadius: 20,
+    padding: 16,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  
+  // Hero Card - Combined Status
+  heroCard: {
+    borderRadius: 24,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+    borderTopWidth: 4,
+    overflow: 'hidden',
+  },
+  heroTopSection: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    paddingBottom: 16,
+  },
+  heroPlantIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroPlantInfo: {
+    flex: 1,
+    marginLeft: 16,
+  },
+  heroPlantName: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  heroPlantStage: {
+    fontSize: 13,
+    color: '#7F8C8D',
+    marginTop: 2,
+    marginBottom: 8,
+  },
+  heroProgressBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  heroProgressTrack: {
+    flex: 1,
+    height: 6,
+    borderRadius: 3,
+    overflow: 'hidden',
+  },
+  heroProgressFill: {
+    height: '100%',
+    borderRadius: 3,
+  },
+  heroProgressText: {
+    fontSize: 13,
+    fontWeight: '700',
+    minWidth: 36,
+  },
+  heroGemsContainer: {
+    alignItems: 'center',
+    paddingLeft: 12,
+  },
+  heroGemsText: {
+    fontSize: 16,
+    fontWeight: 'bold',
     marginTop: 4,
+  },
+  heroDivider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginHorizontal: 20,
+  },
+  heroStatsRow: {
+    flexDirection: 'row',
+    paddingVertical: 16,
+    paddingHorizontal: 12,
+  },
+  heroStatItem: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 4,
+  },
+  heroStatIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  heroStatText: {
+    marginLeft: 8,
+  },
+  heroStatLabel: {
+    fontSize: 10,
+    color: '#95A5A6',
+    fontWeight: '500',
+  },
+  heroStatValue: {
+    fontSize: 13,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  heroStatDivider: {
+    width: 1,
+    height: 32,
+    backgroundColor: '#F0F0F0',
   },
   statusCardsRow: {
     flexDirection: 'row',
@@ -1352,12 +1663,12 @@ const styles = StyleSheet.create({
     color: '#B2BEC3',
   },
   sectionTitle: {
-    fontSize: 14,
-    fontWeight: '500',
-    fontStyle: 'italic',
-    color: '#636E72',
-    marginHorizontal: 24,
-    marginTop: 24,
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#95A5A6',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginTop: 8,
     marginBottom: 12,
   },
   weekOverviewCard: {
@@ -1709,27 +2020,54 @@ const styles = StyleSheet.create({
     color: '#636E72',
     marginBottom: 12,
   },
-  hourPickerContainer: {
+  timePickerRow: {
     flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     gap: 8,
-    paddingVertical: 4,
   },
-  hourButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: '#F0F0F0',
+  timePickerColumn: {
+    alignItems: 'center',
+  },
+  timePickerLabel: {
+    fontSize: 12,
+    color: '#95A5A6',
+    fontWeight: '500',
+    marginBottom: 8,
+  },
+  timePickerScroll: {
+    height: 150,
+    width: 70,
+    backgroundColor: '#F8F9FA',
     borderRadius: 12,
   },
-  hourButtonSelected: {
+  timePickerScrollContent: {
+    paddingVertical: 8,
+  },
+  timePickerItem: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    marginHorizontal: 4,
+    marginVertical: 2,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  timePickerItemSelected: {
     backgroundColor: '#4ECDC4',
   },
-  hourButtonText: {
-    fontSize: 16,
+  timePickerItemText: {
+    fontSize: 18,
     fontWeight: '600',
     color: '#636E72',
   },
-  hourButtonTextSelected: {
+  timePickerItemTextSelected: {
     color: '#FFFFFF',
+  },
+  timePickerSeparator: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+    marginTop: 20,
   },
   modalNote: {
     fontSize: 13,

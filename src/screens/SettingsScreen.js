@@ -123,7 +123,8 @@ const PURPOSE_OPTIONS = [
 ];
 
 const CONDITION_OPTIONS = [
-  { id: 'chronic_fatigue', label: 'Chronic Tiredness', icon: faBatteryHalf, color: '#636E72' },
+  { id: 'chronic_fatigue', label: 'Chronic Fatigue', icon: faBatteryHalf, color: '#636E72' },
+  { id: 'me_cfs', label: 'ME/CFS', icon: faBatteryHalf, color: '#9B59B6' },
   { id: 'post_covid', label: 'Post-COVID Recovery', icon: faVirus, color: '#00B894' },
   { id: 'burnout', label: 'Burnout', icon: faFire, color: '#FF6B6B' },
   { id: 'none', label: 'None of these', icon: faBan, color: '#B2BEC3' },
@@ -193,7 +194,7 @@ const SettingsScreen = ({ navigation }) => {
   
   // Purchase a plant type
   const purchasePlant = async (plantType) => {
-    if (gardenData.unlockedPlants.includes(plantType.id)) {
+    if (gardenData?.unlockedPlants?.includes(plantType.id)) {
       // Already owned, just select it
       const updatedGardenData = { ...gardenData, selectedPlantType: plantType.id };
       await StorageService.setItem('gardenData', updatedGardenData);
@@ -218,7 +219,7 @@ const SettingsScreen = ({ navigation }) => {
             const updatedGardenData = {
               ...gardenData,
               points: gardenData.points - plantType.price,
-              unlockedPlants: [...gardenData.unlockedPlants, plantType.id],
+              unlockedPlants: [...(gardenData.unlockedPlants || []), plantType.id],
               selectedPlantType: plantType.id,
             };
             await StorageService.setItem('gardenData', updatedGardenData);
@@ -541,7 +542,7 @@ const SettingsScreen = ({ navigation }) => {
             icon={faStore}
             iconBg="#4CAF50"
             title="Plant Collection"
-            subtitle={`${gardenData.unlockedPlants.length}/${PLANT_TYPES.length} plants unlocked`}
+            subtitle={`${gardenData?.unlockedPlants?.length || 0}/${PLANT_TYPES.length} plants unlocked`}
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
             onPress={() => setActiveModal('plantShop')}
           />
@@ -837,7 +838,7 @@ const SettingsScreen = ({ navigation }) => {
             </View>
             <ScrollView style={styles.plantList}>
               {PLANT_TYPES.map((plant) => {
-                const isUnlocked = gardenData.unlockedPlants.includes(plant.id);
+                const isUnlocked = gardenData?.unlockedPlants?.includes(plant.id);
                 const isSelected = gardenData.selectedPlantType === plant.id;
                 const canAfford = gardenData.points >= plant.price;
                 

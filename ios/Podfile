@@ -1,11 +1,6 @@
-# Resolve react_native_pods.rb with node to allow for hoisting
-require Pod::Executable.execute_command('node', ['-p',
-  'require.resolve(
-    "react-native/scripts/react_native_pods.rb",
-    {paths: [process.argv[1]]},
-  )', __dir__]).strip
+require_relative '../node_modules/react-native/scripts/react_native_pods'
 
-platform :ios, min_ios_version_supported
+platform :ios, '15.1'
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
@@ -15,20 +10,18 @@ if linkage != nil
 end
 
 target 'RechargeRest' do
-  config = use_native_modules!
-
   use_react_native!(
-    :path => config[:reactNativePath],
-    # An absolute path to your application root.
-    :app_path => "#{Pod::Config.instance.installation_root}/.."
+    path: '../node_modules/react-native',
+    app_path: '..'
   )
+
+  use_native_modules!
 
   post_install do |installer|
     react_native_post_install(
       installer,
-      config[:reactNativePath],
-      :mac_catalyst_enabled => false,
-      # :ccache_enabled => true
+      '../node_modules/react-native',
+      mac_catalyst_enabled: false
     )
   end
 end
