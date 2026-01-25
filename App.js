@@ -182,7 +182,7 @@ function App() {
               headerShown: false,
               tabBarHideOnKeyboard: true,
               lazy: false,
-              animation: 'fade',
+              unmountOnBlur: false,
               sceneStyle: { backgroundColor: '#FFF9F0' },
               tabBarStyle: {
                 backgroundColor: '#FFFFFF',

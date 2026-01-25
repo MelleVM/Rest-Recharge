@@ -70,6 +70,16 @@ class LiveActivityModule: NSObject {
                 return
             }
             
+            // End the activity when timer reaches 0
+            if remainingSeconds <= 0 {
+                Task {
+                    await activity.end(dismissalPolicy: .immediate)
+                    self.currentActivity = nil
+                    resolver(["success": true, "ended": true])
+                }
+                return
+            }
+            
             let endTime = Date().addingTimeInterval(TimeInterval(remainingSeconds))
             
             let contentState = TimerAttributes.ContentState(

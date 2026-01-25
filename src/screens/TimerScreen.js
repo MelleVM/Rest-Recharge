@@ -354,13 +354,15 @@ const TimerScreen = () => {
         lastUpdateRef.current = now;
         
         if (remaining <= 0) {
+          // Stop Live Activity and notification immediately when timer completes
+          NotificationService.stopTimerNotification();
           handleTimerCompletedWhileActive();
           return;
         }
         
         setTime(remaining);
         
-        // Update notification every 5 seconds
+        // Update Live Activity every 5 seconds - widget uses timerInterval for smooth countdown
         if (remaining % 5 === 0) {
           NotificationService.updateTimerNotification(remaining);
         }
@@ -377,10 +379,11 @@ const TimerScreen = () => {
       const currentTime = isPaused ? time : time;
       const newEndTime = Date.now() + currentTime * 1000;
       endTimeRef.current = newEndTime;
+      const wasResuming = isPaused;
       setIsActive(true);
       setIsPaused(false);
       
-      await NotificationService.startTimerNotification(newEndTime);
+      await NotificationService.startTimerNotification(newEndTime, wasResuming);
       startTimerLoop();
     }
   };

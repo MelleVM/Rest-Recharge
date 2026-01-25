@@ -1268,7 +1268,6 @@ const styles = StyleSheet.create({
   tipContainer: {
     marginBottom: 20,
     marginTop: 20,
-    paddingHorizontal: 30,
   },
   tipText: {
     fontSize: 14,

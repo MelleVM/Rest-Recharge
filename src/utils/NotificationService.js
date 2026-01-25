@@ -190,7 +190,7 @@ class NotificationService {
     return onboardingData;
   };
 
-  startTimerNotification = async (endTime) => {
+  startTimerNotification = async (endTime, isResumingFromPause = false) => {
     await StorageService.setItem('timerEndTime', endTime);
     
     const now = Date.now();
@@ -199,12 +199,19 @@ class NotificationService {
     const seconds = remaining % 60;
     const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-    // Try to start Live Activity (iOS 16.1+)
-    const liveActivityStarted = await LiveActivityService.startTimer(remaining);
-    
-    if (liveActivityStarted) {
-      console.log('Live Activity started for timer');
+    // Try to start or update Live Activity (iOS 16.1+)
+    let liveActivityStarted = false;
+    if (isResumingFromPause) {
+      // Resume existing Live Activity instead of creating new one
+      liveActivityStarted = await LiveActivityService.updateTimer(remaining, false);
+      console.log('Live Activity resumed from pause');
     } else {
+      // Start new Live Activity
+      liveActivityStarted = await LiveActivityService.startTimer(remaining);
+      console.log('Live Activity started for timer');
+    }
+    
+    if (!liveActivityStarted) {
       // Fallback to notification if Live Activity not available
       PushNotification.cancelLocalNotification('999');
 
@@ -244,7 +251,12 @@ class NotificationService {
   };
 
   updateTimerNotification = async (remainingSeconds) => {
-    if (remainingSeconds <= 0) return;
+    // Stop Live Activity when timer reaches 0 or goes negative
+    if (remainingSeconds <= 0) {
+      console.log('Timer reached 0, stopping Live Activity');
+      await LiveActivityService.stopTimer();
+      return;
+    }
     
     const minutes = Math.floor(remainingSeconds / 60);
     const seconds = remainingSeconds % 60;
