@@ -1,15 +1,15 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform, ScrollView, Modal } from 'react-native';
 import { Text, Surface, useTheme } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faPlay } from '@fortawesome/free-solid-svg-icons/faPlay';
-import { faPause } from '@fortawesome/free-solid-svg-icons/faPause';
-import { faRotateRight } from '@fortawesome/free-solid-svg-icons/faRotateRight';
+import { faTimes } from '@fortawesome/free-solid-svg-icons/faTimes';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faEye } from '@fortawesome/free-solid-svg-icons/faEye';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
+import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
@@ -49,8 +49,8 @@ const MOTIVATIONAL_QUOTES = [
 ];
 
 const TimerScreen = () => {
+  const navigation = useNavigation();
   const [isActive, setIsActive] = useState(false);
-  const [isPaused, setIsPaused] = useState(false);
   const [time, setTime] = useState(0);
   const [currentQuote, setCurrentQuote] = useState(() => 
     MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]
@@ -65,14 +65,12 @@ const TimerScreen = () => {
   const appState = useRef(AppState.currentState);
   const isInitialized = useRef(false);
   const isActiveRef = useRef(false);
-  const isPausedRef = useRef(false);
   const theme = useTheme();
 
   // Keep refs in sync with state
   useEffect(() => {
     isActiveRef.current = isActive;
-    isPausedRef.current = isPaused;
-  }, [isActive, isPaused]);
+  }, [isActive]);
 
   const requestNotificationPermission = async () => {
     if (Platform.OS === 'android' && Platform.Version >= 33) {
@@ -105,8 +103,28 @@ const TimerScreen = () => {
     
     initialize();
     
+    // Listen for app state changes to sync timer when returning to foreground
+    const subscription = AppState.addEventListener('change', async (nextAppState) => {
+      if (nextAppState === 'active' && isInitialized.current) {
+        console.log('App came to foreground, checking timer state');
+        await checkForCompletedTimer();
+        
+        // If timer is still active, verify it hasn't completed
+        if (isActiveRef.current && endTimeRef.current) {
+          const now = Date.now();
+          const remaining = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
+          if (remaining <= 0) {
+            console.log('Timer completed while in background');
+            NotificationService.stopTimerNotification();
+            handleTimerCompletedWhileActive();
+          }
+        }
+      }
+    });
+    
     return () => {
       stopTimer();
+      subscription?.remove();
     };
   }, []);
 
@@ -118,7 +136,7 @@ const TimerScreen = () => {
         await checkForCompletedTimer();
         
         // Only update duration if timer is not active
-        if (!isActiveRef.current && !isPausedRef.current) {
+        if (!isActiveRef.current) {
           const settings = await NotificationService.getSettings();
           const durationMinutes = settings.restDuration || 20;
           const durationSeconds = durationMinutes * 60;
@@ -181,15 +199,10 @@ const TimerScreen = () => {
         console.log('Timer completed in background, handling completion');
         await handleTimerCompletedInBackground();
         setTime(durationSeconds);
-      } else if (timerState.isPaused) {
-        setTime(timerState.remaining);
-        setIsPaused(true);
-        setIsActive(true);
       } else if (timerState.isActive) {
         endTimeRef.current = timerState.endTime;
         setTime(timerState.remaining);
         setIsActive(true);
-        setIsPaused(false);
         startTimerLoop();
       }
     } else {
@@ -260,8 +273,11 @@ const TimerScreen = () => {
   const handleTimerCompletedInBackground = async () => {
     console.log('Handling timer completion from background');
     
+    // Get the stored completion time, or use current time as fallback
+    const completionTime = await StorageService.getItem('lastCompletionTime') || Date.now();
+    
     // Save to history
-    await saveRestToHistory(Date.now());
+    await saveRestToHistory(completionTime);
     
     // Update completed rests count
     const stats = await StorageService.getItem('stats') || {};
@@ -287,12 +303,13 @@ const TimerScreen = () => {
     await NotificationService.clearTimerState();
     await NotificationService.stopTimerNotification();
     
-    // Schedule next reminder
-    await NotificationService.scheduleNextReminder();
+    // Reminder was already pre-scheduled when timer started, no need to schedule again
+    
+    // Clean up the stored completion time
+    await StorageService.removeItem('lastCompletionTime');
     
     // Reset UI state
     setIsActive(false);
-    setIsPaused(false);
     endTimeRef.current = null;
     
     // Reset to default duration
@@ -360,6 +377,11 @@ const TimerScreen = () => {
           return;
         }
         
+        // When we reach 1 second, update one more time to ensure clean state before 0
+        if (remaining === 1) {
+          NotificationService.updateTimerNotification(remaining);
+        }
+        
         setTime(remaining);
         
         // Update Live Activity every 5 seconds - widget uses timerInterval for smooth countdown
@@ -375,42 +397,47 @@ const TimerScreen = () => {
   };
 
   const start = async () => {
-    if (!isActive || isPaused) {
-      const currentTime = isPaused ? time : time;
-      const newEndTime = Date.now() + currentTime * 1000;
+    if (!isActive) {
+      const newEndTime = Date.now() + time * 1000;
       endTimeRef.current = newEndTime;
-      const wasResuming = isPaused;
       setIsActive(true);
-      setIsPaused(false);
       
-      await NotificationService.startTimerNotification(newEndTime, wasResuming);
+      await NotificationService.startTimerNotification(newEndTime, false);
       startTimerLoop();
     }
   };
 
-  const pause = async () => {
-    stopTimer();
-    setIsPaused(true);
-    endTimeRef.current = null;
-    
-    await NotificationService.pauseTimerNotification(time);
-  };
-
-  const reset = async () => {
+  const cancel = async () => {
     stopTimer();
     
+    // Award reduced gems for canceling (5 instead of 10)
+    const currentGardenData = await StorageService.getItem('gardenData') || { points: 0 };
+    const updatedGardenData = {
+      ...currentGardenData,
+      points: (currentGardenData.points || 0) + 5,
+    };
+    await StorageService.setItem('gardenData', updatedGardenData);
+    setGardenData(updatedGardenData);
+    
+    // Show toast notification
+    ToastEvent.show('gems', 5, 'Timer cancelled');
+    
+    // Stop timer and clear state
+    await NotificationService.stopTimerNotification();
+    await NotificationService.clearTimerState();
+    
+    // Schedule next reminder from now (cancels the pre-scheduled one)
+    await NotificationService.scheduleNextReminder();
+    
+    // Reset UI
     const settings = await NotificationService.getSettings();
     const durationMinutes = settings.restDuration || 20;
     const durationSeconds = durationMinutes * 60;
     
     setIsActive(false);
-    setIsPaused(false);
     setTime(durationSeconds);
     setTotalTime(durationSeconds);
     endTimeRef.current = null;
-    
-    await NotificationService.stopTimerNotification();
-    await NotificationService.clearTimerState();
   };
 
   // Get a new random quote
@@ -425,11 +452,12 @@ const TimerScreen = () => {
     
     stopTimer();
     setIsActive(false);
-    setIsPaused(false);
     endTimeRef.current = null;
     
+    const completionTime = Date.now();
+    
     // Save to history
-    await saveRestToHistory(Date.now());
+    await saveRestToHistory(completionTime);
     
     // Award gems for completing rest
     const currentGardenData = await StorageService.getItem('gardenData') || { points: 0 };
@@ -450,8 +478,10 @@ const TimerScreen = () => {
     await NotificationService.stopTimerNotification();
     await NotificationService.clearTimerState();
     
-    // Schedule next reminder
-    await NotificationService.scheduleNextReminder();
+    // Store completion time for history tracking
+    await StorageService.setItem('lastCompletionTime', completionTime);
+    
+    // Reminder was already pre-scheduled when timer started, no need to schedule again
     
     // Vibrate device
     const settings = await NotificationService.getSettings();
@@ -528,10 +558,13 @@ const TimerScreen = () => {
               <Text style={styles.title}>Eye Rest</Text>
               <Text style={styles.subtitle}>Rest & Recharge</Text>
             </View>
-            <View style={[styles.gemDisplay, { backgroundColor: plantColor + '20' }]}>
-              <FontAwesomeIcon icon={faGem} size={18} color={plantColor} />
-              <Text style={[styles.gemText, { color: plantColor }]}>{gardenData.points || 0}</Text>
-            </View>
+            <TouchableOpacity 
+              style={styles.settingsButton}
+              onPress={() => navigation.navigate('Settings')}
+              activeOpacity={0.7}
+            >
+              <FontAwesomeIcon icon={faGear} size={24} color="#B2BEC3" />
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -564,9 +597,11 @@ const TimerScreen = () => {
           <View style={styles.timerTextContainer}>
             <Text style={styles.timerText}>{formatTime(time)}</Text>
             <Text style={styles.timerLabel}>
-              {isActive 
-                ? (isPaused ? "Paused" : "Relax your eyes") 
-                : "Start when ready"
+              {!isActive && time === 0
+                ? "Click to collect your reward 💎"
+                : isActive 
+                  ? "Relax your eyes" 
+                  : "Start when ready"
               }
             </Text>
           </View>
@@ -574,39 +609,29 @@ const TimerScreen = () => {
       </View>
 
       <View style={styles.controlsContainer}>
-        {isActive && !isPaused ? (
-          <TouchableOpacity style={styles.controlButton} onPress={pause}>
-            <FontAwesomeIcon icon={faPause} size={24} color="#FFFFFF" />
+        {isActive ? (
+          <TouchableOpacity 
+            style={[styles.controlButton, styles.cancelButton]} 
+            onPress={cancel}
+          >
+            <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
+            <Text style={styles.buttonText}>Cancel</Text>
           </TouchableOpacity>
         ) : (
-          <TouchableOpacity style={styles.controlButton} onPress={start}>
+          <TouchableOpacity 
+            style={styles.controlButton} 
+            onPress={start}
+          >
             <FontAwesomeIcon icon={faPlay} size={24} color="#FFFFFF" />
+            <Text style={styles.buttonText}>Start</Text>
           </TouchableOpacity>
         )}
-        
-        <TouchableOpacity 
-          style={[styles.controlButton, styles.resetButton]} 
-          onPress={reset}
-          disabled={!isActive && time === totalTime}
-        >
-          <FontAwesomeIcon 
-            icon={faRotateRight} 
-            size={24} 
-            color={!isActive && time === totalTime ? "#B2BEC3" : "#636E72"} 
-          />
-        </TouchableOpacity>
       </View>
 
       <Surface style={styles.quoteCard}>
         <Text style={styles.quoteText}>"{currentQuote.text}"</Text>
         <Text style={styles.quoteAuthor}>— {currentQuote.author}</Text>
       </Surface>
-
-      <View style={styles.tipContainer}>
-        <Text style={styles.tipText}>
-          Resting for 20 minutes every two hours has been proven to be beneficial for recharging your battery.
-        </Text>
-      </View>
 
       <View style={styles.bottomPadding} />
       </ScrollView>
@@ -635,6 +660,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'flex-start',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   gemDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -643,6 +673,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
+  },
+  settingsButton: {
+    padding: 8,
   },
   gemText: {
     fontSize: 18,
@@ -690,17 +723,23 @@ const styles = StyleSheet.create({
     marginBottom: 40,
   },
   controlButton: {
-    width: 70,
-    height: 70,
-    borderRadius: 35,
-    backgroundColor: '#FF6B6B',
+    flexDirection: 'row',
+    paddingHorizontal: 32,
+    paddingVertical: 16,
+    borderRadius: 30,
+    backgroundColor: '#4CAF50',
     justifyContent: 'center',
     alignItems: 'center',
     elevation: 4,
-    marginHorizontal: 15,
+    gap: 10,
   },
-  resetButton: {
-    backgroundColor: '#F0F0F0',
+  cancelButton: {
+    backgroundColor: '#FF6B6B',
+  },
+  buttonText: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
   quoteCard: {
     borderRadius: 24,

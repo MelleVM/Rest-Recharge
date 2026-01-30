@@ -22,6 +22,7 @@ import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
 import { faCircle } from '@fortawesome/free-solid-svg-icons/faCircle';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
+import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { ToastEvent } from '../components/RewardToast';
 
 // Plant types with colors (synced with GardenScreen)
@@ -81,6 +82,8 @@ const HomeScreen = () => {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderHour, setReminderHour] = useState(new Date().getHours());
   const [reminderMinute, setReminderMinute] = useState(0);
+  const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
+  const [activeTab, setActiveTab] = useState('activity');
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
   const hourScrollRef = useRef(null);
@@ -175,6 +178,87 @@ const HomeScreen = () => {
     return date1.toLocaleDateString() === date2.toLocaleDateString();
   };
 
+  // Calculate streak data based on rest history
+  const calculateStreakData = (history) => {
+    const DAILY_GOAL = 4; // 4 rests per day to maintain streak
+    const today = new Date();
+    const dailyRestCounts = {};
+    
+    // Count rests per day
+    history.forEach(rest => {
+      const dateKey = rest.date;
+      dailyRestCounts[dateKey] = (dailyRestCounts[dateKey] || 0) + 1;
+    });
+    
+    // Calculate current streak (consecutive days with 4+ rests, going backwards from today)
+    let currentStreak = 0;
+    let checkDate = new Date(today);
+    
+    // Check if today has the goal met
+    const todayKey = today.toLocaleDateString();
+    const todayRests = dailyRestCounts[todayKey] || 0;
+    
+    // Start checking from yesterday if today's goal isn't met yet
+    if (todayRests < DAILY_GOAL) {
+      checkDate.setDate(checkDate.getDate() - 1);
+    }
+    
+    // Count consecutive days backwards
+    for (let i = 0; i < 365; i++) {
+      const dateKey = checkDate.toLocaleDateString();
+      const restsOnDay = dailyRestCounts[dateKey] || 0;
+      
+      if (restsOnDay >= DAILY_GOAL) {
+        currentStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        break;
+      }
+    }
+    
+    // Calculate longest streak ever
+    let longestStreak = 0;
+    let tempStreak = 0;
+    const sortedDates = Object.keys(dailyRestCounts).sort();
+    
+    if (sortedDates.length > 0) {
+      let prevDate = new Date(sortedDates[0]);
+      
+      sortedDates.forEach(dateStr => {
+        const currentDate = new Date(dateStr);
+        const dayDiff = Math.floor((currentDate - prevDate) / (1000 * 60 * 60 * 24));
+        
+        if (dailyRestCounts[dateStr] >= DAILY_GOAL) {
+          if (dayDiff <= 1) {
+            tempStreak++;
+          } else {
+            tempStreak = 1;
+          }
+          longestStreak = Math.max(longestStreak, tempStreak);
+        } else {
+          tempStreak = 0;
+        }
+        
+        prevDate = currentDate;
+      });
+    }
+    
+    return { currentStreak, longestStreak };
+  };
+
+  // Get streak status for a specific date
+  const getStreakStatusForDate = (date) => {
+    const DAILY_GOAL = 4;
+    const rests = getRestsForDate(date);
+    const restCount = rests.length;
+    
+    return {
+      count: restCount,
+      goalMet: restCount >= DAILY_GOAL,
+      isToday: isSameDay(date, new Date())
+    };
+  };
+
   const loadData = async () => {
     try {
       const storedWakeupTime = await StorageService.getItem('wakeupTime');
@@ -205,20 +289,16 @@ const HomeScreen = () => {
       }
       setWakeupHours(updatedWakeupHours);
       
-      // Handle next reminder - check if it's still valid
+      // Handle next reminder - only display if still valid, don't auto-schedule
       if (storedNextReminder) {
         const now = Date.now();
         if (storedNextReminder.timestamp > now) {
           setNextReminderTime(storedNextReminder);
         } else {
-          console.log('Stored reminder has passed, scheduling new one');
-          const newReminder = await NotificationService.scheduleNextReminder();
-          setNextReminderTime(newReminder);
+          // Reminder has passed, clear it
+          await StorageService.removeItem('nextReminderTime');
+          setNextReminderTime(null);
         }
-      } else {
-        console.log('No reminder found, scheduling new one');
-        const newReminder = await NotificationService.scheduleNextReminder();
-        setNextReminderTime(newReminder);
       }
       
       // Handle stats
@@ -231,6 +311,10 @@ const HomeScreen = () => {
       if (storedGardenData) {
         setGardenData(storedGardenData);
       }
+      
+      // Calculate streak data
+      const calculatedStreak = calculateStreakData(storedHistory);
+      setStreakData(calculatedStreak);
       
       // Check if this is the first time visiting home
       const hasSeenTutorial = await StorageService.getItem('homeTutorialSeen');
@@ -267,9 +351,9 @@ const HomeScreen = () => {
       await StorageService.setItem('wakeupHours', updatedWakeupHours);
       setWakeupHours(updatedWakeupHours);
       
-      const reminders = await NotificationService.scheduleReminders(now);
-      if (reminders && reminders.length > 0) {
-        setNextReminderTime(reminders[0]);
+      const reminder = await NotificationService.scheduleNextReminder();
+      if (reminder) {
+        setNextReminderTime(reminder);
       }
       
       const updatedStats = {
@@ -394,6 +478,11 @@ const HomeScreen = () => {
       
       await StorageService.setItem('restHistory', filteredHistory);
       setRestHistory(filteredHistory);
+      
+      // Recalculate streak
+      const calculatedStreak = calculateStreakData(filteredHistory);
+      setStreakData(calculatedStreak);
+      
       setShowRestModal(false);
       setEditingRest(null);
     } catch (error) {
@@ -446,6 +535,10 @@ const HomeScreen = () => {
       const updatedHistory = restHistory.filter(r => r.timestamp !== rest.timestamp);
       await StorageService.setItem('restHistory', updatedHistory);
       setRestHistory(updatedHistory);
+      
+      // Recalculate streak
+      const calculatedStreak = calculateStreakData(updatedHistory);
+      setStreakData(calculatedStreak);
       
       // Update stats
       const updatedStats = { ...stats, totalRests: Math.max(0, stats.totalRests - 1) };
@@ -739,6 +832,34 @@ const HomeScreen = () => {
     );
   };
 
+  // Streak Circle Component
+  const StreakCircle = ({ date }) => {
+    const status = getStreakStatusForDate(date);
+    const dayLabel = date.toLocaleDateString([], { weekday: 'short' }).substring(0, 1);
+    
+    return (
+      <View style={styles.streakCircleContainer}>
+        <View style={[
+          styles.streakCircle,
+          status.goalMet && styles.streakCircleComplete,
+          status.isToday && styles.streakCircleToday,
+          !status.goalMet && status.count > 0 && styles.streakCirclePartial,
+        ]}>
+          {status.goalMet && (
+            <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" />
+          )}
+          {!status.goalMet && status.count > 0 && (
+            <Text style={styles.streakCircleCount}>{status.count}</Text>
+          )}
+        </View>
+        <Text style={[
+          styles.streakCircleLabel,
+          status.isToday && styles.streakCircleLabelToday,
+        ]}>{dayLabel}</Text>
+      </View>
+    );
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -801,11 +922,20 @@ const HomeScreen = () => {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Clean Header */}
         <View style={styles.cleanHeader}>
-          <Text style={styles.cleanHeaderEmoji}>{greetingIcon}</Text>
-          <View>
-            <Text style={styles.cleanHeaderGreeting}>{greeting}</Text>
-            <Text style={styles.cleanHeaderTitle}>Rest & Recharge</Text>
+          <View style={styles.cleanHeaderLeft}>
+            <Text style={styles.cleanHeaderEmoji}>{greetingIcon}</Text>
+            <View>
+              <Text style={styles.cleanHeaderGreeting}>{greeting}</Text>
+              <Text style={styles.cleanHeaderTitle}>Rest & Recharge</Text>
+            </View>
           </View>
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.7}
+          >
+            <FontAwesomeIcon icon={faGear} size={24} color="#B2BEC3" />
+          </TouchableOpacity>
         </View>
 
       {/* Unified Content Container */}
@@ -900,8 +1030,43 @@ const HomeScreen = () => {
           );
         })()}
 
-        {/* Rest History Section */}
-        <Text style={styles.sectionTitle}>Rest History</Text>
+        {/* Tab Navigation */}
+        <View style={styles.tabContainer}>
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'activity' && styles.tabActive]}
+            onPress={() => setActiveTab('activity')}
+            activeOpacity={0.7}
+          >
+            <FontAwesomeIcon 
+              icon={faCalendarDay} 
+              size={18} 
+              color={activeTab === 'activity' ? '#4ECDC4' : '#95A5A6'} 
+            />
+            <Text style={[styles.tabText, activeTab === 'activity' && styles.tabTextActive]}>
+              Activity
+            </Text>
+          </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.tab, activeTab === 'streak' && styles.tabActive]}
+            onPress={() => setActiveTab('streak')}
+            activeOpacity={0.7}
+          >
+            <FontAwesomeIcon 
+              icon={faFire} 
+              size={18} 
+              color={activeTab === 'streak' ? '#FF6B6B' : '#95A5A6'} 
+            />
+            <Text style={[styles.tabText, activeTab === 'streak' && styles.tabTextActive]}>
+              Streak
+            </Text>
+          </TouchableOpacity>
+        </View>
+
+        {/* Activity Tab Content */}
+        {activeTab === 'activity' && (
+          <>
+            <Text style={styles.sectionTitle}>Rest History</Text>
         
         <Surface style={styles.unifiedCard}>
         <ScrollView
@@ -1250,12 +1415,58 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-        <View style={styles.tipContainer}>
-          <Text style={styles.tipText}>
-            Resting for 20 minutes every two hours has been proven to be
-            beneficial for recharging your battery.
-          </Text>
-        </View>
+            <View style={styles.tipContainer}>
+              <Text style={styles.tipText}>
+                Resting for 20 minutes every two hours has been proven to be
+                beneficial for recharging your battery.
+              </Text>
+            </View>
+          </>
+        )}
+
+        {/* Streak Tab Content */}
+        {activeTab === 'streak' && (
+          <>
+            <Text style={styles.sectionTitle}>Weekly Streak</Text>
+            
+            <Surface style={styles.streakCard}>
+              <View style={styles.streakHeader}>
+                <View style={styles.streakHeaderLeft}>
+                  <View style={styles.streakIconContainer}>
+                    <FontAwesomeIcon icon={faFire} size={24} color="#FF6B6B" />
+                  </View>
+                  <View>
+                    <Text style={styles.streakCurrentNumber}>{streakData.currentStreak}</Text>
+                    <Text style={styles.streakCurrentLabel}>Day Streak</Text>
+                  </View>
+                </View>
+                <View style={styles.streakBestContainer}>
+                  <Text style={styles.streakBestLabel}>Best</Text>
+                  <Text style={styles.streakBestNumber}>{streakData.longestStreak}</Text>
+                </View>
+              </View>
+              
+              <View style={styles.streakDivider} />
+              
+              <View style={styles.streakCirclesContainer}>
+                {getLast7Days().map((date, index) => (
+                  <StreakCircle key={index} date={date} />
+                ))}
+              </View>
+              
+              <View style={styles.streakGoalContainer}>
+                <FontAwesomeIcon icon={faCalendarDay} size={14} color="#95A5A6" />
+                <Text style={styles.streakGoalText}>Complete 4 rests per day to maintain your streak</Text>
+              </View>
+            </Surface>
+
+            <View style={styles.tipContainer}>
+              <Text style={styles.tipText}>
+                Maintain your streak by completing at least 4 rest sessions each day.
+              </Text>
+            </View>
+          </>
+        )}
 
         <View style={styles.bottomPadding} />
       </View>
@@ -1456,9 +1667,14 @@ const styles = StyleSheet.create({
   cleanHeader: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 8,
+  },
+  cleanHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 14,
   },
   cleanHeaderEmoji: {
@@ -1474,6 +1690,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2C3E50',
     marginTop: 2,
+  },
+  settingsButton: {
+    padding: 8,
   },
   
   // Unified Content Container
@@ -2223,6 +2442,173 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  // Streak Card Styles
+  streakCard: {
+    borderRadius: 20,
+    padding: 20,
+    backgroundColor: '#FFFFFF',
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  streakHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  streakHeaderLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+  },
+  streakIconContainer: {
+    width: 56,
+    height: 56,
+    borderRadius: 16,
+    backgroundColor: '#FFF5F5',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  streakCurrentNumber: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: '#2C3E50',
+  },
+  streakCurrentLabel: {
+    fontSize: 13,
+    color: '#95A5A6',
+    fontWeight: '500',
+  },
+  streakBestContainer: {
+    alignItems: 'center',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: '#FFF9F0',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#FFE4B5',
+  },
+  streakBestLabel: {
+    fontSize: 11,
+    color: '#F39C12',
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  streakBestNumber: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#F39C12',
+    marginTop: 2,
+  },
+  streakDivider: {
+    height: 1,
+    backgroundColor: '#F0F0F0',
+    marginBottom: 20,
+  },
+  streakCirclesContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-around',
+    marginBottom: 16,
+  },
+  streakCircleContainer: {
+    alignItems: 'center',
+    gap: 8,
+  },
+  streakCircle: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: '#E8E8E8',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 2,
+    borderColor: '#E8E8E8',
+  },
+  streakCircleComplete: {
+    backgroundColor: '#4ECDC4',
+    borderColor: '#4ECDC4',
+  },
+  streakCircleToday: {
+    borderColor: '#FFE66D',
+    borderWidth: 3,
+    shadowColor: '#FFE66D',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.4,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  streakCirclePartial: {
+    backgroundColor: '#FFE4B5',
+    borderColor: '#FFE4B5',
+  },
+  streakCircleCount: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#F39C12',
+  },
+  streakCircleLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#95A5A6',
+  },
+  streakCircleLabelToday: {
+    color: '#4ECDC4',
+    fontWeight: 'bold',
+  },
+  streakGoalContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F0F0F0',
+  },
+  streakGoalText: {
+    fontSize: 12,
+    color: '#95A5A6',
+    fontStyle: 'italic',
+  },
+  // Tab Navigation Styles
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#F8F9FA',
+    borderRadius: 16,
+    padding: 4,
+    marginBottom: 20,
+    gap: 4,
+  },
+  tab: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    gap: 8,
+  },
+  tabActive: {
+    backgroundColor: '#FFFFFF',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#95A5A6',
+  },
+  tabTextActive: {
+    color: '#2C3E50',
   },
 });
 

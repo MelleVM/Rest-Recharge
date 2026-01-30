@@ -102,14 +102,13 @@ class LiveActivityModule: NSObject {
                    rejecter: @escaping RCTPromiseRejectBlock) {
         
         if #available(iOS 16.1, *) {
-            guard let activity = self.currentActivity else {
-                resolver(["success": true, "message": "No active activity to stop"])
-                return
-            }
-            
             Task {
-                await activity.end(dismissalPolicy: .immediate)
+                // End all activities for this type to ensure cleanup
+                for activity in Activity<TimerAttributes>.activities {
+                    await activity.end(dismissalPolicy: .immediate)
+                }
                 self.currentActivity = nil
+                print("✅ Live Activity stopped and dismissed")
                 resolver(["success": true])
             }
         } else {

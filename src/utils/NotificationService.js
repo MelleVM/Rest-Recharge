@@ -63,13 +63,28 @@ class NotificationService {
     return nextActive;
   };
 
-  configure = () => {
+  configure = (navigationCallback) => {
+    this.navigationCallback = navigationCallback;
+    
     PushNotification.configure({
-      onNotification: function(notification) {
+      onNotification: (notification) => {
         console.log('NOTIFICATION:', notification);
+        console.log('Notification data:', notification.data);
+        console.log('Notification userInfo:', notification.userInfo);
         
         if (notification.userInteraction) {
           console.log('User tapped on notification');
+          
+          // Check both data and userInfo for cross-platform compatibility
+          const screen = notification.data?.screen || notification.userInfo?.screen;
+          console.log('Screen to navigate to:', screen);
+          
+          if (screen === 'Timer' && this.navigationCallback) {
+            console.log('Navigating to Timer screen');
+            this.navigationCallback('Timer');
+          } else {
+            console.log('Navigation callback not available or no screen specified');
+          }
         }
         
         notification.finish(PushNotificationIOS.FetchResult.NoData);
@@ -199,52 +214,64 @@ class NotificationService {
     const seconds = remaining % 60;
     const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
 
-    // Try to start or update Live Activity (iOS 16.1+)
-    let liveActivityStarted = false;
+    // Start Live Activity (iOS 16.1+) - no fallback notification needed
     if (isResumingFromPause) {
       // Resume existing Live Activity instead of creating new one
-      liveActivityStarted = await LiveActivityService.updateTimer(remaining, false);
+      await LiveActivityService.updateTimer(remaining, false);
       console.log('Live Activity resumed from pause');
     } else {
       // Start new Live Activity
-      liveActivityStarted = await LiveActivityService.startTimer(remaining);
+      await LiveActivityService.startTimer(remaining);
       console.log('Live Activity started for timer');
     }
     
-    if (!liveActivityStarted) {
-      // Fallback to notification if Live Activity not available
-      PushNotification.cancelLocalNotification('999');
-
-      PushNotification.localNotification({
-        channelId: 'eye-rest-timer',
-        id: '999',
-        title: '👁️ Eye Rest in Progress',
-        message: `${timeString} remaining - Close your eyes and relax`,
-        ongoing: true,
-        autoCancel: false,
-        vibrate: false,
-        playSound: false,
-        priority: 'max',
-        visibility: 'public',
-        importance: 'max',
-        ignoreInForeground: false,
-        onlyAlertOnce: true,
-        largeIcon: '',
-        smallIcon: 'ic_notification',
-      });
-    }
+    // Cancel any existing ongoing notification and old reminder
+    PushNotification.cancelLocalNotification('999');
+    PushNotification.cancelLocalNotification('1'); // Cancel old reminder if resuming
+    
+    // Schedule the next reminder for when this timer completes
+    // This ensures reminder is scheduled even if app is closed when timer finishes
+    // This works for both new timers and resumed timers with the new end time
+    const settings = await this.getSettings();
+    const intervalMinutes = settings.temporaryInterval || settings.restInterval;
+    const nextReminderTime = new Date(endTime + (intervalMinutes * 60 * 1000));
+    
+    PushNotification.localNotificationSchedule({
+      channelId: 'eye-rest-reminders',
+      id: '1',
+      title: 'Time for an Eye Rest 👁️',
+      message: `Close your eyes for ${settings.restDuration} minutes to recharge`,
+      date: nextReminderTime,
+      allowWhileIdle: true,
+      vibrate: settings.vibrationEnabled,
+      playSound: true,
+      soundName: 'default',
+      userInfo: { screen: 'Timer' },
+      data: { screen: 'Timer' },
+    });
+    
+    await StorageService.setItem('nextReminderTime', {
+      id: 'next-reminder',
+      timestamp: nextReminderTime.getTime(),
+      formattedTime: nextReminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      date: nextReminderTime.toLocaleDateString(),
+    });
+    
+    console.log('Next reminder pre-scheduled for:', nextReminderTime.toLocaleTimeString());
 
     const completionTime = new Date(endTime);
     PushNotification.localNotificationSchedule({
       channelId: 'eye-rest-reminders',
       id: '998',
-      title: '🎉 Eye Rest Complete!',
-      message: 'Great job! Your eyes are refreshed.',
+      title: 'Eye Rest Complete!',
+      message: 'Great job. Press to collect your reward!',
       date: completionTime,
       allowWhileIdle: true,
       vibrate: true,
       playSound: true,
       soundName: 'alarm.wav',
+      userInfo: { screen: 'Timer' },
+      data: { screen: 'Timer' },
     });
 
     console.log('Timer notification started:', timeString);
@@ -258,33 +285,8 @@ class NotificationService {
       return;
     }
     
-    const minutes = Math.floor(remainingSeconds / 60);
-    const seconds = remainingSeconds % 60;
-    const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
-    // Try to update Live Activity first
-    const updated = await LiveActivityService.updateTimer(remainingSeconds, false);
-    
-    if (!updated) {
-      // Fallback to notification update
-      PushNotification.localNotification({
-        channelId: 'eye-rest-timer',
-        id: '999',
-        title: '👁️ Eye Rest in Progress',
-        message: `${timeString} remaining - Close your eyes and relax`,
-        ongoing: true,
-        autoCancel: false,
-        vibrate: false,
-        playSound: false,
-        priority: 'max',
-        visibility: 'public',
-        importance: 'max',
-        ignoreInForeground: false,
-        onlyAlertOnce: true,
-        largeIcon: '',
-        smallIcon: 'ic_notification',
-      });
-    }
+    // Update Live Activity only - no notification needed
+    await LiveActivityService.updateTimer(remainingSeconds, false);
   };
 
   stopTimerNotification = async () => {
@@ -293,42 +295,31 @@ class NotificationService {
     // Stop Live Activity if active
     await LiveActivityService.stopTimer();
     
-    // Also cancel notifications
+    // Cancel all timer-related notifications including pre-scheduled reminder
     PushNotification.cancelLocalNotification('999');
     PushNotification.cancelLocalNotification('998');
+    PushNotification.cancelLocalNotification('1'); // Cancel pre-scheduled reminder
+    
+    // Clear the stored next reminder time
+    await StorageService.removeItem('nextReminderTime');
+    
     console.log('Timer notification stopped');
   };
 
   pauseTimerNotification = async (remainingSeconds) => {
-    const minutes = Math.floor(remainingSeconds / 60);
-    const seconds = remainingSeconds % 60;
-    const timeString = `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
-
     await StorageService.setItem('timerPaused', { remaining: remainingSeconds });
     await StorageService.removeItem('timerEndTime');
 
-    // Update Live Activity to paused state
+    // Update Live Activity to paused state - no notification needed
     await LiveActivityService.updateTimer(remainingSeconds, true);
 
+    // Cancel completion notification, ongoing notifications, and pre-scheduled reminder
     PushNotification.cancelLocalNotification('998');
-
-    PushNotification.localNotification({
-      channelId: 'eye-rest-timer',
-      id: '999',
-      title: '⏸️ Eye Rest Paused',
-      message: `${timeString} remaining - Tap to resume`,
-      ongoing: true,
-      autoCancel: false,
-      vibrate: false,
-      playSound: false,
-      priority: 'max',
-      visibility: 'public',
-      importance: 'max',
-      ignoreInForeground: false,
-      onlyAlertOnce: true,
-      largeIcon: '',
-      smallIcon: 'ic_notification',
-    });
+    PushNotification.cancelLocalNotification('999');
+    PushNotification.cancelLocalNotification('1'); // Cancel pre-scheduled reminder
+    
+    // Clear the stored next reminder time since we cancelled it
+    await StorageService.removeItem('nextReminderTime');
   };
 
   getTimerState = async () => {
@@ -346,8 +337,10 @@ class NotificationService {
       if (remaining > 0) {
         return { isActive: true, remaining, endTime };
       } else {
-        // Timer has completed - return completed state
-        return { isActive: true, isCompleted: true, remaining: 0, endTime };
+        // Timer has completed - store completion time and return completed state
+        const completionTime = endTime; // endTime is when it actually completed
+        await StorageService.setItem('lastCompletionTime', completionTime);
+        return { isActive: true, isCompleted: true, remaining: 0, endTime, completionTime };
       }
     }
     
@@ -467,6 +460,8 @@ class NotificationService {
       vibrate: settings.vibrationEnabled,
       playSound: true,
       soundName: 'default',
+      userInfo: { screen: 'Timer' },
+      data: { screen: 'Timer' },
     });
     
     await StorageService.setItem('nextReminderTime', nextReminder);
@@ -501,6 +496,8 @@ class NotificationService {
       vibrate: settings.vibrationEnabled,
       playSound: true,
       soundName: 'default',
+      userInfo: { screen: 'Timer' },
+      data: { screen: 'Timer' },
     });
     
     await StorageService.setItem('nextReminderTime', nextReminder);

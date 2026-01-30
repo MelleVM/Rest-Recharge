@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, Alert, Dimensions, Modal } from 'react-native';
 import { Text, Surface, useTheme } from 'react-native-paper';
-import { useFocusEffect } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
@@ -13,6 +13,7 @@ import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
 import { faStar } from '@fortawesome/free-solid-svg-icons/faStar';
 import { faCircle } from '@fortawesome/free-solid-svg-icons/faCircle';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
+import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import StorageService from '../utils/StorageService';
 import { PlantColorEvent } from '../../App';
 
@@ -97,6 +98,7 @@ const getStageSize = (stage) => {
 };
 
 const GardenScreen = () => {
+  const navigation = useNavigation();
   const [gardenData, setGardenData] = useState({
     points: 0,
     unlockedPlants: ['classic'],
@@ -311,10 +313,13 @@ const GardenScreen = () => {
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.title}>Your Garden</Text>
-          <View style={[styles.gemDisplay, { backgroundColor: selectedPlant.color + '20' }]}>
-            <FontAwesomeIcon icon={faGem} size={18} color={selectedPlant.color} />
-            <Text style={[styles.gemText, { color: selectedPlant.color }]}>{gardenData.points}</Text>
-          </View>
+          <TouchableOpacity 
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.7}
+          >
+            <FontAwesomeIcon icon={faGear} size={24} color="#B2BEC3" />
+          </TouchableOpacity>
         </View>
 
       {/* Main Plant Display Card */}
@@ -510,6 +515,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#2D3436',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
   gemDisplay: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -518,6 +528,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingVertical: 10,
     borderRadius: 20,
+  },
+  settingsButton: {
+    padding: 8,
   },
   gemText: {
     fontSize: 18,

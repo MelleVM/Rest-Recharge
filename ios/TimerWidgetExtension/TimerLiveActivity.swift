@@ -60,16 +60,17 @@ struct TimerLiveActivity: Widget {
                                 .monospacedDigit()
                         }
                     } else if isCompleted {
-                        Text("00:00")
+                        Text("Finished!")
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
-                            .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
                     } else {
                         // Use timer interval for smooth countdown
                         Text(timerInterval: Date()...context.state.endTime, countsDown: true)
                             .font(.system(size: 22, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
                             .monospacedDigit()
+                            .multilineTextAlignment(.trailing)
                     }
 
                     Text(context.state.isPaused ? "Paused" : (isCompleted ? "Completed" : "Relax your eyes"))
@@ -135,15 +136,16 @@ struct TimerLiveActivity: Widget {
                                 .font(.system(size: 18, weight: .bold, design: .rounded))
                                 .foregroundColor(.primary)
                         } else if isCompleted {
-                            Text("00:00")
+                            Text("Finished!")
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundColor(.primary)
-                                .monospacedDigit()
+                                .multilineTextAlignment(.trailing)
                         } else {
                             Text(timerInterval: Date()...context.state.endTime, countsDown: true)
                                 .font(.system(size: 20, weight: .bold, design: .rounded))
                                 .foregroundColor(.primary)
                                 .monospacedDigit()
+                                .multilineTextAlignment(.trailing)
                         }
                     }
                 }
@@ -175,16 +177,17 @@ struct TimerLiveActivity: Widget {
                         .font(.system(size: 10))
                         .foregroundColor(.secondary)
                 } else if isCompleted {
-                    Text("00:00")
+                    Text("Done")
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
-                        .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
                         .frame(width: 38)
                 } else {
                     Text(timerInterval: Date()...context.state.endTime, countsDown: true)
                         .font(.system(size: 10, weight: .bold, design: .rounded))
                         .foregroundColor(.primary)
                         .monospacedDigit()
+                        .multilineTextAlignment(.trailing)
                         .frame(width: 38)
                 }
             } minimal: {

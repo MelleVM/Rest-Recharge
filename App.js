@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, ActivityIndicator, View, AppState, Animated } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faHouse } from '@fortawesome/free-solid-svg-icons/faHouse';
@@ -20,6 +21,7 @@ import StorageService from './src/utils/StorageService';
 import RewardToast from './src/components/RewardToast';
 
 const Tab = createBottomTabNavigator();
+const Stack = createNativeStackNavigator();
 
 // Plant colors (synced with GardenScreen)
 const PLANT_COLORS = {
@@ -59,6 +61,54 @@ export const ResetEvent = {
   },
 };
 
+// Tab Navigator Component
+function TabNavigator({ plantColor }) {
+  return (
+    <Tab.Navigator
+      screenOptions={({ route }) => ({
+        tabBarIcon: ({ focused, color, size }) => {
+          if (route.name === 'Home') {
+            return <FontAwesomeIcon icon={faHouse} size={24} color={color} />;
+          } else if (route.name === 'Timer') {
+            return <FontAwesomeIcon icon={faStopwatch} size={24} color={color} />;
+          } else if (route.name === 'Garden') {
+            return <FontAwesomeIcon icon={faSeedling} size={24} color={color} />;
+          }
+        },
+        tabBarActiveTintColor: plantColor,
+        tabBarInactiveTintColor: '#B2BEC3',
+        headerShown: false,
+        tabBarHideOnKeyboard: true,
+        lazy: false,
+        unmountOnBlur: false,
+        sceneStyle: { backgroundColor: '#FFF9F0' },
+        tabBarStyle: {
+          backgroundColor: '#FFFFFF',
+          borderTopWidth: 0,
+          elevation: 20,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -4 },
+          shadowOpacity: 0.1,
+          shadowRadius: 12,
+          height: 80,
+          paddingBottom: 15,
+          paddingTop: 10,
+          borderTopLeftRadius: 30,
+          borderTopRightRadius: 30,
+        },
+        tabBarLabelStyle: {
+          fontSize: 12,
+          fontWeight: 'bold',
+        },
+      })}
+    >
+      <Tab.Screen name="Home" component={HomeScreen} />
+      <Tab.Screen name="Timer" component={TimerScreen} />
+      <Tab.Screen name="Garden" component={GardenScreen} />
+    </Tab.Navigator>
+  );
+}
+
 // Fun, comic-style theme with bold colors
 const theme = {
   ...DefaultTheme,
@@ -81,6 +131,7 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [plantColor, setPlantColor] = useState('#4CAF50'); // Default to classic green
+  const navigationRef = React.useRef(null);
 
   const loadPlantColor = async () => {
     const gardenData = await StorageService.getItem('gardenData');
@@ -91,7 +142,12 @@ function App() {
 
   useEffect(() => {
     const initialize = async () => {
-      NotificationService.configure();
+      // Configure notifications with navigation callback
+      NotificationService.configure((screenName) => {
+        if (navigationRef.current) {
+          navigationRef.current.navigate(screenName);
+        }
+      });
       
       // Check if onboarding has been completed
       const onboardingCompleted = await StorageService.getItem('onboardingCompleted');
@@ -161,54 +217,27 @@ function App() {
       <View style={styles.rootContainer}>
         <SafeAreaView style={styles.safeAreaTop} />
         <RewardToast />
-        <NavigationContainer onStateChange={loadPlantColor}>
+        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor}>
           <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
-            <Tab.Navigator
-            screenOptions={({ route }) => ({
-              tabBarIcon: ({ focused, color, size }) => {
-                if (route.name === 'Home') {
-                  return <FontAwesomeIcon icon={faHouse} size={24} color={color} />;
-                } else if (route.name === 'Timer') {
-                  return <FontAwesomeIcon icon={faStopwatch} size={24} color={color} />;
-                } else if (route.name === 'Garden') {
-                  return <FontAwesomeIcon icon={faSeedling} size={24} color={color} />;
-                } else if (route.name === 'Settings') {
-                  return <FontAwesomeIcon icon={faGear} size={24} color={color} />;
-                }
-              },
-              tabBarActiveTintColor: plantColor,
-              tabBarInactiveTintColor: '#B2BEC3',
-              headerShown: false,
-              tabBarHideOnKeyboard: true,
-              lazy: false,
-              unmountOnBlur: false,
-              sceneStyle: { backgroundColor: '#FFF9F0' },
-              tabBarStyle: {
-                backgroundColor: '#FFFFFF',
-                borderTopWidth: 0,
-                elevation: 20,
-                shadowColor: '#000',
-                shadowOffset: { width: 0, height: -4 },
-                shadowOpacity: 0.1,
-                shadowRadius: 12,
-                height: 80,
-                paddingBottom: 15,
-                paddingTop: 10,
-                borderTopLeftRadius: 30,
-                borderTopRightRadius: 30,
-              },
-              tabBarLabelStyle: {
-                fontSize: 12,
-                fontWeight: 'bold',
-              },
-            })}
-          >
-            <Tab.Screen name="Home" component={HomeScreen} />
-            <Tab.Screen name="Timer" component={TimerScreen} />
-            <Tab.Screen name="Garden" component={GardenScreen} />
-            <Tab.Screen name="Settings" component={SettingsScreen} />
-          </Tab.Navigator>
+            <Stack.Navigator screenOptions={{ headerShown: false }}>
+              <Stack.Screen name="MainTabs">
+                {() => <TabNavigator plantColor={plantColor} />}
+              </Stack.Screen>
+              <Stack.Screen 
+                name="Settings" 
+                component={SettingsScreen}
+                options={{
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Settings',
+                  headerStyle: {
+                    backgroundColor: '#FFF9F0',
+                  },
+                  headerTintColor: '#2D3436',
+                }}
+              />
+            </Stack.Navigator>
           </View>
         </NavigationContainer>
       </View>
