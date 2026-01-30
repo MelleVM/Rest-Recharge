@@ -5,100 +5,95 @@ import SwiftUI
 struct TimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimerAttributes.self) { context in
-            // Lock screen/banner UI - modern dark style like WWDC example
-            let now = Date()
-            let isCompleted = context.state.endTime <= now
+            // Lock screen/banner UI - clean white/transparent style
+            let isCompleted = context.state.endTime <= Date()
+            let totalDuration = TimeInterval(context.attributes.totalDuration)
 
-            HStack(spacing: 14) {
-                // App icon - using SF Symbol
+            HStack(spacing: 16) {
+                // App logo on the left
                 ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color.white.opacity(0.2))
-                        .frame(width: 42, height: 42)
+                    Circle()
+                        .fill(Color(red: 0.30, green: 0.36, blue: 0.42).opacity(0.1))
+                        .frame(width: 48, height: 48)
                     
-                    Image(systemName: "eye.fill")
-                        .font(.system(size: 20, weight: .semibold))
-                        .foregroundColor(.white)
+                Image("WidgetLogo")
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: 40, height: 40)
                 }
-                .shadow(color: Color.black.opacity(0.18), radius: 6, x: 0, y: 3)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Eye Rest")
-                        .font(.system(size: 14, weight: .semibold, design: .rounded))
-                        .foregroundColor(.white)
+                        .font(.system(size: 15, weight: .semibold, design: .rounded))
+                        .foregroundColor(Color(red: 0.18, green: 0.20, blue: 0.22))
 
                     if context.state.isPaused {
                         Text("Paused")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.85))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(red: 0.45, green: 0.50, blue: 0.55))
                     } else if isCompleted {
                         Text("Rest complete")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.85))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(red: 0.45, green: 0.50, blue: 0.55))
                     } else {
                         Text("Rest & Recharge")
-                            .font(.system(size: 12, weight: .medium))
-                            .foregroundColor(.white.opacity(0.85))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(Color(red: 0.45, green: 0.50, blue: 0.55))
                     }
                 }
 
                 Spacer()
 
-                // Timer display
-                VStack(alignment: .trailing, spacing: 4) {
+                // Circular progress indicator on the right
+                ZStack {
+                    // Progress circle - ProgressView has its own background
+                    if !isCompleted {
+                        ProgressView(timerInterval: Date()...context.state.endTime, countsDown: true, label: {}, currentValueLabel: {})
+                            .progressViewStyle(CircularProgressViewStyle(tint: Color(red: 0.30, green: 0.73, blue: 0.42)))
+                            .frame(width: 60, height: 60)
+                    } else {
+                        Circle()
+                            .stroke(Color(red: 0.30, green: 0.73, blue: 0.42), lineWidth: 4)
+                            .frame(width: 60, height: 60)
+                    }
+                    
+                    // Timer text in center - MM:SS format
                     if context.state.isPaused {
                         let seconds = max(0, context.state.remainingSeconds)
                         let mins = seconds / 60
                         let secs = seconds % 60
-                        HStack(spacing: 6) {
-                            Image(systemName: "pause.circle.fill")
-                                .font(.system(size: 14))
-                                .foregroundColor(.white.opacity(0.9))
-                            Text(String(format: "%02d:%02d", mins, secs))
-                                .font(.system(size: 22, weight: .bold, design: .rounded))
-                                .foregroundColor(.white)
-                                .monospacedDigit()
-                        }
-                    } else if isCompleted {
-                        Text("Finished!")
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
-                            .multilineTextAlignment(.trailing)
-                    } else {
-                        // Use timer interval for smooth countdown
-                        Text(timerInterval: Date()...context.state.endTime, countsDown: true)
-                            .font(.system(size: 22, weight: .bold, design: .rounded))
-                            .foregroundColor(.white)
+                        Text(String(format: "%02d:%02d", mins, secs))
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(red: 0.18, green: 0.20, blue: 0.22))
                             .monospacedDigit()
-                            .multilineTextAlignment(.trailing)
+                            .frame(width: 50)
+                    } else if isCompleted {
+                        Image(systemName: "checkmark")
+                            .font(.system(size: 20, weight: .bold))
+                            .foregroundColor(Color(red: 0.30, green: 0.73, blue: 0.42))
+                    } else {
+                        Text(timerInterval: Date()...context.state.endTime, countsDown: true)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(Color(red: 0.18, green: 0.20, blue: 0.22))
+                            .monospacedDigit()
+                            .multilineTextAlignment(.center)
+                            .frame(width: 50)
                     }
-
-                    Text(context.state.isPaused ? "Paused" : (isCompleted ? "Completed" : "Relax your eyes"))
-                        .font(.system(size: 11, weight: .medium))
-                        .foregroundColor(.white.opacity(0.85))
                 }
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 14)
+            .padding(.horizontal, 18)
+            .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(
-                        LinearGradient(
-                            gradient: Gradient(colors: [
-                                Color(red: 0.50, green: 0.73, blue: 1.00),
-                                Color(red: 0.99, green: 0.76, blue: 0.89)
-                            ]),
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                    )
+                    .fill(Color.white.opacity(0.92))
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
                     )
+                    .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 6)
             )
             .activityBackgroundTint(Color.clear)
-            .activitySystemActionForegroundColor(.white)
+            .activitySystemActionForegroundColor(Color(red: 0.30, green: 0.36, blue: 0.42))
             
         } dynamicIsland: { context in
             DynamicIsland {
