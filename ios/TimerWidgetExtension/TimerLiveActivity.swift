@@ -2,6 +2,14 @@ import ActivityKit
 import WidgetKit
 import SwiftUI
 
+private class BundleFinder {}
+
+extension Foundation.Bundle {
+    static var widgetBundle: Bundle {
+        Bundle(for: BundleFinder.self)
+    }
+}
+
 struct TimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimerAttributes.self) { context in
@@ -11,16 +19,11 @@ struct TimerLiveActivity: Widget {
 
             HStack(spacing: 16) {
                 // App logo on the left
-                ZStack {
-                    Circle()
-                        .fill(Color(red: 0.30, green: 0.36, blue: 0.42).opacity(0.1))
-                        .frame(width: 48, height: 48)
-                    
-                Image("WidgetLogo")
+                Image("WidgetLogo", bundle: .widgetBundle)
                     .resizable()
                     .aspectRatio(contentMode: .fit)
-                    .frame(width: 40, height: 40)
-                }
+                    .frame(width: 48, height: 48)
+                    .cornerRadius(12)
 
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Eye Rest")

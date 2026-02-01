@@ -14,6 +14,7 @@ import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 import { ToastEvent } from '../components/RewardToast';
+import { FONTS } from '../styles/fonts';
 
 // Plant colors (synced with GardenScreen)
 const PLANT_COLORS = {
@@ -553,19 +554,14 @@ const TimerScreen = () => {
 
       <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <View style={styles.headerTop}>
-            <View>
-              <Text style={styles.title}>Eye Rest</Text>
-              <Text style={styles.subtitle}>Rest & Recharge</Text>
-            </View>
-            <TouchableOpacity 
-              style={styles.settingsButton}
-              onPress={() => navigation.navigate('Settings')}
-              activeOpacity={0.7}
-            >
-              <FontAwesomeIcon icon={faGear} size={24} color="#B2BEC3" />
-            </TouchableOpacity>
-          </View>
+          <Text style={styles.title}>Rest & Recharge</Text>
+          <TouchableOpacity
+            style={styles.settingsButton}
+            onPress={() => navigation.navigate('Settings')}
+            activeOpacity={0.7}
+          >
+            <FontAwesomeIcon icon={faGear} size={28} color="#B2BEC3" />
+          </TouchableOpacity>
         </View>
 
       <View style={styles.timerContainer}>
@@ -653,12 +649,10 @@ const styles = StyleSheet.create({
     height: 80,
   },
   header: {
-    marginBottom: 30,
-  },
-  headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    alignItems: 'center',
+    marginBottom: 30,
   },
   headerRight: {
     flexDirection: 'row',
@@ -683,9 +677,10 @@ const styles = StyleSheet.create({
     color: '#6C5CE7',
   },
   title: {
-    fontSize: 36,
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#2D3436',
+    color: '#505255',
+    fontFamily: FONTS.regular,
   },
   subtitle: {
     fontSize: 18,

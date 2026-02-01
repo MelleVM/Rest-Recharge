@@ -34,7 +34,7 @@
 		<true/>
 	</dict>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string></string>
+	<string/>
 	<key>RCTNewArchEnabled</key>
 	<true/>
 	<key>UILaunchStoryboardName</key>
@@ -69,6 +69,13 @@
 		<string>Octicons.ttf</string>
 		<string>SimpleLineIcons.ttf</string>
 		<string>Zocial.ttf</string>
+		<string>FontAwesome6_Regular.ttf</string>
+		<string>FontAwesome6_Solid.ttf</string>
+		<string>FontAwesome6_Brands.ttf</string>
+		<string>Archivo_500Medium.ttf</string>
+		<string>Archivo_400Regular.ttf</string>
+		<string>Archivo_600SemiBold.ttf</string>
+		<string>Archivo_700Bold.ttf</string>
 	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>

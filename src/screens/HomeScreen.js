@@ -24,6 +24,7 @@ import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { ToastEvent } from '../components/RewardToast';
+import { FONTS } from '../styles/fonts';
 
 // Plant types with colors (synced with GardenScreen)
 const PLANT_TYPES = {
@@ -920,144 +921,88 @@ const HomeScreen = () => {
       </Modal>
 
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
-        {/* Clean Header */}
-        <View style={styles.cleanHeader}>
-          <View style={styles.cleanHeaderLeft}>
-            <Text style={styles.cleanHeaderEmoji}>{greetingIcon}</Text>
-            <View>
-              <Text style={styles.cleanHeaderGreeting}>{greeting}</Text>
-              <Text style={styles.cleanHeaderTitle}>Rest & Recharge</Text>
-            </View>
-          </View>
+        {/* Minimal Header */}
+        <View style={styles.minimalHeader}>
+          <Text style={styles.minimalHeaderTitle}>Rest & Recharge</Text>
           <TouchableOpacity 
-            style={styles.settingsButton}
+            style={styles.settingsIconButton}
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
           >
-            <FontAwesomeIcon icon={faGear} size={24} color="#B2BEC3" />
+            <FontAwesomeIcon icon={faGear} size={28} color="#B2BEC3" />
           </TouchableOpacity>
         </View>
 
-      {/* Unified Content Container */}
+      {/* Content */}
       <View style={styles.contentContainer}>
-        {/* Hero Card - Combined Status */}
+        {/* Status Section - Flat Design */}
         {(() => {
           const plantType = PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
           const plantProgress = gardenData.plantProgress?.[gardenData.selectedPlantType] || { stage: 0, points: 0 };
           const isFullyGrown = plantProgress.stage >= 5;
           const stageProgressPercent = isFullyGrown ? 100 : (plantProgress.points / 30) * 100;
           return (
-            <Surface style={[styles.heroCard, { borderTopColor: plantColor }]}>
-              {/* Top Section - Plant & Gems */}
-              <TouchableOpacity 
-                onPress={() => navigation.navigate('Garden')} 
-                activeOpacity={0.7}
-                style={styles.heroTopSection}
-              >
-                <View style={[styles.heroPlantIcon, { backgroundColor: plantColor }]}>
-                  <FontAwesomeIcon
-                    icon={getStageIcon(plantProgress.stage, gardenData.selectedPlantType)}
-                    size={32}
-                    color="#FFFFFF"
-                  />
-                </View>
-                <View style={styles.heroPlantInfo}>
-                  <Text style={styles.heroPlantName}>{plantType.name}</Text>
-                  <Text style={styles.heroPlantStage}>
-                    {isFullyGrown ? '✨ Fully Grown!' : `Stage ${plantProgress.stage + 1} of 6`}
-                  </Text>
-                  <View style={styles.heroProgressBar}>
-                    <View style={[styles.heroProgressTrack, { backgroundColor: plantColor + '20' }]}>
-                      <View style={[styles.heroProgressFill, { width: `${stageProgressPercent}%`, backgroundColor: plantColor }]} />
-                    </View>
-                    <Text style={[styles.heroProgressText, { color: plantColor }]}>{Math.round(stageProgressPercent)}%</Text>
-                  </View>
-                </View>
-                <View style={styles.heroGemsContainer}>
-                  <FontAwesomeIcon icon={faGem} size={18} color={plantColor} />
-                  <Text style={[styles.heroGemsText, { color: plantColor }]}>{gardenData.points}</Text>
-                </View>
-              </TouchableOpacity>
+            <>
 
-              {/* Divider */}
-              <View style={styles.heroDivider} />
 
-              {/* Bottom Section - Quick Stats */}
-              <View style={styles.heroStatsRow}>
+              {/* Quick Actions Grid */}
+              <View style={styles.flatActionsGrid}>
                 <TouchableOpacity
                   onPress={!wakeupTime ? logWakeupTime : null}
                   activeOpacity={wakeupTime ? 1 : 0.7}
-                  style={styles.heroStatItem}
+                  style={[styles.flatActionCard, wakeupTime && styles.flatActionCardDone]}
                 >
-                  <View style={[styles.heroStatIcon, { backgroundColor: wakeupTime ? '#E8F8F5' : '#FEF9E7' }]}>
-                    <FontAwesomeIcon icon={wakeupTime ? faCheck : faSun} size={18} color={wakeupTime ? '#1ABC9C' : '#F1C40F'} />
-                  </View>
-                  <View style={styles.heroStatText}>
-                    <Text style={styles.heroStatLabel}>{wakeupTime ? 'Woke up' : 'Wake-up'}</Text>
-                    <Text style={styles.heroStatValue}>{wakeupTime ? wakeupTime.formattedTime : 'Tap to log'}</Text>
-                  </View>
+                  <FontAwesomeIcon
+                    icon={wakeupTime ? faCheck : faSun}
+                    size={20}
+                    color={wakeupTime ? '#10B981' : '#F59E0B'}
+                  />
+                  <Text style={styles.flatActionLabel}>{wakeupTime ? 'Woke up' : 'Log wake-up'}</Text>
+                  <Text style={styles.flatActionValue}>
+                    {wakeupTime ? wakeupTime.formattedTime : 'Tap here'}
+                  </Text>
                 </TouchableOpacity>
-
-                <View style={styles.heroStatDivider} />
 
                 <TouchableOpacity
                   onPress={openReminderModal}
                   activeOpacity={0.7}
-                  style={styles.heroStatItem}
+                  style={styles.flatActionCard}
                 >
-                  <View style={[styles.heroStatIcon, { backgroundColor: '#FDEDEC' }]}>
-                    <FontAwesomeIcon icon={faBell} size={18} color="#E74C3C" />
-                  </View>
-                  <View style={styles.heroStatText}>
-                    <Text style={styles.heroStatLabel}>Next rest</Text>
-                    <Text style={styles.heroStatValue}>{nextReminderTime ? nextReminderTime.formattedTime : 'Tap to set'}</Text>
-                  </View>
+                  <FontAwesomeIcon icon={faBell} size={20} color="#EF4444" />
+                  <Text style={styles.flatActionLabel}>Next reminder</Text>
+                  <Text style={styles.flatActionValue}>
+                    {nextReminderTime ? nextReminderTime.formattedTime : 'Set time'}
+                  </Text>
                 </TouchableOpacity>
 
-                <View style={styles.heroStatDivider} />
-
-                <View style={styles.heroStatItem}>
-                  <View style={[styles.heroStatIcon, { backgroundColor: '#EBF5FB' }]}>
-                    <FontAwesomeIcon icon={faFire} size={18} color="#3498DB" />
-                  </View>
-                  <View style={styles.heroStatText}>
-                    <Text style={styles.heroStatLabel}>Today</Text>
-                    <Text style={styles.heroStatValue}>{getRestsForDate(new Date()).length} rests</Text>
-                  </View>
+                <View style={styles.flatActionCard}>
+                  <FontAwesomeIcon icon={faFire} size={20} color="#3B82F6" />
+                  <Text style={styles.flatActionLabel}>Today's rests</Text>
+                  <Text style={styles.flatActionValue}>{getRestsForDate(new Date()).length}</Text>
                 </View>
               </View>
-            </Surface>
+            </>
           );
         })()}
 
-        {/* Tab Navigation */}
-        <View style={styles.tabContainer}>
+        {/* Flat Tab Navigation */}
+        <View style={styles.flatTabContainer}>
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'activity' && styles.tabActive]}
+            style={[styles.flatTab, activeTab === 'activity' && styles.flatTabActive]}
             onPress={() => setActiveTab('activity')}
             activeOpacity={0.7}
           >
-            <FontAwesomeIcon 
-              icon={faCalendarDay} 
-              size={18} 
-              color={activeTab === 'activity' ? '#4ECDC4' : '#95A5A6'} 
-            />
-            <Text style={[styles.tabText, activeTab === 'activity' && styles.tabTextActive]}>
+            <Text style={[styles.flatTabText, activeTab === 'activity' && styles.flatTabTextActive]}>
               Activity
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.tab, activeTab === 'streak' && styles.tabActive]}
+            style={[styles.flatTab, activeTab === 'streak' && styles.flatTabActive]}
             onPress={() => setActiveTab('streak')}
             activeOpacity={0.7}
           >
-            <FontAwesomeIcon 
-              icon={faFire} 
-              size={18} 
-              color={activeTab === 'streak' ? '#FF6B6B' : '#95A5A6'} 
-            />
-            <Text style={[styles.tabText, activeTab === 'streak' && styles.tabTextActive]}>
+            <Text style={[styles.flatTabText, activeTab === 'streak' && styles.flatTabTextActive]}>
               Streak
             </Text>
           </TouchableOpacity>
@@ -1066,125 +1011,107 @@ const HomeScreen = () => {
         {/* Activity Tab Content */}
         {activeTab === 'activity' && (
           <>
-            <Text style={styles.sectionTitle}>Rest History</Text>
-        
-        <Surface style={styles.unifiedCard}>
-        <ScrollView
-          ref={weekScrollRef}
-          horizontal
-          showsHorizontalScrollIndicator={false}
-          contentContainerStyle={styles.weekOverviewScroll}
-          onContentSizeChange={() => {
-            weekScrollRef.current?.scrollToEnd({ animated: false });
-          }}
-        >
-          {getLast7Days().map((date, index) => (
-            <TouchableOpacity
-              key={index}
-              onPress={() => setSelectedDate(date)}
-              activeOpacity={0.7}
-            >
-              <DaySummaryCard
-                date={date}
-                isSelected={isSameDay(date, selectedDate)}
-              />
-            </TouchableOpacity>
-          ))}
-        </ScrollView>
-      </Surface>
-
-        <Surface style={styles.unifiedCard}>
-        <View style={styles.timelineHeader}>
-          <TouchableOpacity
-            onPress={goToPreviousDay}
-            style={styles.timelineNavButton}
-          >
-            <FontAwesomeIcon icon={faChevronLeft} size={16} color="#636E72" />
-          </TouchableOpacity>
-          <Text style={styles.timelineTitle}>
-            {formatDateHeader(selectedDate)}
-          </Text>
-          <TouchableOpacity
-            onPress={goToNextDay}
-            style={[
-              styles.timelineNavButton,
-              isSelectedToday && styles.timelineNavButtonDisabled,
-            ]}
-            disabled={isSelectedToday}
-          >
-            <FontAwesomeIcon
-              icon={faChevronRight}
-              size={16}
-              color={isSelectedToday ? '#DFE6E9' : '#636E72'}
-            />
-          </TouchableOpacity>
-        </View>
-
-        <DayTimeline date={selectedDate} rests={selectedDateRests} />
-
-        <View style={styles.timelineLegend}>
-          <View style={styles.legendItem}>
-            <View style={styles.legendDiamond} />
-            <Text style={styles.legendText}>Rested</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendLine, styles.legendLineNormal]} />
-            <Text style={styles.legendText}>On track</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendLine, styles.legendLineWarning]} />
-            <Text style={styles.legendText}>Needs rest</Text>
-          </View>
-        </View>
-
-        {selectedDateRests.length > 0 && (
-          <View style={styles.restListContainer}>
-            <View style={styles.restListHeader}>
-              <Text style={styles.restListTitle}>Completed Rests</Text>
+        {/* Day Selector - Simplified */}
+        <View style={styles.daySelector}>
+          {getLast7Days().slice(-5).map((date, index) => {
+            const isSelected = isSameDay(date, selectedDate);
+            const isCurrentDay = isSameDay(date, new Date());
+            const rests = getRestsForDate(date);
+            const dayLetter = isCurrentDay ? 'Today' : date.toLocaleDateString([], { weekday: 'short' }).charAt(0);
+            return (
               <TouchableOpacity
-                style={styles.addRestButton}
-                onPress={openAddRestModal}
+                key={index}
+                onPress={() => setSelectedDate(date)}
                 activeOpacity={0.7}
+                style={[styles.dayItem, isSelected && styles.dayItemSelected]}
               >
-                <FontAwesomeIcon icon={faPlus} size={14} color="#4ECDC4" />
-                <Text style={styles.addRestButtonText}>Add</Text>
+                <Text style={[styles.dayLetter, isSelected && styles.dayLetterSelected]}>{dayLetter}</Text>
+                <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected]}>{date.getDate()}</Text>
+                {rests.length > 0 && <View style={[styles.dayDot, isSelected && styles.dayDotSelected]} />}
               </TouchableOpacity>
-            </View>
-            {[...selectedDateRests]
-              .sort((a, b) => b.timestamp - a.timestamp)
-              .map((rest, index) => (
-                <TouchableOpacity
-                  key={index}
-                  style={styles.restListItem}
-                  onPress={() => openEditRestModal(rest)}
-                  activeOpacity={0.7}
-                >
-                  <FontAwesomeIcon icon={faCheck} size={14} color="#4ECDC4" />
-                  <Text style={styles.restListTime}>{rest.time}</Text>
-                  <FontAwesomeIcon icon={faPencil} size={12} color="#B2BEC3" />
-                </TouchableOpacity>
-              ))}
-          </View>
-        )}
+            );
+          })}
+        </View>
 
-        {selectedDateRests.length === 0 && (
-          <View style={styles.noRestsContainer}>
-            <Text style={styles.noRestsText}>
-              {isSelectedToday
-                ? 'No rests completed yet today'
-                : 'No rests on this day'}
+        {/* Timeline Card - Flat */}
+        <View style={styles.flatCard}>
+          <View style={styles.flatCardHeader}>
+            <TouchableOpacity onPress={goToPreviousDay} style={styles.flatNavButton}>
+              <FontAwesomeIcon icon={faChevronLeft} size={14} color="#6B7280" />
+            </TouchableOpacity>
+            <Text style={styles.flatCardTitle}>{formatDateHeader(selectedDate)}</Text>
+            <TouchableOpacity
+              onPress={goToNextDay}
+              style={[styles.flatNavButton, isSelectedToday && styles.flatNavButtonDisabled]}
+              disabled={isSelectedToday}
+            >
+              <FontAwesomeIcon icon={faChevronRight} size={14} color={isSelectedToday ? '#D1D5DB' : '#6B7280'} />
+            </TouchableOpacity>
+          </View>
+
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            <View style={styles.timelineScrollContent}>
+              <DayTimeline date={selectedDate} rests={selectedDateRests} />
+            </View>
+          </ScrollView>
+
+          <View style={styles.flatLegend}>
+            <View style={styles.flatLegendItem}>
+              <View style={styles.flatLegendDiamond} />
+              <Text style={styles.flatLegendText}>Rested</Text>
+            </View>
+            <View style={styles.flatLegendItem}>
+              <View style={[styles.flatLegendLine, { backgroundColor: '#10B981' }]} />
+              <Text style={styles.flatLegendText}>On track</Text>
+            </View>
+            <View style={styles.flatLegendItem}>
+              <View style={[styles.flatLegendLine, { backgroundColor: '#F59E0B' }]} />
+              <Text style={styles.flatLegendText}>Needs rest</Text>
+            </View>
+          </View>
+        </View>
+
+        {/* Rest List - Flat */}
+        <View style={styles.flatCard}>
+          <View style={styles.flatCardHeader}>
+            <Text style={styles.flatCardTitle}>
+              {selectedDateRests.length > 0 ? 'Completed Rests' : 'No rests yet'}
             </Text>
             <TouchableOpacity
-              style={styles.addRestButtonLarge}
+              style={styles.flatAddButton}
               onPress={openAddRestModal}
               activeOpacity={0.7}
             >
-              <FontAwesomeIcon icon={faPlus} size={16} color="#FFFFFF" />
-              <Text style={styles.addRestButtonLargeText}>Log a Rest</Text>
+              <FontAwesomeIcon icon={faPlus} size={12} color="#10B981" />
+              <Text style={styles.flatAddButtonText}>Add</Text>
             </TouchableOpacity>
           </View>
-        )}
-      </Surface>
+
+          {selectedDateRests.length > 0 ? (
+            <View style={styles.flatRestList}>
+              {[...selectedDateRests]
+                .sort((a, b) => b.timestamp - a.timestamp)
+                .map((rest, index) => (
+                  <TouchableOpacity
+                    key={index}
+                    style={styles.flatRestItem}
+                    onPress={() => openEditRestModal(rest)}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.flatRestDot} />
+                    <Text style={styles.flatRestTime}>{rest.time}</Text>
+                    <FontAwesomeIcon icon={faPencil} size={12} color="#9CA3AF" />
+                  </TouchableOpacity>
+                ))}
+            </View>
+          ) : (
+            <View style={styles.flatEmptyState}>
+              <Text style={styles.flatEmptyText}>
+                {isSelectedToday ? 'Start your first rest session' : 'No rests recorded'}
+              </Text>
+            </View>
+          )}
+        </View>
 
       {/* Add/Edit Rest Modal */}
       <Modal
@@ -1414,56 +1341,54 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
-
-            <View style={styles.tipContainer}>
-              <Text style={styles.tipText}>
-                Resting for 20 minutes every two hours has been proven to be
-                beneficial for recharging your battery.
-              </Text>
-            </View>
           </>
         )}
 
         {/* Streak Tab Content */}
         {activeTab === 'streak' && (
           <>
-            <Text style={styles.sectionTitle}>Weekly Streak</Text>
-            
-            <Surface style={styles.streakCard}>
-              <View style={styles.streakHeader}>
-                <View style={styles.streakHeaderLeft}>
-                  <View style={styles.streakIconContainer}>
-                    <FontAwesomeIcon icon={faFire} size={24} color="#FF6B6B" />
-                  </View>
-                  <View>
-                    <Text style={styles.streakCurrentNumber}>{streakData.currentStreak}</Text>
-                    <Text style={styles.streakCurrentLabel}>Day Streak</Text>
-                  </View>
-                </View>
-                <View style={styles.streakBestContainer}>
-                  <Text style={styles.streakBestLabel}>Best</Text>
-                  <Text style={styles.streakBestNumber}>{streakData.longestStreak}</Text>
-                </View>
+            {/* Streak Stats Row */}
+            <View style={styles.flatStreakStats}>
+              <View style={styles.flatStreakMain}>
+                <FontAwesomeIcon icon={faFire} size={28} color="#EF4444" />
+                <Text style={styles.flatStreakNumber}>{streakData.currentStreak}</Text>
+                <Text style={styles.flatStreakLabel}>day streak</Text>
               </View>
-              
-              <View style={styles.streakDivider} />
-              
-              <View style={styles.streakCirclesContainer}>
-                {getLast7Days().map((date, index) => (
-                  <StreakCircle key={index} date={date} />
-                ))}
+              <View style={styles.flatStreakBest}>
+                <Text style={styles.flatStreakBestLabel}>Best</Text>
+                <Text style={styles.flatStreakBestNum}>{streakData.longestStreak}</Text>
               </View>
-              
-              <View style={styles.streakGoalContainer}>
-                <FontAwesomeIcon icon={faCalendarDay} size={14} color="#95A5A6" />
-                <Text style={styles.streakGoalText}>Complete 4 rests per day to maintain your streak</Text>
-              </View>
-            </Surface>
+            </View>
 
-            <View style={styles.tipContainer}>
-              <Text style={styles.tipText}>
-                Maintain your streak by completing at least 4 rest sessions each day.
-              </Text>
+            {/* Week Progress - Flat */}
+            <View style={styles.flatCard}>
+              <Text style={styles.flatCardTitle}>This Week</Text>
+              <View style={styles.flatStreakWeek}>
+                {getLast7Days().map((date, index) => {
+                  const status = getStreakStatusForDate(date);
+                  const dayLabel = date.toLocaleDateString([], { weekday: 'short' }).substring(0, 2);
+                  return (
+                    <View key={index} style={styles.flatStreakDay}>
+                      <View style={[
+                        styles.flatStreakCircle,
+                        status.goalMet && styles.flatStreakCircleDone,
+                        status.isToday && styles.flatStreakCircleToday,
+                        !status.goalMet && status.count > 0 && styles.flatStreakCirclePartial,
+                      ]}>
+                        {status.goalMet ? (
+                          <FontAwesomeIcon icon={faCheck} size={14} color="#FFFFFF" />
+                        ) : status.count > 0 ? (
+                          <Text style={styles.flatStreakCount}>{status.count}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.flatStreakDayLabel, status.isToday && styles.flatStreakDayLabelToday]}>
+                        {dayLabel}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={styles.flatStreakGoal}>Complete 4 rests per day to maintain streak</Text>
             </View>
           </>
         )}
@@ -1476,183 +1401,7 @@ const HomeScreen = () => {
 };
 
 const styles = StyleSheet.create({
-  tipContainer: {
-    marginBottom: 20,
-    marginTop: 20,
-  },
-  tipText: {
-    fontSize: 14,
-    color: '#636E72',
-    textAlign: 'center',
-    fontStyle: 'italic',
-  },
-  gardenCard: {
-    marginHorizontal: 20,
-    marginTop: 20,
-    borderRadius: 24,
-    padding: 20,
-    backgroundColor: '#FFFFFF',
-    elevation: 4,
-  },
-  gardenHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 16,
-  },
-  gardenTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2D3436',
-  },
-  pointsBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    backgroundColor: '#FFFBE5',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 20,
-  },
-  pointsText: {
-    fontSize: 14,
-    fontWeight: 'bold',
-    color: '#F4A460',
-  },
-  gardenContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 20,
-  },
-  plantContainer: {
-    width: 100,
-    height: 120,
-    justifyContent: 'flex-end',
-    alignItems: 'center',
-  },
-  plantPot: {
-    width: 60,
-    height: 40,
-    borderRadius: 8,
-    borderTopLeftRadius: 4,
-    borderTopRightRadius: 4,
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    overflow: 'hidden',
-  },
-  plantSoil: {
-    width: '100%',
-    height: 15,
-    backgroundColor: '#5D4037',
-  },
-  plantStem: {
-    position: 'absolute',
-    bottom: 35,
-  },
-  gardenInfo: {
-    flex: 1,
-  },
-  plantStage: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2D3436',
-    marginBottom: 8,
-  },
-  growthBarContainer: {
-    height: 8,
-    backgroundColor: '#E8F5E9',
-    borderRadius: 4,
-    overflow: 'hidden',
-    marginBottom: 6,
-  },
-  growthBar: {
-    height: '100%',
-    backgroundColor: '#4CAF50',
-    borderRadius: 4,
-  },
-  growthText: {
-    fontSize: 12,
-    color: '#636E72',
-  },
-  plantsGrownText: {
-    fontSize: 12,
-    color: '#4CAF50',
-    marginTop: 4,
-    fontWeight: '500',
-  },
-  gardenTip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: 16,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
-  },
-  gardenTipText: {
-    fontSize: 12,
-    color: '#636E72',
-    fontStyle: 'italic',
-    flex: 1,
-  },
-  plantWidget: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 14,
-    borderRadius: 16,
-    backgroundColor: '#FFFFFF',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    borderLeftWidth: 4,
-  },
-  plantWidgetIcon: {
-    width: 52,
-    height: 52,
-    borderRadius: 14,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  plantWidgetContent: {
-    flex: 1,
-    marginLeft: 14,
-  },
-  plantWidgetName: {
-    fontSize: 15,
-    fontWeight: 'bold',
-    color: '#2D3436',
-    marginBottom: 6,
-  },
-  plantWidgetProgressRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  plantWidgetProgressBar: {
-    flex: 1,
-    height: 8,
-    backgroundColor: '#F0F0F0',
-    borderRadius: 4,
-    overflow: 'hidden',
-  },
-  plantWidgetProgressFill: {
-    height: '100%',
-    borderRadius: 4,
-  },
-  plantWidgetPercent: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    minWidth: 36,
-  },
-  plantWidgetStage: {
-    fontSize: 12,
-    color: '#636E72',
-    marginTop: 4,
-  },
+  // Base Container
   container: {
     flex: 1,
     backgroundColor: '#FFF9F0',
@@ -1663,211 +1412,426 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#FFF9F0',
   },
-  // Clean Header Styles
-  cleanHeader: {
+  contentContainer: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 32,
+  },
+
+  // Minimal Header
+  minimalHeader: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 20,
+    paddingHorizontal: 24,
     paddingTop: 20,
-    paddingBottom: 8,
+    paddingBottom: 12,
   },
-  cleanHeaderLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 14,
-  },
-  cleanHeaderEmoji: {
-    fontSize: 36,
-  },
-  cleanHeaderGreeting: {
-    fontSize: 13,
-    color: '#95A5A6',
-    fontWeight: '500',
-  },
-  cleanHeaderTitle: {
-    fontSize: 22,
+  minimalHeaderTitle: {
+    fontSize: 20,
     fontWeight: 'bold',
-    color: '#2C3E50',
-    marginTop: 2,
+    color: '#505255',
+    fontFamily: FONTS.regular,
   },
-  settingsButton: {
+  settingsIconButton: {
     padding: 8,
   },
-  
-  // Unified Content Container
-  contentContainer: {
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 32,
-  },
-  
-  // Unified Card Style
-  unifiedCard: {
-    borderRadius: 20,
-    padding: 16,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 8,
-    elevation: 2,
-  },
-  
-  // Hero Card - Combined Status
-  heroCard: {
-    borderRadius: 24,
-    backgroundColor: '#FFFFFF',
-    marginBottom: 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.08,
-    shadowRadius: 12,
-    elevation: 4,
-    borderTopWidth: 4,
-    overflow: 'hidden',
-  },
-  heroTopSection: {
+
+  // Flat Plant Row
+  flatPlantRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    padding: 20,
-    paddingBottom: 16,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
-  heroPlantIcon: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
+  flatPlantIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 12,
     justifyContent: 'center',
     alignItems: 'center',
   },
-  heroPlantInfo: {
+  flatPlantInfo: {
     flex: 1,
-    marginLeft: 16,
+    marginLeft: 14,
   },
-  heroPlantName: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-  },
-  heroPlantStage: {
-    fontSize: 13,
-    color: '#7F8C8D',
-    marginTop: 2,
+  flatPlantHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     marginBottom: 8,
   },
-  heroProgressBar: {
+  flatPlantName: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  flatGemsTag: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  flatGemsText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  flatProgressContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     gap: 10,
   },
-  heroProgressTrack: {
+  flatProgressTrack: {
     flex: 1,
-    height: 6,
-    borderRadius: 3,
+    height: 4,
+    backgroundColor: '#E5E7EB',
+    borderRadius: 2,
     overflow: 'hidden',
   },
-  heroProgressFill: {
+  flatProgressFill: {
     height: '100%',
-    borderRadius: 3,
+    borderRadius: 2,
   },
-  heroProgressText: {
-    fontSize: 13,
-    fontWeight: '700',
-    minWidth: 36,
-  },
-  heroGemsContainer: {
-    alignItems: 'center',
-    paddingLeft: 12,
-  },
-  heroGemsText: {
-    fontSize: 16,
-    fontWeight: 'bold',
-    marginTop: 4,
-  },
-  heroDivider: {
-    height: 1,
-    backgroundColor: '#F0F0F0',
-    marginHorizontal: 20,
-  },
-  heroStatsRow: {
-    flexDirection: 'row',
-    paddingVertical: 16,
-    paddingHorizontal: 12,
-  },
-  heroStatItem: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 4,
-  },
-  heroStatIcon: {
-    width: 36,
-    height: 36,
-    borderRadius: 10,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  heroStatText: {
-    marginLeft: 8,
-  },
-  heroStatLabel: {
-    fontSize: 10,
-    color: '#95A5A6',
+  flatProgressLabel: {
+    fontSize: 12,
     fontWeight: '500',
+    color: '#6B7280',
+    minWidth: 50,
+    textAlign: 'right',
   },
-  heroStatValue: {
-    fontSize: 13,
-    fontWeight: 'bold',
-    color: '#2C3E50',
-  },
-  heroStatDivider: {
-    width: 1,
-    height: 32,
-    backgroundColor: '#F0F0F0',
-  },
-  statusCardsRow: {
+
+  // Flat Actions Grid
+  flatActionsGrid: {
     flexDirection: 'row',
-    marginHorizontal: 20,
-    marginTop: 16,
+    gap: 10,
+    marginBottom: 24,
+  },
+  flatActionCard: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  flatActionCardDone: {
+    backgroundColor: '#F0FDF4',
+    borderColor: '#BBF7D0',
+  },
+  flatActionLabel: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
+    marginTop: 8,
+    textAlign: 'center',
+  },
+  flatActionValue: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginTop: 2,
+  },
+
+  // Flat Tab Navigation
+  flatTabContainer: {
+    flexDirection: 'row',
+    marginBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#E5E7EB',
+  },
+  flatTab: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  flatTabActive: {
+    borderBottomWidth: 2,
+    borderBottomColor: '#1F2937',
+  },
+  flatTabText: {
+    fontSize: 15,
+    fontWeight: '500',
+    color: '#9CA3AF',
+  },
+  flatTabTextActive: {
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+
+  // Day Selector - Simplified
+  daySelector: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 20,
+  },
+  dayItem: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginHorizontal: 4,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  dayItemSelected: {
+    backgroundColor: '#EF4444',
+    borderColor: '#EF4444',
+  },
+  dayLetter: {
+    fontSize: 12,
+    fontWeight: '500',
+    color: '#9CA3AF',
+    marginBottom: 4,
+  },
+  dayLetterSelected: {
+    color: 'rgba(255,255,255,0.7)',
+  },
+  dayNumber: {
+    fontSize: 22,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  dayNumberSelected: {
+    color: '#FFFFFF',
+  },
+  dayDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: '#10B981',
+    marginTop: 8,
+  },
+  dayDotSelected: {
+    backgroundColor: '#FFFFFF',
+  },
+
+  // Flat Card
+  flatCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  flatCardHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  flatCardTitle: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#1F2937',
+  },
+  flatNavButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  flatNavButtonDisabled: {
+    backgroundColor: '#FAFAFA',
+  },
+
+  // Flat Legend
+  flatLegend: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    gap: 20,
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: '#F3F4F6',
+  },
+  flatLegendItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  flatLegendDiamond: {
+    width: 8,
+    height: 8,
+    transform: [{ rotate: '45deg' }],
+    backgroundColor: '#10B981',
+  },
+  flatLegendLine: {
+    width: 16,
+    height: 2,
+    borderRadius: 1,
+  },
+  flatLegendText: {
+    fontSize: 11,
+    color: '#6B7280',
+  },
+
+  // Flat Add Button
+  flatAddButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#F0FDF4',
+    borderRadius: 6,
+  },
+  flatAddButtonText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#10B981',
+  },
+
+  // Flat Rest List
+  flatRestList: {
+    gap: 10,
+  },
+  flatRestItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 14,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 12,
+  },
+  flatRestDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#10B981',
+  },
+  flatRestTime: {
+    fontSize: 17,
+    fontWeight: '500',
+    color: '#1F2937',
+    flex: 1,
+  },
+  flatEmptyState: {
+    paddingVertical: 28,
+    alignItems: 'center',
+  },
+  flatEmptyText: {
+    fontSize: 15,
+    color: '#9CA3AF',
+  },
+
+  // Flat Streak Styles
+  flatStreakStats: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  flatStreakMain: {
+    flexDirection: 'row',
+    alignItems: 'center',
     gap: 12,
   },
-  statusCard: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 12,
-    borderRadius: 14,
-    backgroundColor: '#FFFFFF',
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 3,
-    borderLeftWidth: 4,
+  flatStreakNumber: {
+    fontSize: 36,
+    fontWeight: '700',
+    color: '#1F2937',
   },
-  statusIconContainer: {
-    width: 38,
-    height: 38,
-    borderRadius: 10,
+  flatStreakLabel: {
+    fontSize: 14,
+    color: '#6B7280',
+    fontWeight: '500',
+  },
+  flatStreakBest: {
+    alignItems: 'center',
+    paddingHorizontal: 14,
+    paddingVertical: 8,
+    backgroundColor: '#FEF3C7',
+    borderRadius: 8,
+  },
+  flatStreakBestLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    color: '#D97706',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  flatStreakBestNum: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#D97706',
+  },
+  flatStreakWeek: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 12,
+    marginBottom: 16,
+  },
+  flatStreakDay: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  flatStreakCircle: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    backgroundColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
   },
-  statusContent: {
-    marginLeft: 12,
-    flex: 1,
+  flatStreakCircleDone: {
+    backgroundColor: '#10B981',
   },
-  statusLabel: {
+  flatStreakCircleToday: {
+    borderWidth: 2,
+    borderColor: '#1F2937',
+  },
+  flatStreakCirclePartial: {
+    backgroundColor: '#FDE68A',
+  },
+  flatStreakCount: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#92400E',
+  },
+  flatStreakDayLabel: {
     fontSize: 11,
-    color: '#636E72',
     fontWeight: '500',
-    marginBottom: 2,
+    color: '#6B7280',
   },
-  statusValue: {
-    fontSize: 17,
-    fontWeight: 'bold',
-    color: '#2D3436',
+  flatStreakDayLabelToday: {
+    color: '#1F2937',
+    fontWeight: '600',
+  },
+  flatStreakGoal: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+
+  // Tip Container
+  tipContainer: {
+    marginBottom: 20,
+    marginTop: 8,
+  },
+  tipText: {
+    fontSize: 13,
+    color: '#9CA3AF',
+    textAlign: 'center',
+    fontStyle: 'italic',
+  },
+
+  sectionTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#9CA3AF',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 12,
   },
   lastWakeupHint: {
     flexDirection: 'row',
@@ -1878,16 +1842,7 @@ const styles = StyleSheet.create({
   },
   lastWakeupHintText: {
     fontSize: 12,
-    color: '#B2BEC3',
-  },
-  sectionTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: '#95A5A6',
-    letterSpacing: 0.5,
-    textTransform: 'uppercase',
-    marginTop: 8,
-    marginBottom: 12,
+    color: '#9CA3AF',
   },
   weekOverviewCard: {
     marginHorizontal: 20,
@@ -1998,10 +1953,14 @@ const styles = StyleSheet.create({
   timelineContainer: {
     marginBottom: 16,
   },
+  timelineScrollContent: {
+    minWidth: 500,
+    paddingRight: 10,
+  },
   timelineLineContainer: {
     flexDirection: 'row',
     alignItems: 'center',
-    height: 40,
+    height: 56,
   },
   timelineSegment: {
     flexDirection: 'row',
@@ -2009,28 +1968,22 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   timelineMarkerContainer: {
-    width: 20,
-    height: 40,
+    width: 28,
+    height: 56,
     justifyContent: 'center',
     alignItems: 'center',
     zIndex: 1,
   },
   timelineDiamond: {
-    width: 16,
-    height: 16,
+    width: 18,
+    height: 18,
     transform: [{ rotate: '45deg' }],
-    backgroundColor: '#4ECDC4',
+    backgroundColor: '#10B981',
     justifyContent: 'center',
     alignItems: 'center',
-    elevation: 2,
-    shadowColor: '#4ECDC4',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 3,
   },
   timelineDiamondCurrent: {
-    borderWidth: 2,
-    borderColor: '#FFE66D',
+    backgroundColor: '#EF4444',
   },
   timelineDiamondInner: {
     width: 6,
@@ -2039,45 +1992,44 @@ const styles = StyleSheet.create({
     transform: [{ rotate: '0deg' }],
   },
   timelineSmallDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#B2BEC3',
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: '#9CA3AF',
   },
   timelineSmallDotFuture: {
-    backgroundColor: '#DFE6E9',
+    backgroundColor: '#E5E7EB',
   },
   timelineSmallDotCurrent: {
-    backgroundColor: '#4ECDC4',
-    borderWidth: 2,
-    borderColor: '#FFE66D',
-    width: 12,
-    height: 12,
-    borderRadius: 6,
+    backgroundColor: '#EF4444',
+    width: 14,
+    height: 14,
+    borderRadius: 7,
   },
   timelineLineSegment: {
     flex: 1,
     height: 3,
-    backgroundColor: '#4ECDC4',
+    backgroundColor: '#10B981',
     marginHorizontal: -2,
   },
   timelineLineWarning: {
-    backgroundColor: '#FFB347',
+    backgroundColor: '#F59E0B',
   },
   timelineLineFuture: {
-    backgroundColor: '#DFE6E9',
+    backgroundColor: '#E5E7EB',
   },
   timelineLabelsRow: {
     flexDirection: 'row',
-    marginTop: 4,
+    marginTop: 8,
   },
   timelineLabelSlot: {
     flex: 1,
     alignItems: 'center',
   },
   timelineHour: {
-    fontSize: 9,
-    color: '#636E72',
+    fontSize: 11,
+    fontWeight: '500',
+    color: '#6B7280',
   },
   timelineHourFirst: {
     marginLeft: -6,
@@ -2196,17 +2148,16 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
   },
   modalContent: {
     width: '100%',
-    borderRadius: 24,
+    borderRadius: 16,
     backgroundColor: '#FFFFFF',
     overflow: 'hidden',
-    elevation: 8,
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2214,18 +2165,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#F0F0F0',
+    borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#2D3436',
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#1F2937',
   },
   modalCloseButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#F0F0F0',
+    width: 36,
+    height: 36,
+    borderRadius: 8,
+    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2234,8 +2185,8 @@ const styles = StyleSheet.create({
   },
   modalLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#636E72',
+    fontWeight: '500',
+    color: '#6B7280',
     marginBottom: 12,
   },
   timePickerRow: {
@@ -2249,15 +2200,17 @@ const styles = StyleSheet.create({
   },
   timePickerLabel: {
     fontSize: 12,
-    color: '#95A5A6',
+    color: '#9CA3AF',
     fontWeight: '500',
     marginBottom: 8,
   },
   timePickerScroll: {
     height: 150,
     width: 70,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   timePickerScrollContent: {
     paddingVertical: 8,
@@ -2267,11 +2220,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     marginHorizontal: 4,
     marginVertical: 2,
-    borderRadius: 8,
+    borderRadius: 6,
     alignItems: 'center',
   },
   timePickerItemSelected: {
-    backgroundColor: '#4ECDC4',
+    backgroundColor: '#1F2937',
   },
   timePickerItemText: {
     fontSize: 18,
@@ -2300,7 +2253,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
+    borderTopColor: '#E5E7EB',
   },
   modalFooterButtons: {
     flexDirection: 'row',
@@ -2311,21 +2264,21 @@ const styles = StyleSheet.create({
   deleteButton: {
     width: 44,
     height: 44,
-    borderRadius: 12,
-    backgroundColor: '#FFF0F0',
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
     justifyContent: 'center',
     alignItems: 'center',
   },
   cancelButton: {
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#F0F0F0',
-    borderRadius: 12,
+    backgroundColor: '#F3F4F6',
+    borderRadius: 8,
   },
   cancelButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#636E72',
+    fontWeight: '500',
+    color: '#6B7280',
   },
   saveButton: {
     flexDirection: 'row',
@@ -2333,12 +2286,12 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#4ECDC4',
-    borderRadius: 12,
+    backgroundColor: '#1F2937',
+    borderRadius: 8,
   },
   saveButtonText: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   statsRow: {
@@ -2385,35 +2338,35 @@ const styles = StyleSheet.create({
   },
   tutorialOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    backgroundColor: 'rgba(0, 0, 0, 0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   tutorialModal: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 24,
-    padding: 28,
+    borderRadius: 16,
+    padding: 24,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
   },
   tutorialEmoji: {
-    fontSize: 48,
-    marginBottom: 16,
+    fontSize: 40,
+    marginBottom: 12,
   },
   tutorialTitle: {
-    fontSize: 22,
-    fontWeight: 'bold',
-    color: '#2D3436',
-    marginBottom: 12,
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#1F2937',
+    marginBottom: 8,
     textAlign: 'center',
   },
   tutorialText: {
-    fontSize: 15,
-    color: '#636E72',
+    fontSize: 14,
+    color: '#6B7280',
     textAlign: 'center',
-    lineHeight: 22,
+    lineHeight: 20,
     marginBottom: 20,
   },
   tutorialStep: {
@@ -2422,25 +2375,27 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
-    borderRadius: 12,
-    marginBottom: 10,
+    paddingHorizontal: 14,
+    backgroundColor: '#F9FAFB',
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   tutorialStepText: {
-    fontSize: 14,
-    color: '#2D3436',
+    fontSize: 13,
+    color: '#1F2937',
     flex: 1,
   },
   tutorialButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 14,
-    borderRadius: 20,
-    marginTop: 16,
+    paddingHorizontal: 28,
+    paddingVertical: 12,
+    borderRadius: 8,
+    marginTop: 12,
   },
   tutorialButtonText: {
-    fontSize: 16,
-    fontWeight: 'bold',
+    fontSize: 15,
+    fontWeight: '600',
     color: '#FFFFFF',
   },
   // Streak Card Styles

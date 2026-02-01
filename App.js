@@ -5,7 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
-import { faHouse } from '@fortawesome/free-solid-svg-icons/faHouse';
+import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
 import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { faSeedling } from '@fortawesome/free-solid-svg-icons/faSeedling';
@@ -16,9 +16,14 @@ import TimerScreen from './src/screens/TimerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import GardenScreen from './src/screens/GardenScreen';
+import FontTestScreen from './src/screens/FontTestScreen';
 import NotificationService from './src/utils/NotificationService';
 import StorageService from './src/utils/StorageService';
 import RewardToast from './src/components/RewardToast';
+import { FONTS } from './src/styles/fonts';
+import { setDefaultFontFamily } from './src/utils/setDefaultFontFamily';
+
+setDefaultFontFamily();
 
 const Tab = createBottomTabNavigator();
 const Stack = createNativeStackNavigator();
@@ -68,13 +73,14 @@ function TabNavigator({ plantColor }) {
       screenOptions={({ route }) => ({
         tabBarIcon: ({ focused, color, size }) => {
           if (route.name === 'Home') {
-            return <FontAwesomeIcon icon={faHouse} size={24} color={color} />;
+            return <FontAwesomeIcon icon={faFire} size={32} color={color} />;
           } else if (route.name === 'Timer') {
-            return <FontAwesomeIcon icon={faStopwatch} size={24} color={color} />;
+            return <FontAwesomeIcon icon={faStopwatch} size={32} color={color} />;
           } else if (route.name === 'Garden') {
-            return <FontAwesomeIcon icon={faSeedling} size={24} color={color} />;
+            return <FontAwesomeIcon icon={faSeedling} size={32} color={color} />;
           }
         },
+        tabBarShowLabel: false,
         tabBarActiveTintColor: plantColor,
         tabBarInactiveTintColor: '#B2BEC3',
         headerShown: false,
@@ -91,14 +97,10 @@ function TabNavigator({ plantColor }) {
           shadowOpacity: 0.1,
           shadowRadius: 12,
           height: 80,
-          paddingBottom: 15,
-          paddingTop: 10,
+          paddingBottom: 28,
+          paddingTop: 16,
           borderTopLeftRadius: 30,
           borderTopRightRadius: 30,
-        },
-        tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: 'bold',
         },
       })}
     >
@@ -123,6 +125,24 @@ const theme = {
     disabled: '#DFE6E9',
     placeholder: '#B2BEC3',
     backdrop: 'rgba(0, 0, 0, 0.5)',
+  },
+  fonts: {
+    regular: {
+      fontFamily: FONTS.regular,
+      fontWeight: '400',
+    },
+    medium: {
+      fontFamily: FONTS.medium,
+      fontWeight: '500',
+    },
+    light: {
+      fontFamily: FONTS.regular,
+      fontWeight: '300',
+    },
+    thin: {
+      fontFamily: FONTS.regular,
+      fontWeight: '100',
+    },
   },
   roundness: 20,
 };
@@ -231,6 +251,19 @@ function App() {
                   presentation: 'modal',
                   headerShown: true,
                   headerTitle: 'Settings',
+                  headerStyle: {
+                    backgroundColor: '#FFF9F0',
+                  },
+                  headerTintColor: '#2D3436',
+                }}
+              />
+              <Stack.Screen 
+                name="FontTest" 
+                component={FontTestScreen}
+                options={{
+                  presentation: 'modal',
+                  headerShown: true,
+                  headerTitle: 'Font Test',
                   headerStyle: {
                     backgroundColor: '#FFF9F0',
                   },

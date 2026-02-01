@@ -38,11 +38,22 @@ class LiveActivityModule: NSObject {
             )
             
             do {
-                let activity = try Activity<TimerAttributes>.request(
-                    attributes: attributes,
-                    contentState: contentState,
-                    pushType: nil
-                )
+                let activity: Activity<TimerAttributes>
+                
+                if #available(iOS 16.2, *) {
+                    let activityContent = ActivityContent(state: contentState, staleDate: endTime)
+                    activity = try Activity<TimerAttributes>.request(
+                        attributes: attributes,
+                        content: activityContent,
+                        pushType: nil
+                    )
+                } else {
+                    activity = try Activity<TimerAttributes>.request(
+                        attributes: attributes,
+                        contentState: contentState,
+                        pushType: nil
+                    )
+                }
                 
                 self.currentActivity = activity
                 
@@ -65,6 +76,11 @@ class LiveActivityModule: NSObject {
                      rejecter: @escaping RCTPromiseRejectBlock) {
         
         if #available(iOS 16.1, *) {
+            // Try to recover activity if reference is lost (e.g. app restart)
+            if self.currentActivity == nil {
+                self.currentActivity = Activity<TimerAttributes>.activities.first
+            }
+            
             guard let activity = self.currentActivity else {
                 rejecter("NO_ACTIVITY", "No active Live Activity found", nil)
                 return
@@ -89,7 +105,13 @@ class LiveActivityModule: NSObject {
             )
             
             Task {
-                await activity.update(using: contentState)
+                if #available(iOS 16.2, *) {
+                    let staleDate = isPaused ? nil : endTime
+                    let activityContent = ActivityContent(state: contentState, staleDate: staleDate)
+                    await activity.update(activityContent)
+                } else {
+                    await activity.update(using: contentState)
+                }
                 resolver(["success": true])
             }
         } else {
