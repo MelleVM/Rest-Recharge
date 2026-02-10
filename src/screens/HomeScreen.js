@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, AppState, Modal } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, AppState, Modal, Image } from 'react-native';
 import { Text, Surface, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import NotificationService from '../utils/NotificationService';
@@ -21,10 +21,12 @@ import { faLeaf } from '@fortawesome/free-solid-svg-icons/faLeaf';
 import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
 import { faCircle } from '@fortawesome/free-solid-svg-icons/faCircle';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
+import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { ToastEvent } from '../components/RewardToast';
 import { FONTS } from '../styles/fonts';
+import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
 
 // Plant types with colors (synced with GardenScreen)
 const PLANT_TYPES = {
@@ -71,6 +73,7 @@ const HomeScreen = () => {
     unlockedPlants: ['sprout'],
     selectedPlantType: 'classic',
   });
+  const [unlockedFlower, setUnlockedFlower] = useState(null);
   const [lastWakeupInfo, setLastWakeupInfo] = useState(null);
   const [restHistory, setRestHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -137,10 +140,23 @@ const HomeScreen = () => {
       await StorageService.setItem('restHistory', filteredHistory);
       
       // Update stats
-      const stats = await StorageService.getItem('stats') || {};
-      const currentRests = stats.totalRests || 0;
-      stats.totalRests = currentRests + 1;
-      await StorageService.setItem('stats', stats);
+      const storedStats = await StorageService.getItem('stats') || {};
+      const previousTotalRests = storedStats.totalRests || 0;
+      const newTotalRests = previousTotalRests + 1;
+      storedStats.totalRests = newTotalRests;
+      await StorageService.setItem('stats', storedStats);
+      setStats(prev => ({ ...prev, totalRests: newTotalRests }));
+      
+      // Check for newly unlocked flowers
+      const flowers = getFlowersInUnlockOrder();
+      const newlyUnlocked = flowers.find(
+        flower => flower.unlockAtRests > previousTotalRests && flower.unlockAtRests <= newTotalRests
+      );
+      if (newlyUnlocked) {
+        setTimeout(() => {
+          setUnlockedFlower(newlyUnlocked);
+        }, 500);
+      }
       
       // Clear timer state
       await NotificationService.clearTimerState();
@@ -464,13 +480,32 @@ const HomeScreen = () => {
         // Add new rest
         updatedHistory = [...restHistory, newRest];
         
-        // Update stats
-        const updatedStats = { ...stats, totalRests: stats.totalRests + 1 };
+        // Update stats - get fresh from storage to ensure accuracy
+        const storedStats = await StorageService.getItem('stats') || { totalRests: 0 };
+        const previousTotalRests = storedStats.totalRests || 0;
+        const newTotalRests = previousTotalRests + 1;
+        const updatedStats = { ...stats, ...storedStats, totalRests: newTotalRests };
         await StorageService.setItem('stats', updatedStats);
         setStats(updatedStats);
         
+        // Check for newly unlocked flowers
+        const flowers = getFlowersInUnlockOrder();
+        console.log('Checking unlock: previous=', previousTotalRests, 'new=', newTotalRests);
+        const newlyUnlocked = flowers.find(
+          flower => flower.unlockAtRests > previousTotalRests && flower.unlockAtRests <= newTotalRests
+        );
+        console.log('Newly unlocked flower:', newlyUnlocked?.name || 'none');
+        
         // Award points and grow plant
         await awardPointsForRest();
+        
+        // Show unlock popup after a short delay (after rest modal closes)
+        if (newlyUnlocked) {
+          console.log('Setting unlocked flower:', newlyUnlocked.name);
+          setTimeout(() => {
+            setUnlockedFlower(newlyUnlocked);
+          }, 500);
+        }
       }
 
       // Filter to keep only last 30 days
@@ -558,41 +593,33 @@ const HomeScreen = () => {
   const POINTS_PER_REST = 10;
   const POINTS_TO_GROW = 50; // Points needed to advance to next stage
   
-  // Award points and update plant growth
+  // Award energy to sunflower garden and grow all planted flowers
   const awardPointsForRest = async () => {
-    const newPoints = gardenData.points + POINTS_PER_REST;
-    const currentStageIndex = PLANT_STAGES.indexOf(gardenData.currentPlant);
+    // Update sunflower garden energy and grow all planted flowers
+    const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || { energy: 0.5, plots: [] };
+    const energyGained = 0.25; // 25% energy per rest
+    const newEnergy = Math.min(1.0, (sunflowerGarden.energy || 0.5) + energyGained);
     
-    let newPlant = gardenData.currentPlant;
-    let newPlantsGrown = gardenData.plantsGrown;
-    let remainingPoints = newPoints;
-    
-    // Check if plant should grow
-    if (currentStageIndex < PLANT_STAGES.length - 1) {
-      const pointsNeeded = (currentStageIndex + 1) * POINTS_TO_GROW;
-      if (newPoints >= pointsNeeded) {
-        newPlant = PLANT_STAGES[currentStageIndex + 1];
+    // Increment restsGiven for ALL planted flowers
+    const updatedPlots = (sunflowerGarden.plots || []).map(plot => {
+      if (plot.flowerType && plot.isUnlocked) {
+        return {
+          ...plot,
+          restsGiven: (plot.restsGiven || 0) + 1,
+        };
       }
-    } else if (newPoints >= PLANT_STAGES.length * POINTS_TO_GROW) {
-      // Plant is fully grown, start a new one
-      newPlant = 'seed';
-      newPlantsGrown = gardenData.plantsGrown + 1;
-      remainingPoints = 0;
-    }
+      return plot;
+    });
     
-    const updatedGardenData = {
-      ...gardenData,
-      points: remainingPoints,
-      currentPlant: newPlant,
-      plantsGrown: newPlantsGrown,
-      plantHealth: Math.min(100, gardenData.plantHealth + 5),
-    };
+    await StorageService.setItem('sunflowerGarden', {
+      ...sunflowerGarden,
+      plots: updatedPlots,
+      energy: newEnergy,
+      lastEnergyUpdate: Date.now(),
+    });
     
-    await StorageService.setItem('gardenData', updatedGardenData);
-    setGardenData(updatedGardenData);
-    
-    // Show toast notification for earned gems
-    ToastEvent.show('gems', POINTS_PER_REST, 'Rest completed!');
+    // Show toast notification for energy gained
+    ToastEvent.show('energy', Math.round(energyGained * 100), 'Rest completed!');
   };
 
   // Get plant icon based on growth stage
@@ -887,7 +914,6 @@ const HomeScreen = () => {
       >
         <View style={styles.tutorialOverlay}>
           <View style={styles.tutorialModal}>
-            <Text style={styles.tutorialEmoji}>👋</Text>
             <Text style={styles.tutorialTitle}>Welcome to Rest & Recharge!</Text>
             <Text style={styles.tutorialText}>
               Take regular breaks to rest your eyes and stay refreshed throughout the day.
@@ -905,17 +931,76 @@ const HomeScreen = () => {
               </Text>
             </View>
             <View style={styles.tutorialStep}>
-              <FontAwesomeIcon icon={faGem} size={16} color={plantColor} />
+              <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
               <Text style={styles.tutorialStepText}>
-                Earn gems and grow your virtual garden
+                Earn energy and grow your sunflower
               </Text>
             </View>
             <TouchableOpacity 
               style={[styles.tutorialButton, { backgroundColor: plantColor }]}
               onPress={dismissTutorial}
             >
-              <Text style={styles.tutorialButtonText}>Get Started</Text>
+              <Text style={styles.tutorialButtonText}>Got It!</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Flower Unlocked Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={unlockedFlower !== null}
+        onRequestClose={() => setUnlockedFlower(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>New Flower Unlocked!</Text>
+              <TouchableOpacity
+                onPress={() => setUnlockedFlower(null)}
+                style={styles.modalCloseButton}
+              >
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+            
+            {unlockedFlower && (
+              <View style={styles.unlockModalBody}>
+                <View style={[styles.unlockFlowerCircle, { borderColor: unlockedFlower.color }]}>
+                  <Image
+                    source={unlockedFlower.growthStages[unlockedFlower.growthStages.length - 1].image}
+                    style={styles.unlockFlowerImage}
+                    resizeMode="contain"
+                  />
+                </View>
+                <Text style={styles.unlockFlowerName}>{unlockedFlower.name}</Text>
+                <Text style={[styles.unlockFlowerRarity, { color: unlockedFlower.color }]}>
+                  {unlockedFlower.rarity}
+                </Text>
+                <Text style={styles.unlockFlowerDescription}>
+                  {unlockedFlower.description}
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.unlockModalButtons}>
+              <TouchableOpacity 
+                style={styles.unlockModalSecondaryButton}
+                onPress={() => setUnlockedFlower(null)}
+              >
+                <Text style={styles.unlockModalSecondaryButtonText}>Close</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.unlockModalPrimaryButton, { backgroundColor: unlockedFlower?.color || '#4CAF50' }]}
+                onPress={() => {
+                  setUnlockedFlower(null);
+                  navigation.navigate('GardenOverview');
+                }}
+              >
+                <Text style={styles.unlockModalPrimaryButtonText}>Go to Garden</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -1341,6 +1426,7 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
+
           </>
         )}
 
@@ -2338,15 +2424,15 @@ const styles = StyleSheet.create({
   },
   tutorialOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.4)',
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   tutorialModal: {
     backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-    padding: 24,
+    borderRadius: 24,
+    padding: 28,
     width: '100%',
     maxWidth: 340,
     alignItems: 'center',
@@ -2356,17 +2442,17 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
   tutorialTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#1F2937',
-    marginBottom: 8,
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 12,
     textAlign: 'center',
   },
   tutorialText: {
-    fontSize: 14,
-    color: '#6B7280',
+    fontSize: 15,
+    color: '#636E72',
     textAlign: 'center',
-    lineHeight: 20,
+    lineHeight: 22,
     marginBottom: 20,
   },
   tutorialStep: {
@@ -2375,27 +2461,25 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     paddingVertical: 10,
-    paddingHorizontal: 14,
-    backgroundColor: '#F9FAFB',
-    borderRadius: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: '#E5E7EB',
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 10,
   },
   tutorialStepText: {
-    fontSize: 13,
-    color: '#1F2937',
+    fontSize: 14,
+    color: '#2D3436',
     flex: 1,
   },
   tutorialButton: {
-    paddingHorizontal: 28,
-    paddingVertical: 12,
-    borderRadius: 8,
-    marginTop: 12,
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginTop: 16,
   },
   tutorialButtonText: {
-    fontSize: 15,
-    fontWeight: '600',
+    fontSize: 16,
+    fontWeight: 'bold',
     color: '#FFFFFF',
   },
   // Streak Card Styles
@@ -2564,6 +2648,70 @@ const styles = StyleSheet.create({
   },
   tabTextActive: {
     color: '#2C3E50',
+  },
+  // Unlock Modal Styles
+  unlockModalBody: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  unlockFlowerCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    backgroundColor: '#FFF9F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  unlockFlowerImage: {
+    width: 80,
+    height: 80,
+  },
+  unlockFlowerName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2D3436',
+    marginBottom: 4,
+  },
+  unlockFlowerRarity: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  unlockFlowerDescription: {
+    fontSize: 14,
+    color: '#636E72',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
+  unlockModalButtons: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingTop: 8,
+  },
+  unlockModalSecondaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+    alignItems: 'center',
+  },
+  unlockModalSecondaryButtonText: {
+    color: '#636E72',
+    fontSize: 15,
+    fontWeight: '600',
+  },
+  unlockModalPrimaryButton: {
+    flex: 1,
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  unlockModalPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
+    fontWeight: '600',
   },
 });
 

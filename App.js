@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, ActivityIndicator, View, AppState, Animated } from 'react-native';
-import { NavigationContainer } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme as NavigationDefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
@@ -9,6 +9,7 @@ import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
 import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { faSeedling } from '@fortawesome/free-solid-svg-icons/faSeedling';
+import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 
 // Import screens
 import HomeScreen from './src/screens/HomeScreen';
@@ -16,6 +17,7 @@ import TimerScreen from './src/screens/TimerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
 import GardenScreen from './src/screens/GardenScreen';
+import GardenOverviewScreen from './src/screens/GardenOverviewScreen';
 import FontTestScreen from './src/screens/FontTestScreen';
 import NotificationService from './src/utils/NotificationService';
 import StorageService from './src/utils/StorageService';
@@ -77,11 +79,11 @@ function TabNavigator({ plantColor }) {
           } else if (route.name === 'Timer') {
             return <FontAwesomeIcon icon={faStopwatch} size={32} color={color} />;
           } else if (route.name === 'Garden') {
-            return <FontAwesomeIcon icon={faSeedling} size={32} color={color} />;
+            return <FontAwesomeIcon icon={faSun} size={32} color={color} />;
           }
         },
         tabBarShowLabel: false,
-        tabBarActiveTintColor: plantColor,
+        tabBarActiveTintColor: '#FF6B6B',
         tabBarInactiveTintColor: '#B2BEC3',
         headerShown: false,
         tabBarHideOnKeyboard: true,
@@ -89,7 +91,7 @@ function TabNavigator({ plantColor }) {
         unmountOnBlur: false,
         sceneStyle: { backgroundColor: '#FFF9F0' },
         tabBarStyle: {
-          backgroundColor: '#FFFFFF',
+          backgroundColor: '#FFF9F0',
           borderTopWidth: 0,
           elevation: 20,
           shadowColor: '#000',
@@ -106,10 +108,19 @@ function TabNavigator({ plantColor }) {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Timer" component={TimerScreen} />
-      <Tab.Screen name="Garden" component={GardenScreen} />
+      <Tab.Screen name="Garden" component={GardenOverviewScreen} />
     </Tab.Navigator>
   );
 }
+
+// Navigation theme for NavigationContainer
+const navigationTheme = {
+  ...NavigationDefaultTheme,
+  colors: {
+    ...NavigationDefaultTheme.colors,
+    background: '#FFF9F0',
+  },
+};
 
 // Fun, comic-style theme with bold colors
 const theme = {
@@ -237,7 +248,7 @@ function App() {
       <View style={styles.rootContainer}>
         <SafeAreaView style={styles.safeAreaTop} />
         <RewardToast />
-        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor}>
+        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor} theme={navigationTheme}>
           <View style={styles.container}>
             <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
             <Stack.Navigator screenOptions={{ headerShown: false }}>
@@ -255,6 +266,20 @@ function App() {
                     backgroundColor: '#FFF9F0',
                   },
                   headerTintColor: '#2D3436',
+                }}
+              />
+              <Stack.Screen 
+                name="GardenOverview" 
+                component={GardenOverviewScreen}
+                options={{
+                  headerShown: false,
+                }}
+              />
+              <Stack.Screen 
+                name="GardenDetail" 
+                component={GardenScreen}
+                options={{
+                  headerShown: false,
                 }}
               />
               <Stack.Screen 
@@ -281,14 +306,14 @@ function App() {
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF9F0',
   },
   safeAreaTop: {
     backgroundColor: '#FFF9F0',
   },
   container: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: '#FFF9F0',
   },
   loadingContainer: {
     flex: 1,

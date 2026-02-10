@@ -3,6 +3,7 @@ import { View, StyleSheet, Animated, Dimensions } from 'react-native';
 import { Text } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
+import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 
 const { width } = Dimensions.get('window');
 
@@ -87,8 +88,13 @@ const RewardToast = () => {
         {type === 'gems' && (
           <FontAwesomeIcon icon={faGem} size={24} color="#FFD700" style={styles.icon} />
         )}
+        {type === 'energy' && (
+          <FontAwesomeIcon icon={faBolt} size={24} color="#FFC107" style={styles.icon} />
+        )}
         <View style={styles.textContainer}>
-          <Text style={styles.amount}>+{amount}</Text>
+          <Text style={[styles.amount, type === 'energy' && styles.amountEnergy]}>
+            +{amount}{type === 'energy' ? '%' : ''}
+          </Text>
           <Text style={styles.message}>{message}</Text>
         </View>
       </View>
@@ -128,6 +134,9 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#FFD700',
     marginBottom: 2,
+  },
+  amountEnergy: {
+    color: '#FFC107',
   },
   message: {
     fontSize: 14,

@@ -29,6 +29,8 @@ import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faWrench } from '@fortawesome/free-solid-svg-icons/faWrench';
 import { faStore } from '@fortawesome/free-solid-svg-icons/faStore';
 import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
+import { faLockOpen } from '@fortawesome/free-solid-svg-icons/faLockOpen';
+import { faRotateLeft } from '@fortawesome/free-solid-svg-icons/faRotateLeft';
 import PushNotification from 'react-native-push-notification';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
@@ -242,27 +244,80 @@ const SettingsScreen = ({ navigation }) => {
     ToastEvent.show('gems', amount, 'Dev bonus!');
   };
 
-  const devAddRest = async () => {
-    const now = new Date();
-    const newRest = {
-      timestamp: now.getTime(),
-      date: now.toLocaleDateString(),
-      time: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-    };
+  const devUnlockAllFlowers = async () => {
+    const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || {};
+    const stats = await StorageService.getItem('stats') || {};
     
-    const history = await StorageService.getItem('restHistory') || [];
-    history.push(newRest);
-    await StorageService.setItem('restHistory', history);
+    // Set totalRests high enough to unlock all flowers (300+ for poppy)
+    const updatedStats = { ...stats, totalRests: 500 };
+    await StorageService.setItem('stats', updatedStats);
     
-    // Also award points
-    const updatedGardenData = {
-      ...gardenData,
-      points: gardenData.points + 10,
-    };
-    await StorageService.setItem('gardenData', updatedGardenData);
-    setGardenData(updatedGardenData);
+    // Update garden data with high totalRests
+    const updatedGarden = { ...sunflowerGarden, totalRests: 500 };
+    await StorageService.setItem('sunflowerGarden', updatedGarden);
     
-    ToastEvent.show('gems', 10, 'Rest logged!');
+    Alert.alert('Flowers Unlocked', 'All flowers have been unlocked! Go to the Garden to see them.');
+  };
+
+  const devResetFlowerProgress = async () => {
+    Alert.alert(
+      'Reset Flower Progress?',
+      'This will reset your flower unlock progress to 0 rests. Your planted flowers will remain.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Reset',
+          style: 'destructive',
+          onPress: async () => {
+            const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || {};
+            const stats = await StorageService.getItem('stats') || {};
+            
+            // Reset totalRests to 0
+            const updatedStats = { ...stats, totalRests: 0 };
+            await StorageService.setItem('stats', updatedStats);
+            
+            // Update garden data
+            const updatedGarden = { ...sunflowerGarden, totalRests: 0 };
+            await StorageService.setItem('sunflowerGarden', updatedGarden);
+            
+            Alert.alert('Progress Reset', 'Flower unlock progress has been reset to 0.');
+          },
+        },
+      ]
+    );
+  };
+
+  const devClearAllPlots = async () => {
+    Alert.alert(
+      'Clear All Plots?',
+      'This will remove all planted flowers and reset all plots to empty. This cannot be undone.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Clear',
+          style: 'destructive',
+          onPress: async () => {
+            const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || {};
+            
+            // Reset all plots to empty (keep unlock status)
+            const clearedPlots = (sunflowerGarden.plots || []).map(plot => ({
+              ...plot,
+              flowerType: null,
+              restsGiven: 0,
+              plantedDate: null,
+            }));
+            
+            const updatedGarden = { 
+              ...sunflowerGarden, 
+              plots: clearedPlots,
+            };
+            await StorageService.setItem('sunflowerGarden', updatedGarden);
+            
+            Alert.alert('Plots Cleared', 'All plots have been cleared. You can now plant new flowers.');
+          },
+        },
+      ]
+    );
   };
 
   const saveSettings = useCallback(async () => {
@@ -588,12 +643,30 @@ const SettingsScreen = ({ navigation }) => {
           />
           <View style={styles.divider} />
           <SettingItem
-            icon={faWrench}
-            iconBg="#636E72"
-            title="Add Rest"
-            subtitle="Simulate completing a rest (+10 points)"
+            icon={faLockOpen}
+            iconBg="#4CAF50"
+            title="Unlock All Flowers"
+            subtitle="Unlock all flower types in the garden"
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={devAddRest}
+            onPress={devUnlockAllFlowers}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faRotateLeft}
+            iconBg="#FF9800"
+            title="Reset Flower Progress"
+            subtitle="Reset flower unlock progress to 0"
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={devResetFlowerProgress}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faTrashCan}
+            iconBg="#E74C3C"
+            title="Clear All Plots"
+            subtitle="Remove all planted flowers"
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={devClearAllPlots}
           />
         </Surface>
 

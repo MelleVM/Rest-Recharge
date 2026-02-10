@@ -6,6 +6,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faPlay } from '@fortawesome/free-solid-svg-icons/faPlay';
 import { faTimes } from '@fortawesome/free-solid-svg-icons/faTimes';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
+import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 import { faEye } from '@fortawesome/free-solid-svg-icons/faEye';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
@@ -297,8 +298,17 @@ const TimerScreen = () => {
     await StorageService.setItem('gardenData', updatedGardenData);
     setGardenData(updatedGardenData);
     
+    // Update sunflower garden energy
+    const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || { energy: 0.5 };
+    const newEnergy = Math.min(1.0, (sunflowerGarden.energy || 0.5) + 0.25);
+    await StorageService.setItem('sunflowerGarden', {
+      ...sunflowerGarden,
+      energy: newEnergy,
+      lastEnergyUpdate: Date.now(),
+    });
+    
     // Show toast notification
-    ToastEvent.show('gems', 10, 'Rest completed!');
+    ToastEvent.show('energy', 25, 'Rest completed!');
     
     // Clear timer state
     await NotificationService.clearTimerState();
@@ -421,7 +431,7 @@ const TimerScreen = () => {
     setGardenData(updatedGardenData);
     
     // Show toast notification
-    ToastEvent.show('gems', 5, 'Timer cancelled');
+    ToastEvent.show('energy', 0, 'Timer cancelled');
     
     // Stop timer and clear state
     await NotificationService.stopTimerNotification();
@@ -469,8 +479,17 @@ const TimerScreen = () => {
     await StorageService.setItem('gardenData', updatedGardenData);
     setGardenData(updatedGardenData);
     
+    // Update sunflower garden energy
+    const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || { energy: 0.5 };
+    const newEnergy = Math.min(1.0, (sunflowerGarden.energy || 0.5) + 0.25);
+    await StorageService.setItem('sunflowerGarden', {
+      ...sunflowerGarden,
+      energy: newEnergy,
+      lastEnergyUpdate: Date.now(),
+    });
+    
     // Show toast notification
-    ToastEvent.show('gems', 10, 'Rest completed!');
+    ToastEvent.show('energy', 25, 'Rest completed!');
     
     // Show a new motivational quote
     getNewQuote();
@@ -537,9 +556,9 @@ const TimerScreen = () => {
               </Text>
             </View>
             <View style={styles.tutorialStep}>
-              <FontAwesomeIcon icon={faGem} size={16} color={plantColor} />
+              <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
               <Text style={styles.tutorialStepText}>
-                Earn 10 gems for each completed rest
+                Earn 25% energy for each completed rest
               </Text>
             </View>
             <TouchableOpacity 
@@ -624,10 +643,10 @@ const TimerScreen = () => {
         )}
       </View>
 
-      <Surface style={styles.quoteCard}>
+      <View style={styles.quoteCard}>
         <Text style={styles.quoteText}>"{currentQuote.text}"</Text>
         <Text style={styles.quoteAuthor}>— {currentQuote.author}</Text>
-      </Surface>
+      </View>
 
       <View style={styles.bottomPadding} />
       </ScrollView>
@@ -741,7 +760,8 @@ const styles = StyleSheet.create({
     padding: 24,
     marginBottom: 20,
     backgroundColor: '#FFFFFF',
-    elevation: 4,
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
   },
   quoteText: {
     fontSize: 16,
