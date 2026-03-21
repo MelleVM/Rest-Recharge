@@ -15,6 +15,7 @@
 		49560ECEB61948C5BA0CAFC5 /* Entypo.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3D14A12B671B45EE97DE8704 /* Entypo.ttf */; };
 		49E573D67277467A91B9296F /* Ionicons.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3695F9E5999B4CF68F80185C /* Ionicons.ttf */; };
 		4C5E01992F24F6C0007B8E7C /* alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4C5E01982F24F6C0007B8E7C /* alarm.wav */; };
+		4C5E019A2F24F6C0007B8E7D /* alarm.caf in Resources */ = {isa = PBXBuildFile; fileRef = 4C5E019B2F24F6C0007B8E7D /* alarm.caf */; };
 		4C92A61B2F2510FF0012B22F /* LiveActivityModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A6192F2510FF0012B22F /* LiveActivityModule.m */; };
 		4C92A61C2F2510FF0012B22F /* LiveActivityModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */; };
 		4CA77DE92F24FB3A004AC2A1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA77DE82F24FB3A004AC2A1 /* WidgetKit.framework */; };
@@ -88,6 +89,7 @@
 		3D14A12B671B45EE97DE8704 /* Entypo.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Entypo.ttf; path = "../node_modules/react-native-vector-icons/fonts/Entypo.ttf"; sourceTree = "<group>"; };
 		3FB8B56BB4444D9F973E12E9 /* Archivo_500Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = undefined; includeInIndex = 0; lastKnownFileType = unknown; name = Archivo_500Medium.ttf; path = ../assets/fonts/Archivo_500Medium.ttf; sourceTree = "<group>"; };
 		4C5E01982F24F6C0007B8E7C /* alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = alarm.wav; sourceTree = "<group>"; };
+		4C5E019B2F24F6C0007B8E7D /* alarm.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = alarm.caf; sourceTree = "<group>"; };
 		4C92A6192F2510FF0012B22F /* LiveActivityModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveActivityModule.m; path = RechargeRest/LiveActivityModule.m; sourceTree = "<group>"; };
 		4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveActivityModule.swift; path = RechargeRest/LiveActivityModule.swift; sourceTree = "<group>"; };
 		4CA77DE72F24FB3A004AC2A1 /* TimerWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TimerWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -169,6 +171,7 @@
 				4C92A6192F2510FF0012B22F /* LiveActivityModule.m */,
 				4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */,
 				4C5E01982F24F6C0007B8E7C /* alarm.wav */,
+				4C5E019B2F24F6C0007B8E7D /* alarm.caf */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
 				761780EC2CA45674006654EE /* AppDelegate.swift */,
 				13B07FB61A68108700A75B9A /* Info.plist */,
@@ -352,6 +355,7 @@
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				4C5E01992F24F6C0007B8E7C /* alarm.wav in Resources */,
+				4C5E019A2F24F6C0007B8E7D /* alarm.caf in Resources */,
 				690A1CCAAEB67A0037BFF32E /* PrivacyInfo.xcprivacy in Resources */,
 				E2638F974FAF4CB2992D2646 /* Fontisto.ttf in Resources */,
 				CD9834CE062E4CBF92C58723 /* Octicons.ttf in Resources */,

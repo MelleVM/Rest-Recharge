@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, StyleSheet, TouchableOpacity, Image, Dimensions, Modal } from 'react-native';
 import Animated, {
   useSharedValue,
@@ -24,6 +24,45 @@ import { FLOWER_TYPES, ENERGY_DECAY_RATE } from '../config/flowerConfig';
 import FlowerTimeline from '../components/FlowerTimeline';
 import FlowerSelection from '../components/FlowerSelection';
 
+const getTimeOfDay = () => {
+  const hour = new Date().getHours();
+  if (hour >= 6 && hour < 12) return 'morning';
+  if (hour >= 12 && hour < 18) return 'afternoon';
+  if (hour >= 18 && hour < 21) return 'evening';
+  return 'night';
+};
+
+const TIME_OF_DAY_CONFIG = {
+  morning: {
+    name: 'Morning',
+    backgroundColors: ['#FFE5B4', '#FFECD2', '#FFF9F0'],
+    skyGradient: ['#87CEEB', '#FFE4B5', '#FFF8DC'],
+    overlayColor: 'rgba(255, 200, 100, 0.08)',
+    textColor: '#505255',
+  },
+  afternoon: {
+    name: 'Afternoon',
+    backgroundColors: ['#87CEEB', '#E0F4FF', '#FFF9F0'],
+    skyGradient: ['#87CEEB', '#B0E0E6', '#E0F4FF'],
+    overlayColor: 'rgba(255, 255, 255, 0.05)',
+    textColor: '#505255',
+  },
+  evening: {
+    name: 'Evening',
+    backgroundColors: ['#FF7E5F', '#FEB47B', '#FFE5D0'],
+    skyGradient: ['#FF6B6B', '#FFA07A', '#FFD700'],
+    overlayColor: 'rgba(255, 150, 100, 0.12)',
+    textColor: '#4A4A4A',
+  },
+  night: {
+    name: 'Night',
+    backgroundColors: ['#1A1A2E', '#16213E', '#2C3E50'],
+    skyGradient: ['#0F0C29', '#302B63', '#24243E'],
+    overlayColor: 'rgba(50, 50, 100, 0.25)',
+    textColor: '#E0E0E0',
+  },
+};
+
 const GardenOverviewScreen = ({ navigation }) => {
   const [gardenData, setGardenData] = useState({
     energy: 0.5,
@@ -35,6 +74,21 @@ const GardenOverviewScreen = ({ navigation }) => {
   const [selectedFlowerPosition, setSelectedFlowerPosition] = useState({ x: 0, y: 0 });
   const [showTimeline, setShowTimeline] = useState(false);
   const [showFlowerSelection, setShowFlowerSelection] = useState(false);
+  const [timeOfDay, setTimeOfDay] = useState(getTimeOfDay());
+
+  const timeConfig = useMemo(() => TIME_OF_DAY_CONFIG[timeOfDay], [timeOfDay]);
+
+  useEffect(() => {
+    const updateTimeOfDay = () => {
+      const newTimeOfDay = getTimeOfDay();
+      if (newTimeOfDay !== timeOfDay) {
+        setTimeOfDay(newTimeOfDay);
+      }
+    };
+
+    const interval = setInterval(updateTimeOfDay, 60000);
+    return () => clearInterval(interval);
+  }, [timeOfDay]);
   
   // Reanimated shared values
   const zoomProgress = useSharedValue(0);
@@ -69,6 +123,9 @@ const GardenOverviewScreen = ({ navigation }) => {
       if (plots.length > 5) {
         plots = plots.slice(0, 5);
       }
+      
+      // Ensure all plots are unlocked
+      plots = plots.map(plot => ({ ...plot, isUnlocked: true }));
 
       const updatedData = {
         ...stored,
@@ -81,8 +138,24 @@ const GardenOverviewScreen = ({ navigation }) => {
       setGardenData(updatedData);
       await StorageService.setItem('sunflowerGarden', updatedData);
     } else {
-      // No garden data yet, just set totalRests
-      setGardenData(prev => ({ ...prev, totalRests }));
+      // Initialize with 5 unlocked empty plots
+      const initialPlots = Array.from({ length: 5 }, (_, i) => ({
+        id: `plot-${i}`,
+        flowerType: null,
+        restsGiven: 0,
+        plantedDate: null,
+        isUnlocked: true,
+      }));
+      
+      const initialData = {
+        energy: 0.5,
+        totalRests,
+        lastEnergyUpdate: Date.now(),
+        plots: initialPlots,
+      };
+      
+      setGardenData(initialData);
+      await StorageService.setItem('sunflowerGarden', initialData);
     }
   };
 
@@ -250,18 +323,53 @@ const GardenOverviewScreen = ({ navigation }) => {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      {/* Overview Header */}
-      <Animated.View style={othersAnimatedStyle} pointerEvents={selectedPlotIndex !== null ? 'none' : 'auto'}>
-        <View style={styles.header}>
-          <Text style={styles.headerTitleLeft}>My Garden</Text>
-          <TouchableOpacity 
-            style={styles.headerButton}
-            onPress={() => setShowTimeline(true)}
-          >
-            <FontAwesomeIcon icon={faListUl} size={18} color="#636E72" />
-          </TouchableOpacity>
+      <LinearGradient
+        colors={timeConfig.backgroundColors}
+        style={styles.backgroundGradient}
+        start={{ x: 0.5, y: 0 }}
+        end={{ x: 0.5, y: 1 }}
+      >
+        {/* Time-based overlay for ambient lighting effect */}
+        <View style={[styles.timeOverlay, { backgroundColor: timeConfig.overlayColor }]} />
+        
+        {/* Celestial body (sun/moon) */}
+        <View style={styles.celestialContainer}>
+          {timeOfDay === 'night' ? (
+            <View style={styles.moon}>
+              <View style={styles.moonCrater1} />
+              <View style={styles.moonCrater2} />
+              <View style={styles.moonCrater3} />
+            </View>
+          ) : (
+            <View style={[
+              styles.sun,
+              timeOfDay === 'evening' && styles.sunEvening,
+              timeOfDay === 'morning' && styles.sunMorning,
+            ]}>
+              {timeOfDay === 'afternoon' && (
+                <>
+                  <View style={[styles.sunRay, { transform: [{ rotate: '0deg' }] }]} />
+                  <View style={[styles.sunRay, { transform: [{ rotate: '45deg' }] }]} />
+                  <View style={[styles.sunRay, { transform: [{ rotate: '90deg' }] }]} />
+                  <View style={[styles.sunRay, { transform: [{ rotate: '135deg' }] }]} />
+                </>
+              )}
+            </View>
+          )}
         </View>
-      </Animated.View>
+        
+        {/* Overview Header */}
+        <Animated.View style={othersAnimatedStyle} pointerEvents={selectedPlotIndex !== null ? 'none' : 'auto'}>
+          <View style={styles.header}>
+            <Text style={[styles.headerTitleLeft, { color: timeConfig.textColor }]}>My Garden</Text>
+            <TouchableOpacity 
+              style={styles.headerButton}
+              onPress={() => setShowTimeline(true)}
+            >
+              <FontAwesomeIcon icon={faListUl} size={18} color={timeOfDay === 'night' ? '#B0B0B0' : '#636E72'} />
+            </TouchableOpacity>
+          </View>
+        </Animated.View>
 
       {/* Garden Area - Zooms as a whole with gesture support */}
       <GestureDetector gesture={combinedGesture}>
@@ -375,9 +483,9 @@ const GardenOverviewScreen = ({ navigation }) => {
           <View style={styles.energyHeader}>
             <View style={styles.energyLabelRow}>
               <FontAwesomeIcon icon={faBolt} size={14} color="#FFC107" />
-              <Text style={styles.energyLabel}>Energy</Text>
+              <Text style={[styles.energyLabel, { color: timeOfDay === 'night' ? '#B0B0B0' : '#636E72' }]}>Energy</Text>
             </View>
-            <Text style={styles.energyPercent}>{Math.round(gardenData.energy * 100)}%</Text>
+            <Text style={[styles.energyPercent, { color: timeConfig.textColor }]}>{Math.round(gardenData.energy * 100)}%</Text>
           </View>
           <View style={styles.energyBarBackground}>
             <View style={[styles.energyBarFill, { width: `${gardenData.energy * 100}%` }]}>
@@ -389,7 +497,7 @@ const GardenOverviewScreen = ({ navigation }) => {
               />
             </View>
           </View>
-          <Text style={styles.energyHint}>
+          <Text style={[styles.energyHint, { color: timeOfDay === 'night' ? '#888888' : '#9E9E9E' }]}>
             Complete eye rests to restore energy
           </Text>
         </View>
@@ -403,11 +511,11 @@ const GardenOverviewScreen = ({ navigation }) => {
               style={styles.backButton}
               onPress={zoomOut}
             >
-              <FontAwesomeIcon icon={faArrowLeft} size={20} color="#636E72" />
+              <FontAwesomeIcon icon={faArrowLeft} size={20} color={timeOfDay === 'night' ? '#B0B0B0' : '#636E72'} />
             </TouchableOpacity>
             
             <View style={styles.detailTitleContainer}>
-              <Text style={styles.title}>
+              <Text style={[styles.title, { color: timeConfig.textColor }]}>
                 {selectedPlot?.flowerType ? FLOWER_TYPES[selectedPlot.flowerType]?.name : 'Empty Plot'}
               </Text>
             </View>
@@ -416,7 +524,7 @@ const GardenOverviewScreen = ({ navigation }) => {
               style={styles.backButton}
               onPress={() => setShowTimeline(true)}
             >
-              <FontAwesomeIcon icon={faListUl} size={18} color="#636E72" />
+              <FontAwesomeIcon icon={faListUl} size={18} color={timeOfDay === 'night' ? '#B0B0B0' : '#636E72'} />
             </TouchableOpacity>
           </View>
 
@@ -523,6 +631,7 @@ const GardenOverviewScreen = ({ navigation }) => {
           </View>
         </View>
       </Modal>
+      </LinearGradient>
     </GestureHandlerRootView>
   );
 };
@@ -530,7 +639,89 @@ const GardenOverviewScreen = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#FFF9F0',
+  },
+  backgroundGradient: {
+    flex: 1,
+  },
+  timeOverlay: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 0,
+  },
+  celestialContainer: {
+    position: 'absolute',
+    top: 120,
+    right: 40,
+    zIndex: -1,
+  },
+  sun: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: '#FFD700',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.8,
+    shadowRadius: 20,
+    elevation: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  sunMorning: {
+    backgroundColor: '#FFAB40',
+    shadowColor: '#FFAB40',
+  },
+  sunEvening: {
+    backgroundColor: '#FF7043',
+    shadowColor: '#FF7043',
+  },
+  sunRay: {
+    position: 'absolute',
+    width: 80,
+    height: 3,
+    backgroundColor: 'rgba(255, 215, 0, 0.4)',
+    borderRadius: 2,
+  },
+  moon: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: '#F5F5DC',
+    shadowColor: '#F5F5DC',
+    shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.6,
+    shadowRadius: 15,
+    elevation: 8,
+  },
+  moonCrater1: {
+    position: 'absolute',
+    top: 10,
+    left: 12,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    backgroundColor: 'rgba(200, 200, 180, 0.6)',
+  },
+  moonCrater2: {
+    position: 'absolute',
+    top: 25,
+    left: 25,
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: 'rgba(200, 200, 180, 0.5)',
+  },
+  moonCrater3: {
+    position: 'absolute',
+    top: 18,
+    left: 8,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: 'rgba(200, 200, 180, 0.4)',
   },
   overviewContainer: {
     flex: 1,

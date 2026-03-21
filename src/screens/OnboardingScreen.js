@@ -23,6 +23,7 @@ import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faHourglass } from '@fortawesome/free-solid-svg-icons/faHourglass';
 import { faBan } from '@fortawesome/free-solid-svg-icons/faBan';
+import { faBullseye } from '@fortawesome/free-solid-svg-icons/faBullseye';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 
@@ -84,6 +85,18 @@ const QUESTIONS = [
       { id: '30', label: '30 minutes', icon: faHourglass, color: '#A29BFE' },
     ],
   },
+  {
+    id: 'dailyGoal',
+    title: 'What\'s your daily rest goal?',
+    subtitle: 'How many rests do you want to complete each day?',
+    type: 'single',
+    options: [
+      { id: '2', label: '2 rests per day', icon: faBullseye, color: '#74B9FF' },
+      { id: '3', label: '3 rests per day', icon: faBullseye, color: '#FFE66D' },
+      { id: '4', label: '4 rests per day', icon: faBullseye, color: '#4ECDC4', recommended: true },
+      { id: '5', label: '5 rests per day', icon: faBullseye, color: '#A29BFE' },
+    ],
+  },
 ];
 
 const OnboardingScreen = ({ onComplete }) => {
@@ -94,6 +107,7 @@ const OnboardingScreen = ({ onComplete }) => {
     wakeupTime: { hour: 7, minute: 0 },
     restInterval: '120',
     restDuration: '20',
+    dailyGoal: '4',
   });
   const scrollViewRef = useRef(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -170,6 +184,7 @@ const OnboardingScreen = ({ onComplete }) => {
     const settings = await StorageService.getItem('settings') || {};
     settings.restInterval = parseInt(answers.restInterval, 10);
     settings.restDuration = parseInt(answers.restDuration, 10);
+    settings.dailyGoal = parseInt(answers.dailyGoal, 10);
     settings.wakeupNotificationEnabled = true;
     await StorageService.setItem('settings', settings);
 

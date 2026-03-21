@@ -27,6 +27,7 @@ import { faLeaf } from '@fortawesome/free-solid-svg-icons/faLeaf';
 import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faWrench } from '@fortawesome/free-solid-svg-icons/faWrench';
+import { faBullseye } from '@fortawesome/free-solid-svg-icons/faBullseye';
 import { faStore } from '@fortawesome/free-solid-svg-icons/faStore';
 import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
 import { faLockOpen } from '@fortawesome/free-solid-svg-icons/faLockOpen';
@@ -147,6 +148,7 @@ const SettingsScreen = ({ navigation }) => {
   const [wakeupNotificationEnabled, setWakeupNotificationEnabled] = useState(true);
   const [restInterval, setRestInterval] = useState(120);
   const [restDuration, setRestDuration] = useState(20);
+  const [dailyGoal, setDailyGoal] = useState(4);
   const [activeModal, setActiveModal] = useState(null);
   
   // Profile/Onboarding data
@@ -175,6 +177,7 @@ const SettingsScreen = ({ navigation }) => {
       setWakeupNotificationEnabled(settings.wakeupNotificationEnabled ?? true);
       setRestInterval(settings.restInterval ?? 120);
       setRestDuration(settings.restDuration ?? 20);
+      setDailyGoal(settings.dailyGoal ?? 4);
       
       // Load onboarding/profile data
       const onboardingData = await StorageService.getItem('onboardingData');
@@ -327,7 +330,8 @@ const SettingsScreen = ({ navigation }) => {
         vibrationEnabled,
         wakeupNotificationEnabled,
         restInterval,
-        restDuration
+        restDuration,
+        dailyGoal
       };
       await StorageService.setItem('settings', settings);
 
@@ -350,7 +354,7 @@ const SettingsScreen = ({ navigation }) => {
     } catch (error) {
       console.log('Error saving settings:', error);
     }
-  }, [notificationsEnabled, vibrationEnabled, wakeupNotificationEnabled, restInterval, restDuration]);
+  }, [notificationsEnabled, vibrationEnabled, wakeupNotificationEnabled, restInterval, restDuration, dailyGoal]);
 
   useEffect(() => {
     saveSettings();
@@ -389,6 +393,7 @@ const SettingsScreen = ({ navigation }) => {
               setWakeupNotificationEnabled(true);
               setRestInterval(120);
               setRestDuration(20);
+              setDailyGoal(4);
               setPurpose(null);
               setCondition(null);
               setUsualWakeupTime({ hour: 7, minute: 0 });
@@ -420,6 +425,14 @@ const SettingsScreen = ({ navigation }) => {
     if (!isNaN(newDuration) && newDuration > 0) {
       setRestDuration(newDuration);
       NotificationService.updateRestDuration(newDuration);
+    }
+    setActiveModal(null);
+  };
+
+  const handleDailyGoalSave = (value) => {
+    const newGoal = parseInt(value, 10);
+    if (!isNaN(newGoal) && newGoal > 0 && newGoal <= 10) {
+      setDailyGoal(newGoal);
     }
     setActiveModal(null);
   };
@@ -583,25 +596,17 @@ const SettingsScreen = ({ navigation }) => {
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
             onPress={() => setActiveModal('duration')}
           />
-        </Surface>
-
-        <Text style={styles.sectionTitle}>Garden Shop</Text>
-        <Surface style={styles.section}>
-          <View style={styles.shopHeader}>
-            <View style={styles.pointsDisplay}>
-              <FontAwesomeIcon icon={faGem} size={16} color="#A29BFE" />
-              <Text style={styles.pointsAmount}>{gardenData.points} points</Text>
-            </View>
-          </View>
+          <View style={styles.divider} />
           <SettingItem
-            icon={faStore}
-            iconBg="#4CAF50"
-            title="Plant Collection"
-            subtitle={`${gardenData?.unlockedPlants?.length || 0}/${PLANT_TYPES.length} plants unlocked`}
+            icon={faBullseye}
+            iconBg="#10B981"
+            title="Daily Goal"
+            subtitle={`${dailyGoal} rests per day`}
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={() => setActiveModal('plantShop')}
+            onPress={() => setActiveModal('dailyGoal')}
           />
         </Surface>
+
 
         <Text style={styles.sectionTitle}>About</Text>
         <Surface style={styles.section}>
@@ -633,15 +638,6 @@ const SettingsScreen = ({ navigation }) => {
 
         <Text style={styles.sectionTitle}>Developer Options</Text>
         <Surface style={styles.section}>
-          <SettingItem
-            icon={faGem}
-            iconBg="#A29BFE"
-            title="Add 100 Points"
-            subtitle="For testing purchases"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={() => devAddPoints(100)}
-          />
-          <View style={styles.divider} />
           <SettingItem
             icon={faLockOpen}
             iconBg="#4CAF50"
@@ -700,6 +696,16 @@ const SettingsScreen = ({ navigation }) => {
         onSave={handleDurationSave}
         label="Minutes per rest"
         note="How long each eye rest should last"
+      />
+
+      <InputModal
+        visible={activeModal === 'dailyGoal'}
+        onClose={() => setActiveModal(null)}
+        title="Set Daily Goal"
+        value={dailyGoal.toString()}
+        onSave={handleDailyGoalSave}
+        label="Rests per day"
+        note="How many rests you want to complete each day to maintain your streak"
       />
 
       {/* Purpose Selection Modal */}

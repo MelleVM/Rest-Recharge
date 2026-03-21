@@ -269,7 +269,7 @@ class NotificationService {
       allowWhileIdle: true,
       vibrate: true,
       playSound: true,
-      soundName: 'alarm.wav',
+      soundName: Platform.OS === 'ios' ? 'alarm.caf' : 'alarm.wav',
       userInfo: { screen: 'Timer' },
       data: { screen: 'Timer' },
     });

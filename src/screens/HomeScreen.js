@@ -27,6 +27,7 @@ import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { ToastEvent } from '../components/RewardToast';
 import { FONTS } from '../styles/fonts';
 import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
+import RestProgressGraph from '../components/RestProgressGraph';
 
 // Plant types with colors (synced with GardenScreen)
 const PLANT_TYPES = {
@@ -87,9 +88,11 @@ const HomeScreen = () => {
   const [reminderHour, setReminderHour] = useState(new Date().getHours());
   const [reminderMinute, setReminderMinute] = useState(0);
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
+  const [dailyGoal, setDailyGoal] = useState(4);
   const [activeTab, setActiveTab] = useState('activity');
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
+  const daySelectorScrollRef = useRef(null);
   const hourScrollRef = useRef(null);
   const minuteScrollRef = useRef(null);
   const reminderHourScrollRef = useRef(null);
@@ -196,8 +199,8 @@ const HomeScreen = () => {
   };
 
   // Calculate streak data based on rest history
-  const calculateStreakData = (history) => {
-    const DAILY_GOAL = 4; // 4 rests per day to maintain streak
+  const calculateStreakData = (history, goal = dailyGoal) => {
+    const DAILY_GOAL = goal;
     const today = new Date();
     const dailyRestCounts = {};
     
@@ -265,13 +268,12 @@ const HomeScreen = () => {
 
   // Get streak status for a specific date
   const getStreakStatusForDate = (date) => {
-    const DAILY_GOAL = 4;
     const rests = getRestsForDate(date);
     const restCount = rests.length;
     
     return {
       count: restCount,
-      goalMet: restCount >= DAILY_GOAL,
+      goalMet: restCount >= dailyGoal,
       isToday: isSameDay(date, new Date())
     };
   };
@@ -329,8 +331,13 @@ const HomeScreen = () => {
         setGardenData(storedGardenData);
       }
       
+      // Load daily goal from settings
+      const settings = await StorageService.getItem('settings');
+      const storedDailyGoal = settings?.dailyGoal ?? 4;
+      setDailyGoal(storedDailyGoal);
+      
       // Calculate streak data
-      const calculatedStreak = calculateStreakData(storedHistory);
+      const calculatedStreak = calculateStreakData(storedHistory, storedDailyGoal);
       setStreakData(calculatedStreak);
       
       // Check if this is the first time visiting home
@@ -830,6 +837,17 @@ const HomeScreen = () => {
     return days;
   };
 
+  // Get last N days for scrollable history (oldest to newest, current day on right)
+  const getLastNDays = (n = 30) => {
+    const days = [];
+    for (let i = n - 1; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      days.push(date);
+    }
+    return days;
+  };
+
   // Day summary card
   const DaySummaryCard = ({ date, isSelected }) => {
     const rests = getRestsForDate(date);
@@ -995,7 +1013,7 @@ const HomeScreen = () => {
                 style={[styles.unlockModalPrimaryButton, { backgroundColor: unlockedFlower?.color || '#4CAF50' }]}
                 onPress={() => {
                   setUnlockedFlower(null);
-                  navigation.navigate('GardenOverview');
+                  navigation.navigate('MainTabs', { screen: 'Garden' });
                 }}
               >
                 <Text style={styles.unlockModalPrimaryButtonText}>Go to Garden</Text>
@@ -1091,14 +1109,36 @@ const HomeScreen = () => {
               Streak
             </Text>
           </TouchableOpacity>
+          
+          <TouchableOpacity
+            style={[styles.flatTab, activeTab === 'progress' && styles.flatTabActive]}
+            onPress={() => setActiveTab('progress')}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.flatTabText, activeTab === 'progress' && styles.flatTabTextActive]}>
+              Progress
+            </Text>
+          </TouchableOpacity>
         </View>
 
         {/* Activity Tab Content */}
         {activeTab === 'activity' && (
           <>
-        {/* Day Selector - Simplified */}
-        <View style={styles.daySelector}>
-          {getLast7Days().slice(-5).map((date, index) => {
+        {/* Day Selector - Scrollable */}
+        <ScrollView 
+          ref={daySelectorScrollRef}
+          horizontal 
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.daySelectorScroll}
+          style={styles.daySelectorContainer}
+          onLayout={() => {
+            // Scroll to the end (current day) when the component mounts
+            if (daySelectorScrollRef.current) {
+              daySelectorScrollRef.current.scrollToEnd({ animated: false });
+            }
+          }}
+        >
+          {getLastNDays(30).map((date, index) => {
             const isSelected = isSameDay(date, selectedDate);
             const isCurrentDay = isSameDay(date, new Date());
             const rests = getRestsForDate(date);
@@ -1108,7 +1148,7 @@ const HomeScreen = () => {
                 key={index}
                 onPress={() => setSelectedDate(date)}
                 activeOpacity={0.7}
-                style={[styles.dayItem, isSelected && styles.dayItemSelected]}
+                style={[styles.dayItemScrollable, isSelected && styles.dayItemSelected]}
               >
                 <Text style={[styles.dayLetter, isSelected && styles.dayLetterSelected]}>{dayLetter}</Text>
                 <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected]}>{date.getDate()}</Text>
@@ -1116,7 +1156,7 @@ const HomeScreen = () => {
               </TouchableOpacity>
             );
           })}
-        </View>
+        </ScrollView>
 
         {/* Timeline Card - Flat */}
         <View style={styles.flatCard}>
@@ -1474,9 +1514,14 @@ const HomeScreen = () => {
                   );
                 })}
               </View>
-              <Text style={styles.flatStreakGoal}>Complete 4 rests per day to maintain streak</Text>
+              <Text style={styles.flatStreakGoal}>Complete {dailyGoal} rests per day to maintain streak</Text>
             </View>
           </>
+        )}
+
+        {/* Progress Tab Content */}
+        {activeTab === 'progress' && (
+          <RestProgressGraph restHistory={restHistory} dailyGoal={dailyGoal} />
         )}
 
         <View style={styles.bottomPadding} />
@@ -1648,7 +1693,14 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
 
-  // Day Selector - Simplified
+  // Day Selector - Scrollable
+  daySelectorContainer: {
+    marginBottom: 20,
+  },
+  daySelectorScroll: {
+    flexDirection: 'row',
+    paddingHorizontal: 4,
+  },
   daySelector: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -1656,6 +1708,16 @@ const styles = StyleSheet.create({
   },
   dayItem: {
     flex: 1,
+    alignItems: 'center',
+    paddingVertical: 14,
+    marginHorizontal: 4,
+    borderRadius: 16,
+    backgroundColor: '#FFFFFF',
+    borderWidth: 1,
+    borderColor: '#E5E7EB',
+  },
+  dayItemScrollable: {
+    width: 64,
     alignItems: 'center',
     paddingVertical: 14,
     marginHorizontal: 4,
@@ -2243,7 +2305,6 @@ const styles = StyleSheet.create({
     width: '100%',
     borderRadius: 16,
     backgroundColor: '#FFFFFF',
-    overflow: 'hidden',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2687,8 +2748,10 @@ const styles = StyleSheet.create({
   },
   unlockModalButtons: {
     flexDirection: 'row',
-    gap: 12,
     paddingTop: 8,
+    paddingBottom: 16,
+    paddingHorizontal: 16,
+    width: '100%',
   },
   unlockModalSecondaryButton: {
     flex: 1,
@@ -2696,6 +2759,7 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     backgroundColor: '#F0F0F0',
     alignItems: 'center',
+    marginRight: 6,
   },
   unlockModalSecondaryButtonText: {
     color: '#636E72',
@@ -2707,6 +2771,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 12,
     alignItems: 'center',
+    marginLeft: 6,
+    backgroundColor: '#4CAF50',
   },
   unlockModalPrimaryButtonText: {
     color: '#FFFFFF',
