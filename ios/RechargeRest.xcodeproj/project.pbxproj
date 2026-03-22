@@ -18,6 +18,8 @@
 		4C5E019A2F24F6C0007B8E7D /* alarm.caf in Resources */ = {isa = PBXBuildFile; fileRef = 4C5E019B2F24F6C0007B8E7D /* alarm.caf */; };
 		4C92A61B2F2510FF0012B22F /* LiveActivityModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A6192F2510FF0012B22F /* LiveActivityModule.m */; };
 		4C92A61C2F2510FF0012B22F /* LiveActivityModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */; };
+		4C92A61D2F2510FF0012B22F /* AlarmKitModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A61E2F2510FF0012B22F /* AlarmKitModule.m */; };
+		4C92A61F2F2510FF0012B22F /* AlarmKitModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A6202F2510FF0012B22F /* AlarmKitModule.swift */; };
 		4CA77DE92F24FB3A004AC2A1 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA77DE82F24FB3A004AC2A1 /* WidgetKit.framework */; };
 		4CA77DEB2F24FB3A004AC2A1 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 4CA77DEA2F24FB3A004AC2A1 /* SwiftUI.framework */; };
 		4CA77DFD2F24FB3B004AC2A1 /* TimerWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4CA77DE72F24FB3A004AC2A1 /* TimerWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
@@ -92,6 +94,8 @@
 		4C5E019B2F24F6C0007B8E7D /* alarm.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = alarm.caf; sourceTree = "<group>"; };
 		4C92A6192F2510FF0012B22F /* LiveActivityModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveActivityModule.m; path = RechargeRest/LiveActivityModule.m; sourceTree = "<group>"; };
 		4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = LiveActivityModule.swift; path = RechargeRest/LiveActivityModule.swift; sourceTree = "<group>"; };
+		4C92A61E2F2510FF0012B22F /* AlarmKitModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = AlarmKitModule.m; path = RechargeRest/AlarmKitModule.m; sourceTree = "<group>"; };
+		4C92A6202F2510FF0012B22F /* AlarmKitModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AlarmKitModule.swift; path = RechargeRest/AlarmKitModule.swift; sourceTree = "<group>"; };
 		4CA77DE72F24FB3A004AC2A1 /* TimerWidgetExtensionExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TimerWidgetExtensionExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		4CA77DE82F24FB3A004AC2A1 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		4CA77DEA2F24FB3A004AC2A1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
@@ -170,6 +174,8 @@
 			children = (
 				4C92A6192F2510FF0012B22F /* LiveActivityModule.m */,
 				4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */,
+				4C92A61E2F2510FF0012B22F /* AlarmKitModule.m */,
+				4C92A6202F2510FF0012B22F /* AlarmKitModule.swift */,
 				4C5E01982F24F6C0007B8E7C /* alarm.wav */,
 				4C5E019B2F24F6C0007B8E7D /* alarm.caf */,
 				13B07FB51A68108700A75B9A /* Images.xcassets */,
@@ -474,6 +480,8 @@
 			files = (
 				4C92A61B2F2510FF0012B22F /* LiveActivityModule.m in Sources */,
 				4C92A61C2F2510FF0012B22F /* LiveActivityModule.swift in Sources */,
+				4C92A61D2F2510FF0012B22F /* AlarmKitModule.m in Sources */,
+				4C92A61F2F2510FF0012B22F /* AlarmKitModule.swift in Sources */,
 				761780ED2CA45674006654EE /* AppDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

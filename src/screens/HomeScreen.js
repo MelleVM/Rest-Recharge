@@ -24,7 +24,10 @@ import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
+import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
+import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
 import { ToastEvent } from '../components/RewardToast';
+import { PendingUnlocksEvent, WakeupLogEvent } from '../../App';
 import { FONTS } from '../styles/fonts';
 import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import RestProgressGraph from '../components/RestProgressGraph';
@@ -74,7 +77,6 @@ const HomeScreen = () => {
     unlockedPlants: ['sprout'],
     selectedPlantType: 'classic',
   });
-  const [unlockedFlower, setUnlockedFlower] = useState(null);
   const [lastWakeupInfo, setLastWakeupInfo] = useState(null);
   const [restHistory, setRestHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -85,11 +87,19 @@ const HomeScreen = () => {
   const [selectedMinute, setSelectedMinute] = useState(Math.floor(new Date().getMinutes() / 5) * 5);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
+  const [reminderModalKey, setReminderModalKey] = useState(0);
+  const [showReminderChoiceModal, setShowReminderChoiceModal] = useState(false);
+  const [showWakeupLogModal, setShowWakeupLogModal] = useState(false);
+  const [wakeupLogHour, setWakeupLogHour] = useState(new Date().getHours());
+  const [wakeupLogMinute, setWakeupLogMinute] = useState(Math.floor(new Date().getMinutes() / 5) * 5);
+  const [wakeupLogModalKey, setWakeupLogModalKey] = useState(0);
   const [reminderHour, setReminderHour] = useState(new Date().getHours());
   const [reminderMinute, setReminderMinute] = useState(0);
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
   const [dailyGoal, setDailyGoal] = useState(4);
+  const [restInterval, setRestInterval] = useState(120);
   const [activeTab, setActiveTab] = useState('activity');
+  const [showRestOverdueModal, setShowRestOverdueModal] = useState(false);
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
   const daySelectorScrollRef = useRef(null);
@@ -97,6 +107,8 @@ const HomeScreen = () => {
   const minuteScrollRef = useRef(null);
   const reminderHourScrollRef = useRef(null);
   const reminderMinuteScrollRef = useRef(null);
+  const wakeupLogHourScrollRef = useRef(null);
+  const wakeupLogMinuteScrollRef = useRef(null);
   const theme = useTheme();
 
   // Refresh data when screen comes into focus
@@ -122,6 +134,15 @@ const HomeScreen = () => {
 
     const subscription = AppState.addEventListener('change', handleAppStateChange);
     return () => subscription.remove();
+  }, []);
+
+  // Subscribe to wakeup log event from notification
+  useEffect(() => {
+    const unsubscribe = WakeupLogEvent.subscribe(() => {
+      console.log('WakeupLogEvent received - showing modal');
+      setShowWakeupLogModal(true);
+    });
+    return () => unsubscribe();
   }, []);
 
   // Check if timer completed while app was closed
@@ -150,15 +171,19 @@ const HomeScreen = () => {
       await StorageService.setItem('stats', storedStats);
       setStats(prev => ({ ...prev, totalRests: newTotalRests }));
       
-      // Check for newly unlocked flowers
+      // Check for newly unlocked flowers and store as pending
       const flowers = getFlowersInUnlockOrder();
       const newlyUnlocked = flowers.find(
         flower => flower.unlockAtRests > previousTotalRests && flower.unlockAtRests <= newTotalRests
       );
       if (newlyUnlocked) {
-        setTimeout(() => {
-          setUnlockedFlower(newlyUnlocked);
-        }, 500);
+        // Store pending unlock for GardenOverviewScreen to show
+        const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
+        if (!pendingUnlocks.includes(newlyUnlocked.id)) {
+          pendingUnlocks.push(newlyUnlocked.id);
+          await StorageService.setItem('pendingFlowerUnlocks', pendingUnlocks);
+          PendingUnlocksEvent.emit(pendingUnlocks.length);
+        }
       }
       
       // Clear timer state
@@ -290,6 +315,9 @@ const HomeScreen = () => {
       
       // Handle wakeup time and extract wakeup hours
       let updatedWakeupHours = { ...storedWakeupHours };
+      const todayKey = new Date().toLocaleDateString();
+      let wakeupLoggedToday = false;
+      
       if (storedWakeupTime) {
         // Extract wakeup hour from stored wakeup time if not already in wakeupHours
         const wakeupDate = new Date(storedWakeupTime.timestamp);
@@ -301,12 +329,24 @@ const HomeScreen = () => {
         
         if (isToday(storedWakeupTime.date)) {
           setWakeupTime(storedWakeupTime);
+          wakeupLoggedToday = true;
         } else {
           setLastWakeupInfo(storedWakeupTime);
           setWakeupTime(null);
         }
       }
       setWakeupHours(updatedWakeupHours);
+      
+      // Show wakeup log modal if wakeup not logged for today (after tutorial check)
+      const hasSeenTutorial = await StorageService.getItem('homeTutorialSeen');
+      if (!wakeupLoggedToday && hasSeenTutorial) {
+        // Reset to current time when showing modal
+        const now = new Date();
+        setWakeupLogHour(now.getHours());
+        setWakeupLogMinute(Math.floor(now.getMinutes() / 5) * 5);
+        setWakeupLogModalKey(prev => prev + 1);
+        setShowWakeupLogModal(true);
+      }
       
       // Handle next reminder - only display if still valid, don't auto-schedule
       if (storedNextReminder) {
@@ -331,19 +371,42 @@ const HomeScreen = () => {
         setGardenData(storedGardenData);
       }
       
-      // Load daily goal from settings
+      // Load daily goal and rest interval from settings
       const settings = await StorageService.getItem('settings');
       const storedDailyGoal = settings?.dailyGoal ?? 4;
       setDailyGoal(storedDailyGoal);
+      const storedRestInterval = settings?.temporaryInterval || settings?.restInterval || 120;
+      setRestInterval(storedRestInterval);
       
       // Calculate streak data
       const calculatedStreak = calculateStreakData(storedHistory, storedDailyGoal);
       setStreakData(calculatedStreak);
       
-      // Check if this is the first time visiting home
-      const hasSeenTutorial = await StorageService.getItem('homeTutorialSeen');
+      // Check if this is the first time visiting home (reuse hasSeenTutorial from above)
       if (!hasSeenTutorial) {
         setShowTutorial(true);
+      }
+      
+      // Check if rest is overdue (no rest for interval duration)
+      if (wakeupLoggedToday && hasSeenTutorial) {
+        const now = Date.now();
+        const intervalMs = storedRestInterval * 60 * 1000;
+        const todayKey = new Date().toLocaleDateString();
+        const todayRests = storedHistory.filter(r => r.date === todayKey);
+        
+        // Find the most recent rest or wakeup time
+        let lastActivityTime = storedWakeupTime?.timestamp || 0;
+        if (todayRests.length > 0) {
+          const latestRest = todayRests.reduce((latest, rest) => 
+            rest.timestamp > latest.timestamp ? rest : latest
+          );
+          lastActivityTime = Math.max(lastActivityTime, latestRest.timestamp);
+        }
+        
+        // If more than interval has passed since last activity, show overdue modal
+        if (lastActivityTime > 0 && (now - lastActivityTime) >= intervalMs) {
+          setShowRestOverdueModal(true);
+        }
       }
     } catch (error) {
       console.log('Error loading data:', error);
@@ -355,13 +418,29 @@ const HomeScreen = () => {
   const dismissTutorial = async () => {
     setShowTutorial(false);
     await StorageService.setItem('homeTutorialSeen', true);
+    
+    // Show wakeup modal after tutorial if wakeup not logged for today
+    if (!wakeupTime) {
+      const now = new Date();
+      setWakeupLogHour(now.getHours());
+      setWakeupLogMinute(Math.floor(now.getMinutes() / 5) * 5);
+      setWakeupLogModalKey(prev => prev + 1);
+      setShowWakeupLogModal(true);
+    }
   };
 
-  const logWakeupTime = async () => {
+  const logWakeupTime = async (customHour = null, customMinute = null) => {
     const now = new Date();
+    const wakeupDate = new Date();
+    
+    // Use custom time if provided, otherwise use current time
+    if (customHour !== null && customMinute !== null) {
+      wakeupDate.setHours(customHour, customMinute, 0, 0);
+    }
+    
     const wakeupData = {
-      timestamp: now.getTime(),
-      formattedTime: now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+      timestamp: wakeupDate.getTime(),
+      formattedTime: wakeupDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       date: now.toLocaleDateString(),
     };
 
@@ -371,11 +450,16 @@ const HomeScreen = () => {
       
       // Store wakeup hour for this date
       const dateKey = now.toLocaleDateString();
-      const updatedWakeupHours = { ...wakeupHours, [dateKey]: now.getHours() };
+      const updatedWakeupHours = { ...wakeupHours, [dateKey]: wakeupDate.getHours() };
       await StorageService.setItem('wakeupHours', updatedWakeupHours);
       setWakeupHours(updatedWakeupHours);
       
-      const reminder = await NotificationService.scheduleNextReminder();
+      // Calculate when the next reminder should be
+      // If wakeup + interval is in the past, use current time + interval instead
+      const wakeupPlusInterval = new Date(wakeupDate.getTime() + restInterval * 60 * 1000);
+      const baseTimeForReminder = wakeupPlusInterval > now ? wakeupDate : now;
+      
+      const reminder = await NotificationService.scheduleNextReminder(baseTimeForReminder);
       if (reminder) {
         setNextReminderTime(reminder);
       }
@@ -465,6 +549,17 @@ const HomeScreen = () => {
     setShowRestModal(true);
   };
 
+  // Check if a rest is too close to previous rests (within half the interval)
+  const isRestTooClose = (restTimestamp, history) => {
+    const minGapMinutes = restInterval / 2; // Half the configured interval
+    const minGapMs = minGapMinutes * 60 * 1000;
+    
+    return history.some(existingRest => {
+      const gap = Math.abs(restTimestamp - existingRest.timestamp);
+      return gap < minGapMs;
+    });
+  };
+
   // Save rest (add new or update existing)
   const saveRest = async () => {
     try {
@@ -476,6 +571,9 @@ const HomeScreen = () => {
         date: selectedDate.toLocaleDateString(),
         time: restDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       };
+
+      const isToday = isSameDay(selectedDate, new Date());
+      const tooClose = isRestTooClose(newRest.timestamp, restHistory);
 
       let updatedHistory;
       if (editingRest) {
@@ -495,7 +593,7 @@ const HomeScreen = () => {
         await StorageService.setItem('stats', updatedStats);
         setStats(updatedStats);
         
-        // Check for newly unlocked flowers
+        // Check for newly unlocked flowers and store as pending
         const flowers = getFlowersInUnlockOrder();
         console.log('Checking unlock: previous=', previousTotalRests, 'new=', newTotalRests);
         const newlyUnlocked = flowers.find(
@@ -503,15 +601,22 @@ const HomeScreen = () => {
         );
         console.log('Newly unlocked flower:', newlyUnlocked?.name || 'none');
         
-        // Award points and grow plant
-        await awardPointsForRest();
+        // Only award energy if rest is on current day and not too close to previous rest
+        if (isToday && !tooClose) {
+          await awardPointsForRest();
+        } else {
+          console.log('Skipping energy award: isToday=', isToday, 'tooClose=', tooClose);
+        }
         
-        // Show unlock popup after a short delay (after rest modal closes)
+        // Store pending unlock for GardenOverviewScreen to show
         if (newlyUnlocked) {
-          console.log('Setting unlocked flower:', newlyUnlocked.name);
-          setTimeout(() => {
-            setUnlockedFlower(newlyUnlocked);
-          }, 500);
+          console.log('Storing pending unlock:', newlyUnlocked.name);
+          const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
+          if (!pendingUnlocks.includes(newlyUnlocked.id)) {
+            pendingUnlocks.push(newlyUnlocked.id);
+            await StorageService.setItem('pendingFlowerUnlocks', pendingUnlocks);
+            PendingUnlocksEvent.emit(pendingUnlocks.length);
+          }
         }
       }
 
@@ -528,23 +633,104 @@ const HomeScreen = () => {
       
       setShowRestModal(false);
       setEditingRest(null);
+      
+      // Show reminder choice popup only for new rests on current day that are the latest
+      if (!editingRest && isToday) {
+        // Check if this is the latest rest of the day
+        const todayRests = filteredHistory.filter(r => r.date === newRest.date);
+        const isLatestRest = todayRests.every(r => r.timestamp <= newRest.timestamp);
+        
+        if (isLatestRest) {
+          if (nextReminderTime) {
+            // Show choice popup if there's an existing reminder
+            setShowReminderChoiceModal(true);
+          } else {
+            // Auto-schedule if no reminder exists
+            handleReminderChoice(false);
+          }
+        }
+      }
     } catch (error) {
       console.log('Error saving rest:', error);
     }
   };
 
+  // Handle reminder choice after manual rest
+  const handleReminderChoice = async (keepCurrent) => {
+    setShowReminderChoiceModal(false);
+    
+    if (!keepCurrent) {
+      // Schedule reminder in [interval] minutes from now
+      const reminderDate = new Date();
+      reminderDate.setMinutes(reminderDate.getMinutes() + restInterval);
+      
+      // Don't schedule if it would be after 21:00
+      if (reminderDate.getHours() < 21) {
+        await NotificationService.scheduleCustomReminder(reminderDate.getTime());
+        setNextReminderTime({
+          timestamp: reminderDate.getTime(),
+          formattedTime: reminderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        });
+      }
+    }
+  };
+
   // Open reminder edit modal
   const openReminderModal = () => {
-    if (nextReminderTime) {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    if (nextReminderTime && nextReminderTime.timestamp > now.getTime()) {
+      // Use existing reminder time if it's in the future
       const reminderDate = new Date(nextReminderTime.timestamp);
       setReminderHour(reminderDate.getHours());
       setReminderMinute(Math.floor(reminderDate.getMinutes() / 5) * 5);
     } else {
-      const now = new Date();
-      setReminderHour(now.getHours() + 1);
-      setReminderMinute(0);
+      // Default to next hour, rounded to nearest 5 minutes
+      const nextHour = currentHour + 1;
+      if (nextHour < 24) {
+        setReminderHour(nextHour);
+        setReminderMinute(0);
+      } else {
+        // If it's 23:xx, set to 23:55 or similar
+        setReminderHour(23);
+        setReminderMinute(55);
+      }
     }
+    setReminderModalKey(prev => prev + 1); // Force ScrollViews to remount
     setShowReminderModal(true);
+  };
+
+  // Get available hours for reminder picker (only future hours today)
+  const getAvailableReminderHours = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const hours = [];
+    for (let h = currentHour; h < 24; h++) {
+      hours.push(h);
+    }
+    return hours;
+  };
+
+  // Get available minutes for reminder picker (only future minutes if current hour)
+  const getAvailableReminderMinutes = () => {
+    const now = new Date();
+    const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
+    
+    if (reminderHour === currentHour) {
+      // Only show future minutes for current hour
+      const minutes = [];
+      for (let m = 0; m < 60; m += 5) {
+        if (m > currentMinute) {
+          minutes.push(m);
+        }
+      }
+      return minutes.length > 0 ? minutes : [55]; // Fallback
+    }
+    // All minutes available for future hours
+    return [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
   };
 
   // Save new reminder time
@@ -749,6 +935,34 @@ const HomeScreen = () => {
     const dateKey = date.toLocaleDateString();
     const wakeupHour = wakeupHours[dateKey] || 6;
     
+    // Calculate all reminder hours for this day (actual + predictive)
+    const reminderHoursOnTimeline = (() => {
+      if (!nextReminderTime) return [];
+      const reminderDate = new Date(nextReminderTime.timestamp);
+      if (!isSameDay(reminderDate, date)) return [];
+      
+      const reminderHoursList = [];
+      const intervalHours = restInterval / 60;
+      // Round to nearest hour (e.g., 17:30+ -> 18:00, 17:29 -> 17:00)
+      const firstReminderHour = reminderDate.getMinutes() >= 30 
+        ? reminderDate.getHours() + 1 
+        : reminderDate.getHours();
+      
+      // Add the actual next reminder (rounded, but not after 21:00)
+      if (firstReminderHour < 21) {
+        reminderHoursList.push(firstReminderHour);
+      }
+      
+      // Add predictive reminders based on interval (but not after 21:00)
+      let nextHour = firstReminderHour + intervalHours;
+      while (nextHour < 21 && nextHour <= Math.max(...hours)) {
+        reminderHoursList.push(Math.floor(nextHour));
+        nextHour += intervalHours;
+      }
+      
+      return reminderHoursList;
+    })();
+    
     // Build segments between hours
     const getSegmentStatus = (fromHour, toHour) => {
       const isPast = isCurrentDay ? toHour <= currentHour : true;
@@ -769,6 +983,8 @@ const HomeScreen = () => {
             const isPast = isCurrentDay ? hour <= currentHour : true;
             const isCurrent = isCurrentDay && hour === currentHour;
             const isLast = index === hours.length - 1;
+            const isReminderHour = reminderHoursOnTimeline.includes(hour);
+            const isWakeupHour = index === 0; // First hour is always wakeup hour
             
             // Segment after this hour (except for last hour)
             const segmentStatus = !isLast ? getSegmentStatus(hour, hours[index + 1]) : null;
@@ -777,13 +993,23 @@ const HomeScreen = () => {
               <View key={hour} style={styles.timelineSegment}>
                 {/* Hour marker point */}
                 <View style={styles.timelineMarkerContainer}>
-                  {rest ? (
+                  {isWakeupHour ? (
+                    // Sun icon for wakeup hour
+                    <View style={styles.timelineWakeupMarker}>
+                      <FontAwesomeIcon icon={faSun} size={16} color="#FFB347" />
+                    </View>
+                  ) : rest ? (
                     // Diamond marker for rest
                     <View style={[
                       styles.timelineDiamond,
                       isCurrent && styles.timelineDiamondCurrent,
                     ]}>
                       <View style={styles.timelineDiamondInner} />
+                    </View>
+                  ) : isReminderHour ? (
+                    // Clock icon for scheduled reminder
+                    <View style={styles.timelineReminderMarker}>
+                      <FontAwesomeIcon icon={faClock} size={16} color="#6B7280" />
                     </View>
                   ) : (
                     // Small dot for non-rest hours
@@ -964,65 +1190,6 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-      {/* Flower Unlocked Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={unlockedFlower !== null}
-        onRequestClose={() => setUnlockedFlower(null)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>New Flower Unlocked!</Text>
-              <TouchableOpacity
-                onPress={() => setUnlockedFlower(null)}
-                style={styles.modalCloseButton}
-              >
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
-              </TouchableOpacity>
-            </View>
-            
-            {unlockedFlower && (
-              <View style={styles.unlockModalBody}>
-                <View style={[styles.unlockFlowerCircle, { borderColor: unlockedFlower.color }]}>
-                  <Image
-                    source={unlockedFlower.growthStages[unlockedFlower.growthStages.length - 1].image}
-                    style={styles.unlockFlowerImage}
-                    resizeMode="contain"
-                  />
-                </View>
-                <Text style={styles.unlockFlowerName}>{unlockedFlower.name}</Text>
-                <Text style={[styles.unlockFlowerRarity, { color: unlockedFlower.color }]}>
-                  {unlockedFlower.rarity}
-                </Text>
-                <Text style={styles.unlockFlowerDescription}>
-                  {unlockedFlower.description}
-                </Text>
-              </View>
-            )}
-            
-            <View style={styles.unlockModalButtons}>
-              <TouchableOpacity 
-                style={styles.unlockModalSecondaryButton}
-                onPress={() => setUnlockedFlower(null)}
-              >
-                <Text style={styles.unlockModalSecondaryButtonText}>Close</Text>
-              </TouchableOpacity>
-              <TouchableOpacity 
-                style={[styles.unlockModalPrimaryButton, { backgroundColor: unlockedFlower?.color || '#4CAF50' }]}
-                onPress={() => {
-                  setUnlockedFlower(null);
-                  navigation.navigate('MainTabs', { screen: 'Garden' });
-                }}
-              >
-                <Text style={styles.unlockModalPrimaryButtonText}>Go to Garden</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
-
       <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
         {/* Minimal Header */}
         <View style={styles.minimalHeader}>
@@ -1051,7 +1218,13 @@ const HomeScreen = () => {
               {/* Quick Actions Grid */}
               <View style={styles.flatActionsGrid}>
                 <TouchableOpacity
-                  onPress={!wakeupTime ? logWakeupTime : null}
+                  onPress={!wakeupTime ? () => {
+                    const now = new Date();
+                    setWakeupLogHour(now.getHours());
+                    setWakeupLogMinute(Math.floor(now.getMinutes() / 5) * 5);
+                    setWakeupLogModalKey(prev => prev + 1);
+                    setShowWakeupLogModal(true);
+                  } : null}
                   activeOpacity={wakeupTime ? 1 : 0.7}
                   style={[styles.flatActionCard, wakeupTime && styles.flatActionCardDone]}
                 >
@@ -1182,16 +1355,16 @@ const HomeScreen = () => {
 
           <View style={styles.flatLegend}>
             <View style={styles.flatLegendItem}>
+              <FontAwesomeIcon icon={faSun} size={12} color="#FFB347" />
+              <Text style={styles.flatLegendText}>Wakeup</Text>
+            </View>
+            <View style={styles.flatLegendItem}>
               <View style={styles.flatLegendDiamond} />
               <Text style={styles.flatLegendText}>Rested</Text>
             </View>
             <View style={styles.flatLegendItem}>
-              <View style={[styles.flatLegendLine, { backgroundColor: '#10B981' }]} />
-              <Text style={styles.flatLegendText}>On track</Text>
-            </View>
-            <View style={styles.flatLegendItem}>
-              <View style={[styles.flatLegendLine, { backgroundColor: '#F59E0B' }]} />
-              <Text style={styles.flatLegendText}>Needs rest</Text>
+              <FontAwesomeIcon icon={faClock} size={12} color="#6B7280" />
+              <Text style={styles.flatLegendText}>Reminder</Text>
             </View>
           </View>
         </View>
@@ -1359,6 +1532,7 @@ const HomeScreen = () => {
       </Modal>
 
       {/* Edit Reminder Time Modal */}
+      {showReminderModal && (
       <Modal
         animationType="fade"
         transparent={true}
@@ -1384,12 +1558,11 @@ const HomeScreen = () => {
                 <View style={styles.timePickerColumn}>
                   <Text style={styles.timePickerLabel}>Hour</Text>
                   <ScrollView 
-                    ref={reminderHourScrollRef}
                     style={styles.timePickerScroll}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                   >
-                    {Array.from({ length: 24 }, (_, i) => i).map(hour => (
+                    {getAvailableReminderHours().map(hour => (
                       <TouchableOpacity
                         key={hour}
                         style={[
@@ -1421,8 +1594,17 @@ const HomeScreen = () => {
                     style={styles.timePickerScroll}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
+                    onLayout={() => {
+                      // Scroll to selected minute position
+                      const minutes = getAvailableReminderMinutes();
+                      const index = minutes.indexOf(reminderMinute);
+                      if (index > 0 && reminderMinuteScrollRef.current) {
+                        const itemHeight = 44; // paddingVertical 10 + marginVertical 2 * 2 + fontSize ~18 + some padding
+                        reminderMinuteScrollRef.current.scrollTo({ y: index * itemHeight, animated: false });
+                      }
+                    }}
                   >
-                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].map(minute => (
+                    {getAvailableReminderMinutes().map(minute => (
                       <TouchableOpacity
                         key={minute}
                         style={[
@@ -1450,6 +1632,18 @@ const HomeScreen = () => {
             </View>
 
             <View style={styles.modalFooter}>
+              <TouchableOpacity
+                style={styles.clearReminderButton}
+                onPress={async () => {
+                  setShowReminderModal(false);
+                  await NotificationService.cancelReminder();
+                  await StorageService.removeItem('nextReminderTime');
+                  setNextReminderTime(null);
+                }}
+              >
+                <FontAwesomeIcon icon={faTimes} size={14} color="#EF4444" />
+                <Text style={styles.clearReminderButtonText}>Clear Reminder</Text>
+              </TouchableOpacity>
               <View style={styles.modalFooterButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -1462,6 +1656,224 @@ const HomeScreen = () => {
                   <Text style={styles.saveButtonText}>Save</Text>
                 </TouchableOpacity>
               </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      )}
+
+      {/* Reminder Choice Modal - shown after manually adding a rest */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showReminderChoiceModal}
+        onRequestClose={() => setShowReminderChoiceModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.reminderChoiceContent}>
+            <Text style={styles.reminderChoiceTitle}>Update Next Reminder?</Text>
+            <Text style={styles.reminderChoiceSubtitle}>
+              {nextReminderTime 
+                ? `Current reminder: ${nextReminderTime.formattedTime}`
+                : 'No reminder currently scheduled'}
+            </Text>
+            
+            <View style={styles.reminderChoiceButtons}>
+              <TouchableOpacity
+                style={styles.reminderChoiceButton}
+                onPress={() => handleReminderChoice(true)}
+              >
+                <Text style={styles.reminderChoiceButtonText}>Keep Current</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.reminderChoiceButton, styles.reminderChoiceButtonPrimary]}
+                onPress={() => handleReminderChoice(false)}
+              >
+                <FontAwesomeIcon icon={faClock} size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.reminderChoiceButtonTextPrimary}>
+                  In {Math.round(restInterval / 60)} {restInterval >= 120 ? 'hours' : 'hour'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Wakeup Log Modal - shown when wakeup not logged for today */}
+      {showWakeupLogModal && (
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showWakeupLogModal}
+        onRequestClose={() => setShowWakeupLogModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View key={`wakeup-modal-${wakeupLogModalKey}`} style={styles.modalContent}>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                {new Date().getHours() < 12 ? '☀️ Good Morning!' : 
+                 new Date().getHours() < 17 ? '🌤️ Good Afternoon!' : 
+                 '🌙 Good Evening!'}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setShowWakeupLogModal(false)}
+                style={styles.modalCloseButton}
+              >
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text style={styles.modalLabel}>When did you wake up?</Text>
+              <View style={styles.timePickerRow}>
+                {/* Hour Picker */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Hour</Text>
+                  <ScrollView 
+                    ref={wakeupLogHourScrollRef}
+                    style={styles.timePickerScroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.timePickerScrollContent}
+                    onLayout={() => {
+                      // Scroll to selected hour position
+                      const itemHeight = 44;
+                      if (wakeupLogHourScrollRef.current) {
+                        wakeupLogHourScrollRef.current.scrollTo({ y: wakeupLogHour * itemHeight, animated: false });
+                      }
+                    }}
+                  >
+                    {Array.from({ length: new Date().getHours() + 1 }, (_, i) => i).map(hour => (
+                      <TouchableOpacity
+                        key={hour}
+                        style={[
+                          styles.timePickerItem,
+                          wakeupLogHour === hour && styles.timePickerItemSelected,
+                        ]}
+                        onPress={() => setWakeupLogHour(hour)}
+                      >
+                        <Text
+                          style={[
+                            styles.timePickerItemText,
+                            wakeupLogHour === hour && styles.timePickerItemTextSelected,
+                          ]}
+                        >
+                          {hour.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+                
+                <Text style={styles.timePickerSeparator}>:</Text>
+                
+                {/* Minute Picker (5-min intervals) */}
+                <View style={styles.timePickerColumn}>
+                  <Text style={styles.timePickerLabel}>Min</Text>
+                  <ScrollView 
+                    ref={wakeupLogMinuteScrollRef}
+                    style={styles.timePickerScroll}
+                    showsVerticalScrollIndicator={false}
+                    contentContainerStyle={styles.timePickerScrollContent}
+                    onLayout={() => {
+                      // Scroll to selected minute position
+                      const itemHeight = 44;
+                      const minuteIndex = wakeupLogMinute / 5;
+                      if (wakeupLogMinuteScrollRef.current) {
+                        wakeupLogMinuteScrollRef.current.scrollTo({ y: minuteIndex * itemHeight, animated: false });
+                      }
+                    }}
+                  >
+                    {[0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55].filter(minute => {
+                      // Only show minutes up to current time if current hour is selected
+                      if (wakeupLogHour === new Date().getHours()) {
+                        return minute <= new Date().getMinutes();
+                      }
+                      return true;
+                    }).map(minute => (
+                      <TouchableOpacity
+                        key={minute}
+                        style={[
+                          styles.timePickerItem,
+                          wakeupLogMinute === minute && styles.timePickerItemSelected,
+                        ]}
+                        onPress={() => setWakeupLogMinute(minute)}
+                      >
+                        <Text
+                          style={[
+                            styles.timePickerItemText,
+                            wakeupLogMinute === minute && styles.timePickerItemTextSelected,
+                          ]}
+                        >
+                          {minute.toString().padStart(2, '0')}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              </View>
+              <Text style={styles.modalNote}>
+                Wakeup at {wakeupLogHour.toString().padStart(2, '0')}:{wakeupLogMinute.toString().padStart(2, '0')}
+              </Text>
+            </View>
+
+            <View style={styles.modalFooter}>
+              <View style={styles.modalFooterButtons}>
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={() => setShowWakeupLogModal(false)}
+                >
+                  <Text style={styles.cancelButtonText}>Not Now</Text>
+                </TouchableOpacity>
+                <TouchableOpacity 
+                  style={[styles.saveButton, { backgroundColor: '#FFB347' }]} 
+                  onPress={() => {
+                    setShowWakeupLogModal(false);
+                    logWakeupTime(wakeupLogHour, wakeupLogMinute);
+                  }}
+                >
+                  <FontAwesomeIcon icon={faSun} size={16} color="#FFFFFF" />
+                  <Text style={styles.saveButtonText}>Log Wake-up</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </View>
+      </Modal>
+      )}
+
+      {/* Rest Overdue Modal - shown when rest hasn't been taken for interval duration */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showRestOverdueModal}
+        onRequestClose={() => setShowRestOverdueModal(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.reminderChoiceContent}>
+            <Text style={styles.reminderChoiceTitle}>⏰ Time for a Rest!</Text>
+            <Text style={styles.reminderChoiceSubtitle}>
+              It's been a while since your last eye rest. Take a moment to recharge your eyes.
+            </Text>
+            
+            <View style={styles.reminderChoiceButtons}>
+              <TouchableOpacity
+                style={styles.reminderChoiceButton}
+                onPress={() => setShowRestOverdueModal(false)}
+              >
+                <Text style={styles.reminderChoiceButtonText}>Later</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity
+                style={[styles.reminderChoiceButton, styles.restOverdueButtonPrimary]}
+                onPress={() => {
+                  setShowRestOverdueModal(false);
+                  navigation.navigate('Timer');
+                }}
+              >
+                <FontAwesomeIcon icon={faStopwatch} size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
+                <Text style={styles.reminderChoiceButtonTextPrimary}>Start Rest</Text>
+              </TouchableOpacity>
             </View>
           </View>
         </View>
@@ -2149,10 +2561,26 @@ const styles = StyleSheet.create({
     backgroundColor: '#E5E7EB',
   },
   timelineSmallDotCurrent: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#6B7280',
     width: 14,
     height: 14,
     borderRadius: 7,
+  },
+  timelineReminderMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#E5E7EB',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  timelineWakeupMarker: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: '#FFF3E0',
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   timelineLineSegment: {
     flex: 1,
@@ -2395,18 +2823,30 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
   },
   modalFooter: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: 'column',
     padding: 20,
     borderTopWidth: 1,
     borderTopColor: '#E5E7EB',
+    gap: 12,
   },
   modalFooterButtons: {
     flexDirection: 'row',
     gap: 10,
-    flex: 1,
     justifyContent: 'flex-end',
+  },
+  clearReminderButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 8,
+    backgroundColor: '#FEF2F2',
+  },
+  clearReminderButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#EF4444',
   },
   deleteButton: {
     width: 44,
@@ -2778,6 +3218,56 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  // Reminder Choice Modal Styles
+  reminderChoiceContent: {
+    width: '85%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    padding: 24,
+    alignItems: 'center',
+  },
+  reminderChoiceTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#2D3436',
+    marginBottom: 8,
+  },
+  reminderChoiceSubtitle: {
+    fontSize: 14,
+    color: '#636E72',
+    marginBottom: 20,
+  },
+  reminderChoiceButtons: {
+    width: '100%',
+    gap: 10,
+  },
+  reminderChoiceButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 12,
+    backgroundColor: '#F0F0F0',
+  },
+  reminderChoiceButtonPrimary: {
+    backgroundColor: '#6B7280',
+  },
+  reminderChoiceButtonText: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#636E72',
+  },
+  reminderChoiceButtonTextPrimary: {
+    fontSize: 15,
+    fontWeight: '600',
+    color: '#FFFFFF',
+  },
+  wakeupLogButtonPrimary: {
+    backgroundColor: '#FFB347',
+  },
+  restOverdueButtonPrimary: {
+    backgroundColor: '#4ECDC4',
   },
 });
 

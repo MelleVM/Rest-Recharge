@@ -54,6 +54,20 @@ export const PlantColorEvent = {
   },
 };
 
+// Event emitter for showing wakeup log modal
+export const WakeupLogEvent = {
+  listeners: [],
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
+  },
+  emit() {
+    this.listeners.forEach(callback => callback());
+  },
+};
+
 // Event emitter for triggering onboarding after reset
 export const ResetEvent = {
   listeners: [],
@@ -68,8 +82,50 @@ export const ResetEvent = {
   },
 };
 
+// Event emitter for Garden screen (to hide top safe area)
+export const GardenScreenEvent = {
+  listeners: [],
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
+  },
+  emit(isActive) {
+    this.listeners.forEach(callback => callback(isActive));
+  },
+};
+
+// Event emitter for rest mode (dark mode during timer)
+export const RestModeEvent = {
+  listeners: [],
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
+  },
+  emit(isActive) {
+    this.listeners.forEach(callback => callback(isActive));
+  },
+};
+
+// Event emitter for pending flower unlocks badge
+export const PendingUnlocksEvent = {
+  listeners: [],
+  subscribe(callback) {
+    this.listeners.push(callback);
+    return () => {
+      this.listeners = this.listeners.filter(l => l !== callback);
+    };
+  },
+  emit(count) {
+    this.listeners.forEach(callback => callback(count));
+  },
+};
+
 // Tab Navigator Component
-function TabNavigator({ plantColor }) {
+function TabNavigator({ plantColor, isRestMode, pendingUnlocks }) {
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -79,18 +135,42 @@ function TabNavigator({ plantColor }) {
           } else if (route.name === 'Timer') {
             return <FontAwesomeIcon icon={faStopwatch} size={32} color={color} />;
           } else if (route.name === 'Garden') {
-            return <FontAwesomeIcon icon={faSun} size={32} color={color} />;
+            return (
+              <View>
+                <FontAwesomeIcon icon={faSun} size={32} color={color} />
+                {pendingUnlocks > 0 && (
+                  <View style={{
+                    position: 'absolute',
+                    top: -4,
+                    right: -8,
+                    backgroundColor: '#FF6B6B',
+                    borderRadius: 10,
+                    minWidth: 18,
+                    height: 18,
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    paddingHorizontal: 4,
+                  }}>
+                    <Animated.Text style={{
+                      color: '#FFFFFF',
+                      fontSize: 11,
+                      fontWeight: 'bold',
+                    }}>{pendingUnlocks}</Animated.Text>
+                  </View>
+                )}
+              </View>
+            );
           }
         },
         tabBarShowLabel: false,
         tabBarActiveTintColor: '#FF6B6B',
-        tabBarInactiveTintColor: '#B2BEC3',
+        tabBarInactiveTintColor: isRestMode ? '#444444' : '#B2BEC3',
         headerShown: false,
         tabBarHideOnKeyboard: true,
         lazy: false,
         unmountOnBlur: false,
-        sceneStyle: { backgroundColor: '#FFF9F0' },
-        tabBarStyle: {
+        sceneStyle: { backgroundColor: isRestMode ? '#121212' : '#FFF9F0' },
+        tabBarStyle: isRestMode ? { display: 'none' } : {
           backgroundColor: '#FFF9F0',
           borderTopWidth: 0,
           elevation: 20,
@@ -113,14 +193,14 @@ function TabNavigator({ plantColor }) {
   );
 }
 
-// Navigation theme for NavigationContainer
-const navigationTheme = {
+// Navigation theme for NavigationContainer - created dynamically based on rest mode
+const getNavigationTheme = (isRestMode) => ({
   ...NavigationDefaultTheme,
   colors: {
     ...NavigationDefaultTheme.colors,
-    background: '#FFF9F0',
+    background: isRestMode ? '#121212' : '#FFF9F0',
   },
-};
+});
 
 // Fun, comic-style theme with bold colors
 const theme = {
@@ -162,7 +242,15 @@ function App() {
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [plantColor, setPlantColor] = useState('#4CAF50'); // Default to classic green
+  const [isRestMode, setIsRestMode] = useState(false);
+  const [isGardenScreen, setIsGardenScreen] = useState(false);
+  const [pendingUnlocks, setPendingUnlocks] = useState(0);
   const navigationRef = React.useRef(null);
+
+  const loadPendingUnlocks = async () => {
+    const pending = await StorageService.getItem('pendingFlowerUnlocks') || [];
+    setPendingUnlocks(pending.length);
+  };
 
   const loadPlantColor = async () => {
     const gardenData = await StorageService.getItem('gardenData');
@@ -173,12 +261,18 @@ function App() {
 
   useEffect(() => {
     const initialize = async () => {
-      // Configure notifications with navigation callback
-      NotificationService.configure((screenName) => {
-        if (navigationRef.current) {
-          navigationRef.current.navigate(screenName);
+      // Configure notifications with navigation callback and wakeup log callback
+      NotificationService.configure(
+        (screenName) => {
+          if (navigationRef.current) {
+            navigationRef.current.navigate(screenName);
+          }
+        },
+        () => {
+          // Emit wakeup log event to show modal in HomeScreen
+          WakeupLogEvent.emit();
         }
-      });
+      );
       
       // Check if onboarding has been completed
       const onboardingCompleted = await StorageService.getItem('onboardingCompleted');
@@ -187,15 +281,19 @@ function App() {
       // Load plant color
       await loadPlantColor();
       
+      // Load pending unlocks count
+      await loadPendingUnlocks();
+      
       setIsLoading(false);
     };
     
     initialize();
     
-    // Refresh plant color when app comes to foreground
+    // Refresh plant color and pending unlocks when app comes to foreground
     const appStateSubscription = AppState.addEventListener('change', (nextAppState) => {
       if (nextAppState === 'active') {
         loadPlantColor();
+        loadPendingUnlocks();
       }
     });
     
@@ -210,10 +308,28 @@ function App() {
       setPlantColor('#4CAF50'); // Reset to default color
     });
     
+    // Subscribe to rest mode changes
+    const unsubscribeRestMode = RestModeEvent.subscribe((active) => {
+      setIsRestMode(active);
+    });
+    
+    // Subscribe to garden screen changes
+    const unsubscribeGardenScreen = GardenScreenEvent.subscribe((active) => {
+      setIsGardenScreen(active);
+    });
+    
+    // Subscribe to pending unlocks changes
+    const unsubscribePendingUnlocks = PendingUnlocksEvent.subscribe((count) => {
+      setPendingUnlocks(count);
+    });
+    
     return () => {
       appStateSubscription.remove();
       unsubscribePlantColor();
       unsubscribeReset();
+      unsubscribeRestMode();
+      unsubscribeGardenScreen();
+      unsubscribePendingUnlocks();
     };
   }, []);
 
@@ -245,15 +361,15 @@ function App() {
 
   return (
     <PaperProvider theme={theme}>
-      <View style={styles.rootContainer}>
-        <SafeAreaView style={styles.safeAreaTop} />
+      <View style={[styles.rootContainer, isRestMode && styles.restModeRoot]}>
+        {!isGardenScreen && <SafeAreaView style={[styles.safeAreaTop, isRestMode && styles.restModeSafeArea]} />}
         <RewardToast />
-        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor} theme={navigationTheme}>
-          <View style={styles.container}>
-            <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor} theme={getNavigationTheme(isRestMode)}>
+          <View style={[styles.container, isRestMode && styles.restModeContainer]}>
+            <StatusBar barStyle={isRestMode ? "light-content" : "dark-content"} backgroundColor={isRestMode ? "#121212" : "#FFF9F0"} />
             <Stack.Navigator screenOptions={{ headerShown: false }}>
               <Stack.Screen name="MainTabs">
-                {() => <TabNavigator plantColor={plantColor} />}
+                {() => <TabNavigator plantColor={plantColor} isRestMode={isRestMode} pendingUnlocks={pendingUnlocks} />}
               </Stack.Screen>
               <Stack.Screen 
                 name="Settings" 
@@ -320,6 +436,15 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#FFF9F0',
+  },
+  restModeRoot: {
+    backgroundColor: '#121212',
+  },
+  restModeSafeArea: {
+    backgroundColor: '#121212',
+  },
+  restModeContainer: {
+    backgroundColor: '#121212',
   },
 });
 

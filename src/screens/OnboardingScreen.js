@@ -190,14 +190,26 @@ const OnboardingScreen = ({ onComplete }) => {
 
     await StorageService.setItem('onboardingCompleted', true);
     
-    // Schedule daily wake-up notification
-    await NotificationService.scheduleWakeupNotification();
-    
-    // Schedule first rest reminder based on the answered wake-up time
-    // Calculate when the first reminder should be (wake-up time + rest interval)
+    // Set today's wakeup time based on the usual wakeup time from onboarding
     const now = new Date();
     const wakeupToday = new Date();
     wakeupToday.setHours(answers.wakeupTime.hour, answers.wakeupTime.minute, 0, 0);
+    
+    // Save wakeup time for today (use usual wakeup time as today's wakeup)
+    const wakeupData = {
+      timestamp: wakeupToday.getTime(),
+      formattedTime: `${answers.wakeupTime.hour.toString().padStart(2, '0')}:${answers.wakeupTime.minute.toString().padStart(2, '0')}`,
+      date: now.toLocaleDateString(),
+    };
+    await StorageService.setItem('wakeupTime', wakeupData);
+    
+    // Store wakeup hour for today
+    const todayKey = now.toLocaleDateString();
+    const wakeupHours = { [todayKey]: answers.wakeupTime.hour };
+    await StorageService.setItem('wakeupHours', wakeupHours);
+    
+    // Schedule daily wake-up notification
+    await NotificationService.scheduleWakeupNotification();
     
     // If user's usual wake-up time has already passed today, schedule based on current time
     // Otherwise, schedule based on their wake-up time

@@ -3,6 +3,7 @@ import PushNotificationIOS from '@react-native-community/push-notification-ios';
 import { Platform } from 'react-native';
 import StorageService from './StorageService';
 import LiveActivityService from './LiveActivityService';
+import AlarmKitService from './AlarmKitService';
 
 class NotificationService {
   constructor() {
@@ -63,8 +64,9 @@ class NotificationService {
     return nextActive;
   };
 
-  configure = (navigationCallback) => {
+  configure = (navigationCallback, wakeupLogCallback) => {
     this.navigationCallback = navigationCallback;
+    this.wakeupLogCallback = wakeupLogCallback;
     
     PushNotification.configure({
       onNotification: (notification) => {
@@ -82,6 +84,18 @@ class NotificationService {
           if (screen === 'Timer' && this.navigationCallback) {
             console.log('Navigating to Timer screen');
             this.navigationCallback('Timer');
+          } else if (screen === 'WakeupLog') {
+            console.log('Showing wakeup log modal');
+            // Navigate to Home first, then emit event to show modal
+            if (this.navigationCallback) {
+              this.navigationCallback('Home');
+            }
+            // Emit event after a short delay to ensure navigation completes
+            setTimeout(() => {
+              if (this.wakeupLogCallback) {
+                this.wakeupLogCallback();
+              }
+            }, 300);
           } else {
             console.log('Navigation callback not available or no screen specified');
           }
@@ -196,6 +210,37 @@ class NotificationService {
     console.log('Wakeup notification cancelled');
   };
 
+  cancelReminder = () => {
+    PushNotification.cancelLocalNotification('1');
+    console.log('Reminder cancelled');
+  };
+
+  // Schedule a test wakeup notification 1 minute from now
+  scheduleTestWakeupNotification = async () => {
+    PushNotification.cancelLocalNotification('wakeup-test');
+    
+    const settings = await this.getSettings();
+    const testTime = new Date();
+    testTime.setMinutes(testTime.getMinutes() + 1);
+    
+    PushNotification.localNotificationSchedule({
+      channelId: 'wakeup-reminder',
+      id: 'wakeup-test',
+      title: '☀️ Good Morning! (Test)',
+      message: 'Tap to log your wake-up time and start your rest schedule',
+      date: testTime,
+      allowWhileIdle: true,
+      vibrate: settings.vibrationEnabled,
+      playSound: true,
+      soundName: 'default',
+      userInfo: { screen: 'WakeupLog' },
+      data: { screen: 'WakeupLog' },
+    });
+    
+    console.log('Test wakeup notification scheduled for:', testTime.toLocaleTimeString());
+    return testTime;
+  };
+
   updateWakeupTime = async (hour, minute) => {
     const onboardingData = await StorageService.getItem('onboardingData') || {};
     onboardingData.usualWakeupTime = { hour, minute };
@@ -259,20 +304,30 @@ class NotificationService {
     
     console.log('Next reminder pre-scheduled for:', nextReminderTime.toLocaleTimeString());
 
-    const completionTime = new Date(endTime);
-    PushNotification.localNotificationSchedule({
-      channelId: 'eye-rest-reminders',
-      id: '998',
-      title: 'Eye Rest Complete!',
-      message: 'Great job. Press to collect your reward!',
-      date: completionTime,
-      allowWhileIdle: true,
-      vibrate: true,
-      playSound: true,
-      soundName: Platform.OS === 'ios' ? 'alarm.caf' : 'alarm.wav',
-      userInfo: { screen: 'Timer' },
-      data: { screen: 'Timer' },
-    });
+    // Use AlarmKit for iOS (breaks through silent mode with repeating vibration)
+    // Fall back to regular notification for Android
+    if (Platform.OS === 'ios') {
+      const alarmResult = await AlarmKitService.scheduleCountdownAlarm(
+        remaining,
+        'Eye Rest Complete!'
+      );
+      console.log('AlarmKit alarm scheduled:', alarmResult);
+    } else {
+      const completionTime = new Date(endTime);
+      PushNotification.localNotificationSchedule({
+        channelId: 'eye-rest-reminders',
+        id: '998',
+        title: 'Eye Rest Complete!',
+        message: 'Great job. Press to collect your reward!',
+        date: completionTime,
+        allowWhileIdle: true,
+        vibrate: true,
+        playSound: true,
+        soundName: 'alarm.wav',
+        userInfo: { screen: 'Timer' },
+        data: { screen: 'Timer' },
+      });
+    }
 
     console.log('Timer notification started:', timeString);
   };
@@ -295,6 +350,11 @@ class NotificationService {
     // Stop Live Activity if active
     await LiveActivityService.stopTimer();
     
+    // Cancel AlarmKit alarm on iOS
+    if (Platform.OS === 'ios') {
+      await AlarmKitService.cancelAlarm();
+    }
+    
     // Cancel all timer-related notifications including pre-scheduled reminder
     PushNotification.cancelLocalNotification('999');
     PushNotification.cancelLocalNotification('998');
@@ -312,6 +372,11 @@ class NotificationService {
 
     // Update Live Activity to paused state - no notification needed
     await LiveActivityService.updateTimer(remainingSeconds, true);
+
+    // Pause AlarmKit alarm on iOS
+    if (Platform.OS === 'ios') {
+      await AlarmKitService.pauseAlarm();
+    }
 
     // Cancel completion notification, ongoing notifications, and pre-scheduled reminder
     PushNotification.cancelLocalNotification('998');
@@ -421,7 +486,7 @@ class NotificationService {
     return reminders;
   };
 
-  scheduleNextReminder = async () => {
+  scheduleNextReminder = async (baseTime = null) => {
     // Cancel existing reminder notifications (but not timer notifications)
     PushNotification.cancelLocalNotification('1');
     
@@ -434,8 +499,16 @@ class NotificationService {
     
     const intervalMinutes = settings.temporaryInterval || settings.restInterval;
     
-    const now = new Date();
-    let reminderTime = new Date(now.getTime() + intervalMinutes * 60 * 1000);
+    // Use provided base time or current time
+    const base = baseTime || new Date();
+    let reminderTime = new Date(base.getTime() + intervalMinutes * 60 * 1000);
+    
+    // Don't automatically schedule reminders after 21:00
+    if (reminderTime.getHours() >= 21) {
+      console.log('Reminder would be after 21:00, not scheduling automatically');
+      await StorageService.removeItem('nextReminderTime');
+      return null;
+    }
     
     // If the reminder would be during quiet hours, schedule for 2 hours after usual wake-up time
     if (this.isQuietHours(reminderTime, settings)) {

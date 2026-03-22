@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform, ScrollView, Modal } from 'react-native';
+import { View, StyleSheet, Vibration, TouchableOpacity, AppState, PermissionsAndroid, Platform, ScrollView, Modal, StatusBar } from 'react-native';
 import { Text, Surface, useTheme } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
@@ -16,6 +16,7 @@ import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 import { ToastEvent } from '../components/RewardToast';
 import { FONTS } from '../styles/fonts';
+import { RestModeEvent } from '../../App';
 
 // Plant colors (synced with GardenScreen)
 const PLANT_COLORS = {
@@ -54,6 +55,7 @@ const TimerScreen = () => {
   const navigation = useNavigation();
   const [isActive, setIsActive] = useState(false);
   const [time, setTime] = useState(0);
+  const [smoothProgress, setSmoothProgress] = useState(0);
   const [currentQuote, setCurrentQuote] = useState(() => 
     MOTIVATIONAL_QUOTES[Math.floor(Math.random() * MOTIVATIONAL_QUOTES.length)]
   );
@@ -62,6 +64,7 @@ const TimerScreen = () => {
   const [gardenData, setGardenData] = useState({ points: 0 });
   const [showTutorial, setShowTutorial] = useState(false);
   const endTimeRef = useRef(null);
+  const startDurationRef = useRef(0);
   const animationFrameRef = useRef(null);
   const lastUpdateRef = useRef(0);
   const appState = useRef(AppState.currentState);
@@ -321,6 +324,7 @@ const TimerScreen = () => {
     
     // Reset UI state
     setIsActive(false);
+    RestModeEvent.emit(false);
     endTimeRef.current = null;
     
     // Reset to default duration
@@ -368,15 +372,22 @@ const TimerScreen = () => {
   // Start timer using requestAnimationFrame for smooth updates
   const startTimerLoop = () => {
     stopTimer();
-    lastUpdateRef.current = Date.now();
+    // Initialize to endTimeRef so first tick's lastSecond matches initial remaining
+    lastUpdateRef.current = endTimeRef.current;
     
     const tick = () => {
       if (!endTimeRef.current) return;
       
       const now = Date.now();
-      const remaining = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
+      const remainingMs = Math.max(0, endTimeRef.current - now);
+      const remaining = Math.floor(remainingMs / 1000);
       
-      // Only update state once per second
+      // Update smooth progress every frame for fluid animation
+      const totalMs = totalTime * 1000;
+      const elapsedMs = totalMs - remainingMs;
+      setSmoothProgress(totalMs > 0 ? elapsedMs / totalMs : 0);
+      
+      // Only update time display once per second
       const lastSecond = Math.floor((endTimeRef.current - lastUpdateRef.current) / 1000);
       if (remaining !== lastSecond || remaining === 0) {
         lastUpdateRef.current = now;
@@ -411,7 +422,9 @@ const TimerScreen = () => {
     if (!isActive) {
       const newEndTime = Date.now() + time * 1000;
       endTimeRef.current = newEndTime;
+      startDurationRef.current = time; // Store the starting duration
       setIsActive(true);
+      RestModeEvent.emit(true);
       
       await NotificationService.startTimerNotification(newEndTime, false);
       startTimerLoop();
@@ -419,19 +432,49 @@ const TimerScreen = () => {
   };
 
   const cancel = async () => {
+    // Calculate completed percentage before stopping (use refs for accuracy)
+    let completedPercent = 0;
+    const now = Date.now();
+    const duration = startDurationRef.current;
+    
+    if (endTimeRef.current && duration > 0) {
+      const remainingMs = Math.max(0, endTimeRef.current - now);
+      const remainingSecs = remainingMs / 1000;
+      const elapsedSecs = duration - remainingSecs;
+      completedPercent = Math.round((elapsedSecs / duration) * 100);
+    }
+    
     stopTimer();
     
-    // Award reduced gems for canceling (5 instead of 10)
+    // Award proportional energy based on completion (25% max for full rest, so scale accordingly)
+    const energyEarned = Math.round((completedPercent / 100) * 25);
+    
+    // Update sunflower garden energy proportionally
+    const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || { energy: 0.5 };
+    const energyGain = (completedPercent / 100) * 0.25; // Max 0.25 for full rest
+    const newEnergy = Math.min(1.0, (sunflowerGarden.energy || 0.5) + energyGain);
+    await StorageService.setItem('sunflowerGarden', {
+      ...sunflowerGarden,
+      energy: newEnergy,
+      lastEnergyUpdate: Date.now(),
+    });
+    
+    // Award proportional gems (scale from 0-10 based on completion)
+    const gemsEarned = Math.floor((completedPercent / 100) * 10);
     const currentGardenData = await StorageService.getItem('gardenData') || { points: 0 };
     const updatedGardenData = {
       ...currentGardenData,
-      points: (currentGardenData.points || 0) + 5,
+      points: (currentGardenData.points || 0) + gemsEarned,
     };
     await StorageService.setItem('gardenData', updatedGardenData);
     setGardenData(updatedGardenData);
     
-    // Show toast notification
-    ToastEvent.show('energy', 0, 'Timer cancelled');
+    // Show toast notification with energy earned
+    if (energyEarned > 0) {
+      ToastEvent.show('energy', energyEarned, `+${energyEarned}% energy earned`);
+    } else {
+      ToastEvent.show('energy', 0, 'Timer cancelled');
+    }
     
     // Stop timer and clear state
     await NotificationService.stopTimerNotification();
@@ -446,6 +489,7 @@ const TimerScreen = () => {
     const durationSeconds = durationMinutes * 60;
     
     setIsActive(false);
+    RestModeEvent.emit(false);
     setTime(durationSeconds);
     setTotalTime(durationSeconds);
     endTimeRef.current = null;
@@ -463,6 +507,7 @@ const TimerScreen = () => {
     
     stopTimer();
     setIsActive(false);
+    RestModeEvent.emit(false);
     endTimeRef.current = null;
     
     const completionTime = Date.now();
@@ -522,7 +567,8 @@ const TimerScreen = () => {
     return `${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
   };
 
-  const progress = totalTime > 0 ? (totalTime - time) / totalTime : 0;
+  // Use smoothProgress when timer is active for fluid animation, otherwise calculate from time
+  const progress = isActive ? smoothProgress : (totalTime > 0 ? (totalTime - time) / totalTime : 0);
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
   // Get plant color for gems display
@@ -571,84 +617,107 @@ const TimerScreen = () => {
         </View>
       </Modal>
 
-      <ScrollView style={styles.container} contentContainerStyle={styles.contentContainer} showsVerticalScrollIndicator={false}>
-        <View style={styles.header}>
-          <Text style={styles.title}>Rest & Recharge</Text>
-          <TouchableOpacity
-            style={styles.settingsButton}
-            onPress={() => navigation.navigate('Settings')}
-            activeOpacity={0.7}
-          >
-            <FontAwesomeIcon icon={faGear} size={28} color="#B2BEC3" />
-          </TouchableOpacity>
-        </View>
+      <StatusBar 
+        barStyle={isActive ? "light-content" : "dark-content"} 
+        backgroundColor={isActive ? "#121212" : "#FFF9F0"} 
+      />
+      
+      <ScrollView 
+        style={[styles.container, isActive && styles.restModeContainer]} 
+        contentContainerStyle={[styles.contentContainer, isActive && styles.restModeContentContainer]} 
+        showsVerticalScrollIndicator={false}
+        scrollEnabled={!isActive}
+      >
+        {!isActive && (
+          <View style={styles.header}>
+            <Text style={styles.title}>Rest & Recharge</Text>
+            <TouchableOpacity
+              style={styles.settingsButton}
+              onPress={() => navigation.navigate('Settings')}
+              activeOpacity={0.7}
+            >
+              <FontAwesomeIcon icon={faGear} size={28} color="#B2BEC3" />
+            </TouchableOpacity>
+          </View>
+        )}
+        
+        {isActive && <View style={styles.restModeHeaderSpacer} />}
 
-      <View style={styles.timerContainer}>
-        <View style={styles.timerWrapper}>
-          <Svg width={TIMER_SIZE} height={TIMER_SIZE}>
-            <Circle
-              cx={TIMER_SIZE / 2}
-              cy={TIMER_SIZE / 2}
-              r={RADIUS}
-              stroke="#E0E0E0"
-              strokeWidth={STROKE_WIDTH}
-              fill="white"
-            />
-            <Circle
-              cx={TIMER_SIZE / 2}
-              cy={TIMER_SIZE / 2}
-              r={RADIUS}
-              stroke={theme.colors.primary}
-              strokeWidth={STROKE_WIDTH}
-              fill="transparent"
-              strokeDasharray={CIRCUMFERENCE}
-              strokeDashoffset={strokeDashoffset}
-              strokeLinecap="round"
-              rotation="-90"
-              origin={`${TIMER_SIZE / 2}, ${TIMER_SIZE / 2}`}
-            />
-          </Svg>
-          
-          <View style={styles.timerTextContainer}>
-            <Text style={styles.timerText}>{formatTime(time)}</Text>
-            <Text style={styles.timerLabel}>
-              {!isActive && time === 0
-                ? "Click to collect your reward 💎"
-                : isActive 
-                  ? "Relax your eyes" 
-                  : "Start when ready"
-              }
-            </Text>
+        <View style={styles.timerContainer}>
+          <View style={styles.timerWrapper}>
+            <Svg width={TIMER_SIZE} height={TIMER_SIZE}>
+              <Circle
+                cx={TIMER_SIZE / 2}
+                cy={TIMER_SIZE / 2}
+                r={RADIUS}
+                stroke={isActive ? "#333333" : "#E0E0E0"}
+                strokeWidth={STROKE_WIDTH}
+                fill={isActive ? "#1a1a1a" : "white"}
+              />
+              <Circle
+                cx={TIMER_SIZE / 2}
+                cy={TIMER_SIZE / 2}
+                r={RADIUS}
+                stroke={theme.colors.primary}
+                strokeWidth={STROKE_WIDTH}
+                fill="transparent"
+                strokeDasharray={CIRCUMFERENCE}
+                strokeDashoffset={strokeDashoffset}
+                strokeLinecap="round"
+                rotation="-90"
+                origin={`${TIMER_SIZE / 2}, ${TIMER_SIZE / 2}`}
+              />
+            </Svg>
+            
+            <View style={styles.timerTextContainer}>
+              <Text style={[styles.timerText, isActive && styles.restModeTimerText]}>{formatTime(time)}</Text>
+              {!isActive && (
+                <Text style={styles.timerLabel}>
+                  {time === 0
+                    ? "Click to collect your reward 💎"
+                    : "Start when ready"
+                  }
+                </Text>
+              )}
+            </View>
           </View>
         </View>
-      </View>
-
-      <View style={styles.controlsContainer}>
-        {isActive ? (
-          <TouchableOpacity 
-            style={[styles.controlButton, styles.cancelButton]} 
-            onPress={cancel}
-          >
-            <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Cancel</Text>
-          </TouchableOpacity>
-        ) : (
-          <TouchableOpacity 
-            style={styles.controlButton} 
-            onPress={start}
-          >
-            <FontAwesomeIcon icon={faPlay} size={24} color="#FFFFFF" />
-            <Text style={styles.buttonText}>Start</Text>
-          </TouchableOpacity>
+        
+        {isActive && (
+          <>
+            <Text style={styles.restModeMessage}>You can turn off your screen</Text>
+            <Text style={styles.restModeSubMessage}>The timer will continue in the background</Text>
+          </>
         )}
-      </View>
 
-      <View style={styles.quoteCard}>
-        <Text style={styles.quoteText}>"{currentQuote.text}"</Text>
-        <Text style={styles.quoteAuthor}>— {currentQuote.author}</Text>
-      </View>
+        <View style={styles.controlsContainer}>
+          {isActive ? (
+            <TouchableOpacity 
+              style={[styles.controlButton, styles.restModeCancelButton]} 
+              onPress={cancel}
+            >
+              <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Cancel</Text>
+            </TouchableOpacity>
+          ) : (
+            <TouchableOpacity 
+              style={styles.controlButton} 
+              onPress={start}
+            >
+              <FontAwesomeIcon icon={faPlay} size={24} color="#FFFFFF" />
+              <Text style={styles.buttonText}>Start</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
-      <View style={styles.bottomPadding} />
+        {!isActive && (
+          <View style={styles.quoteCard}>
+            <Text style={styles.quoteText}>"{currentQuote.text}"</Text>
+            <Text style={styles.quoteAuthor}>— {currentQuote.author}</Text>
+          </View>
+        )}
+
+        <View style={styles.bottomPadding} />
       </ScrollView>
     </>
   );
@@ -725,6 +794,35 @@ const styles = StyleSheet.create({
     fontSize: 64,
     fontWeight: 'bold',
     color: '#2D3436',
+  },
+  restModeContainer: {
+    backgroundColor: '#121212',
+  },
+  restModeContentContainer: {
+    alignItems: 'center',
+  },
+  restModeHeaderSpacer: {
+    height: 60,
+  },
+  restModeTimerText: {
+    fontSize: 64,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+  },
+  restModeMessage: {
+    fontSize: 18,
+    color: '#FFFFFF',
+    textAlign: 'center',
+    marginBottom: 8,
+  },
+  restModeSubMessage: {
+    fontSize: 14,
+    color: '#888888',
+    textAlign: 'center',
+    marginBottom: 40,
+  },
+  restModeCancelButton: {
+    backgroundColor: 'rgba(255, 107, 107, 0.8)',
   },
   timerLabel: {
     fontSize: 18,

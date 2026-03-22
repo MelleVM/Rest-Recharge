@@ -1,5 +1,6 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { View, StyleSheet, TouchableOpacity, Image, Dimensions, Modal } from 'react-native';
+import { View, StyleSheet, TouchableOpacity, Image, Dimensions, Modal, StatusBar, Platform } from 'react-native';
+import { faTimes } from '@fortawesome/free-solid-svg-icons/faTimes';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
@@ -9,6 +10,7 @@ import Animated, {
 import { GestureDetector, Gesture, GestureHandlerRootView } from 'react-native-gesture-handler';
 import { Text } from 'react-native-paper';
 import { useFocusEffect } from '@react-navigation/native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import LinearGradient from 'react-native-linear-gradient';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
@@ -20,7 +22,8 @@ import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight
 import { faListUl } from '@fortawesome/free-solid-svg-icons/faListUl';
 import StorageService from '../utils/StorageService';
 import { FONTS } from '../styles/fonts';
-import { FLOWER_TYPES, ENERGY_DECAY_RATE } from '../config/flowerConfig';
+import { GardenScreenEvent, PendingUnlocksEvent } from '../../App';
+import { FLOWER_TYPES, ENERGY_DECAY_RATE, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import FlowerTimeline from '../components/FlowerTimeline';
 import FlowerSelection from '../components/FlowerSelection';
 
@@ -64,6 +67,7 @@ const TIME_OF_DAY_CONFIG = {
 };
 
 const GardenOverviewScreen = ({ navigation }) => {
+  const insets = useSafeAreaInsets();
   const [gardenData, setGardenData] = useState({
     energy: 0.5,
     totalRests: 0,
@@ -75,6 +79,7 @@ const GardenOverviewScreen = ({ navigation }) => {
   const [showTimeline, setShowTimeline] = useState(false);
   const [showFlowerSelection, setShowFlowerSelection] = useState(false);
   const [timeOfDay, setTimeOfDay] = useState(getTimeOfDay());
+  const [unlockedFlower, setUnlockedFlower] = useState(null);
 
   const timeConfig = useMemo(() => TIME_OF_DAY_CONFIG[timeOfDay], [timeOfDay]);
 
@@ -103,9 +108,35 @@ const GardenOverviewScreen = ({ navigation }) => {
 
   useFocusEffect(
     useCallback(() => {
+      GardenScreenEvent.emit(true);
       loadGardenData();
+      checkPendingUnlocks();
+      
+      return () => {
+        GardenScreenEvent.emit(false);
+      };
     }, [])
   );
+
+  const checkPendingUnlocks = async () => {
+    const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
+    if (pendingUnlocks.length > 0) {
+      // Get the first pending unlock
+      const flowerId = pendingUnlocks[0];
+      const flower = FLOWER_TYPES[flowerId];
+      if (flower) {
+        // Remove from pending list
+        const remaining = pendingUnlocks.slice(1);
+        await StorageService.setItem('pendingFlowerUnlocks', remaining);
+        // Emit event to update badge count
+        PendingUnlocksEvent.emit(remaining.length);
+        // Show the unlock popup
+        setTimeout(() => {
+          setUnlockedFlower(flower);
+        }, 500);
+      }
+    }
+  };
 
   const loadGardenData = async () => {
     const stored = await StorageService.getItem('sunflowerGarden');
@@ -321,8 +352,28 @@ const GardenOverviewScreen = ({ navigation }) => {
     };
   });
 
+  // Animated style for celestial body (parallax effect - moves opposite to zoom)
+  const celestialAnimatedStyle = useAnimatedStyle(() => {
+    // Move the sun/moon in the opposite direction of the zoom, scaled down for subtle parallax
+    const parallaxFactor = 0.3;
+    const celestialTranslateX = interpolate(zoomProgress.value, [0, 1], [0, -targetTranslateX * parallaxFactor]);
+    const celestialTranslateY = interpolate(zoomProgress.value, [0, 1], [0, -targetTranslateY * parallaxFactor]);
+    // Scale based on zoom progress (1 -> 2) and also respond to user pinch zoom
+    const baseZoomScale = interpolate(zoomProgress.value, [0, 1], [1, 2]);
+    const celestialScale = baseZoomScale * (0.7 + userScale.value * 0.3);
+    
+    return {
+      transform: [
+        { translateX: celestialTranslateX + (panX.value * parallaxFactor) },
+        { translateY: celestialTranslateY + (panY.value * parallaxFactor) },
+        { scale: celestialScale },
+      ],
+    };
+  });
+
   return (
     <GestureHandlerRootView style={styles.container}>
+      <StatusBar translucent backgroundColor="transparent" barStyle={timeOfDay === 'night' ? 'light-content' : 'dark-content'} />
       <LinearGradient
         colors={timeConfig.backgroundColors}
         style={styles.backgroundGradient}
@@ -333,7 +384,7 @@ const GardenOverviewScreen = ({ navigation }) => {
         <View style={[styles.timeOverlay, { backgroundColor: timeConfig.overlayColor }]} />
         
         {/* Celestial body (sun/moon) */}
-        <View style={styles.celestialContainer}>
+        <Animated.View style={[styles.celestialContainer, celestialAnimatedStyle]}>
           {timeOfDay === 'night' ? (
             <View style={styles.moon}>
               <View style={styles.moonCrater1} />
@@ -356,17 +407,19 @@ const GardenOverviewScreen = ({ navigation }) => {
               )}
             </View>
           )}
-        </View>
+        </Animated.View>
         
         {/* Overview Header */}
-        <Animated.View style={othersAnimatedStyle} pointerEvents={selectedPlotIndex !== null ? 'none' : 'auto'}>
-          <View style={styles.header}>
-            <Text style={[styles.headerTitleLeft, { color: timeConfig.textColor }]}>My Garden</Text>
+        <Animated.View style={[styles.headerWrapper, othersAnimatedStyle]} pointerEvents={selectedPlotIndex !== null ? 'none' : 'auto'}>
+          <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
+            <View style={styles.headerPill}>
+              <Text style={styles.headerTitleLeft}>My Garden</Text>
+            </View>
             <TouchableOpacity 
-              style={styles.headerButton}
+              style={styles.headerButtonPill}
               onPress={() => setShowTimeline(true)}
             >
-              <FontAwesomeIcon icon={faListUl} size={18} color={timeOfDay === 'night' ? '#B0B0B0' : '#636E72'} />
+              <FontAwesomeIcon icon={faListUl} size={18} color="#505255" />
             </TouchableOpacity>
           </View>
         </Animated.View>
@@ -470,7 +523,7 @@ const GardenOverviewScreen = ({ navigation }) => {
 
         {/* Ground Patch */}
         <Image
-          source={require('../../assets/images/checkered-plot-transparent.png')}
+          source={require('../../assets/images/plot.png')}
           style={styles.groundPatch}
           resizeMode="contain"
         />
@@ -506,25 +559,25 @@ const GardenOverviewScreen = ({ navigation }) => {
       {/* Detail View UI - Appears when zoomed */}
       {selectedPlotIndex !== null && (
         <Animated.View style={[styles.detailOverlay, detailAnimatedStyle]} pointerEvents={selectedPlotIndex !== null ? 'auto' : 'none'}>
-          <View style={styles.detailHeader}>
+          <View style={[styles.detailHeader, { paddingTop: insets.top + 8 }]}>
             <TouchableOpacity 
-              style={styles.backButton}
+              style={styles.headerButtonPill}
               onPress={zoomOut}
             >
-              <FontAwesomeIcon icon={faArrowLeft} size={20} color={timeOfDay === 'night' ? '#B0B0B0' : '#636E72'} />
+              <FontAwesomeIcon icon={faArrowLeft} size={20} color="#505255" />
             </TouchableOpacity>
             
-            <View style={styles.detailTitleContainer}>
-              <Text style={[styles.title, { color: timeConfig.textColor }]}>
+            <View style={styles.headerPill}>
+              <Text style={styles.headerTitleLeft}>
                 {selectedPlot?.flowerType ? FLOWER_TYPES[selectedPlot.flowerType]?.name : 'Empty Plot'}
               </Text>
             </View>
 
             <TouchableOpacity 
-              style={styles.backButton}
+              style={styles.headerButtonPill}
               onPress={() => setShowTimeline(true)}
             >
-              <FontAwesomeIcon icon={faListUl} size={18} color={timeOfDay === 'night' ? '#B0B0B0' : '#636E72'} />
+              <FontAwesomeIcon icon={faListUl} size={18} color="#505255" />
             </TouchableOpacity>
           </View>
 
@@ -628,6 +681,56 @@ const GardenOverviewScreen = ({ navigation }) => {
               onSelectFlower={handlePlantFlower}
               onClose={() => setShowFlowerSelection(false)}
             />
+          </View>
+        </View>
+      </Modal>
+
+      {/* Flower Unlocked Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={unlockedFlower !== null}
+        onRequestClose={() => setUnlockedFlower(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.unlockModalContent}>
+            <View style={styles.unlockModalHeader}>
+              <Text style={styles.unlockModalTitle}>New Flower Unlocked!</Text>
+              <TouchableOpacity
+                onPress={() => setUnlockedFlower(null)}
+                style={styles.unlockModalCloseButton}
+              >
+                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+              </TouchableOpacity>
+            </View>
+            
+            {unlockedFlower && (
+              <View style={styles.unlockModalBody}>
+                <View style={[styles.unlockFlowerCircle, { borderColor: unlockedFlower.color }]}>
+                  <Image
+                    source={unlockedFlower.growthStages[unlockedFlower.growthStages.length - 1].image}
+                    style={styles.unlockFlowerImage}
+                    resizeMode="contain"
+                  />
+                </View>
+                <Text style={styles.unlockFlowerName}>{unlockedFlower.name}</Text>
+                <Text style={[styles.unlockFlowerRarity, { color: unlockedFlower.color }]}>
+                  {unlockedFlower.rarity}
+                </Text>
+                <Text style={styles.unlockFlowerDescription}>
+                  {unlockedFlower.description}
+                </Text>
+              </View>
+            )}
+            
+            <View style={styles.unlockModalButtons}>
+              <TouchableOpacity 
+                style={[styles.unlockModalPrimaryButton, { backgroundColor: unlockedFlower?.color || '#4CAF50' }]}
+                onPress={() => setUnlockedFlower(null)}
+              >
+                <Text style={styles.unlockModalPrimaryButtonText}>Awesome!</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -748,19 +851,45 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
   },
+  headerWrapper: {
+    zIndex: 200,
+  },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 20,
+    paddingHorizontal: 24,
     paddingBottom: 8,
+  },
+  headerPill: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerTitleLeft: {
     fontSize: 20,
     fontWeight: 'bold',
     color: '#505255',
     fontFamily: FONTS.regular,
+  },
+  headerButtonPill: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    borderRadius: 20,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
   },
   headerButton: {
     width: 40,
@@ -1098,6 +1227,80 @@ const styles = StyleSheet.create({
   plantButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
+    fontWeight: '600',
+  },
+  unlockModalContent: {
+    width: '85%',
+    backgroundColor: '#FFFFFF',
+    borderRadius: 20,
+    overflow: 'hidden',
+  },
+  unlockModalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 20,
+    paddingBottom: 8,
+  },
+  unlockModalTitle: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: '#2D3436',
+  },
+  unlockModalCloseButton: {
+    padding: 4,
+  },
+  unlockModalBody: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  unlockFlowerCircle: {
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    borderWidth: 4,
+    backgroundColor: '#FFF9F0',
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginBottom: 16,
+  },
+  unlockFlowerImage: {
+    width: 80,
+    height: 80,
+  },
+  unlockFlowerName: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#2D3436',
+    marginBottom: 4,
+  },
+  unlockFlowerRarity: {
+    fontSize: 14,
+    fontWeight: '600',
+    marginBottom: 8,
+  },
+  unlockFlowerDescription: {
+    fontSize: 14,
+    color: '#636E72',
+    textAlign: 'center',
+    paddingHorizontal: 16,
+  },
+  unlockModalButtons: {
+    paddingTop: 8,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    width: '100%',
+  },
+  unlockModalPrimaryButton: {
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+    backgroundColor: '#4CAF50',
+  },
+  unlockModalPrimaryButtonText: {
+    color: '#FFFFFF',
+    fontSize: 15,
     fontWeight: '600',
   },
 });

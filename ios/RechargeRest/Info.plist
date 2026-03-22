@@ -79,5 +79,7 @@
 	</array>
 	<key>NSSupportsLiveActivities</key>
 	<true/>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>Rest &amp; Recharge uses alarms to notify you when your eye rest timer is complete, even in silent mode.</string>
 </dict>
 </plist>

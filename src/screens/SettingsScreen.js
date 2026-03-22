@@ -664,6 +664,30 @@ const SettingsScreen = ({ navigation }) => {
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
             onPress={devClearAllPlots}
           />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faBell}
+            iconBg="#FFE66D"
+            title="Test Wakeup Reminder"
+            subtitle="Schedule a wakeup notification in 1 minute"
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={async () => {
+              await NotificationService.scheduleTestWakeupNotification();
+              Alert.alert('Test Scheduled', 'A wakeup reminder will appear in 1 minute');
+            }}
+          />
+          <View style={styles.divider} />
+          <SettingItem
+            icon={faSun}
+            iconBg="#FF9800"
+            title="Clear Today's Wakeup"
+            subtitle="Remove wakeup time for current day"
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            onPress={async () => {
+              await StorageService.removeItem('wakeupTime');
+              Alert.alert('Cleared', 'Today\'s wakeup time has been removed');
+            }}
+          />
         </Surface>
 
         <TouchableOpacity style={styles.resetButton} onPress={resetAllData} activeOpacity={0.8}>
