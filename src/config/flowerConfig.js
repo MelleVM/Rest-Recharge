@@ -84,6 +84,178 @@ const createPoppyGrowthStages = () => [
   },
 ];
 
+const createDaisyGrowthStages = () => [
+  { 
+    name: 'Seed', 
+    restsNeeded: 0, 
+    scale: 0.5, 
+    description: 'Just planted!',
+    image: require('../../assets/images/daisy/seed.png'),
+    wiltedImage: require('../../assets/images/daisy/seed_wilted.png'),
+  },
+  { 
+    name: 'Sprout', 
+    restsNeeded: 3, 
+    scale: 0.65, 
+    description: 'Starting to grow',
+    image: require('../../assets/images/daisy/sprout.png'),
+    wiltedImage: require('../../assets/images/daisy/sprout_wilted.png'),
+  },
+  { 
+    name: 'Young', 
+    restsNeeded: 7, 
+    scale: 0.8, 
+    description: 'Growing strong',
+    image: require('../../assets/images/daisy/young.png'),
+    wiltedImage: require('../../assets/images/daisy/young_wilted.png'),
+  },
+  { 
+    name: 'Blooming', 
+    restsNeeded: 15, 
+    scale: 0.9, 
+    description: 'Almost there!',
+    image: require('../../assets/images/daisy/blooming.png'),
+    wiltedImage: require('../../assets/images/daisy/blooming_wilted.png'),
+  },
+  { 
+    name: 'Full Bloom', 
+    restsNeeded: 25, 
+    scale: 1.0, 
+    description: 'Beautiful!',
+    image: require('../../assets/images/daisy/full_bloom.png'),
+    wiltedImage: require('../../assets/images/daisy/full_bloom_wilted.png'),
+  },
+];
+
+const createTulipGrowthStages = () => [
+  { 
+    name: 'Seed', 
+    restsNeeded: 0, 
+    scale: 0.5, 
+    description: 'Just planted!',
+    image: require('../../assets/images/tulip/seed.png'),
+    wiltedImage: require('../../assets/images/tulip/seed_wilted.png'),
+  },
+  { 
+    name: 'Sprout', 
+    restsNeeded: 3, 
+    scale: 0.65, 
+    description: 'Starting to grow',
+    image: require('../../assets/images/tulip/sprout.png'),
+    wiltedImage: require('../../assets/images/tulip/sprout_wilted.png'),
+  },
+  { 
+    name: 'Young', 
+    restsNeeded: 7, 
+    scale: 0.8, 
+    description: 'Growing strong',
+    image: require('../../assets/images/tulip/young.png'),
+    wiltedImage: require('../../assets/images/tulip/young_wilted.png'),
+  },
+  { 
+    name: 'Blooming', 
+    restsNeeded: 15, 
+    scale: 0.9, 
+    description: 'Almost there!',
+    image: require('../../assets/images/tulip/blooming.png'),
+    wiltedImage: require('../../assets/images/tulip/blooming_wilted.png'),
+  },
+  { 
+    name: 'Full Bloom', 
+    restsNeeded: 25, 
+    scale: 1.0, 
+    description: 'Beautiful!',
+    image: require('../../assets/images/tulip/full_bloom.png'),
+    wiltedImage: require('../../assets/images/tulip/full_bloom_wilted.png'),
+  },
+];
+
+const createRoseGrowthStages = () => [
+  { 
+    name: 'Seed', 
+    restsNeeded: 0, 
+    scale: 0.5, 
+    description: 'Just planted!',
+    image: require('../../assets/images/rose/seed.png'),
+    wiltedImage: require('../../assets/images/rose/seed_wilted.png'),
+  },
+  { 
+    name: 'Sprout', 
+    restsNeeded: 3, 
+    scale: 0.65, 
+    description: 'Starting to grow',
+    image: require('../../assets/images/rose/sprout.png'),
+    wiltedImage: require('../../assets/images/rose/sprout_wilted.png'),
+  },
+  { 
+    name: 'Young', 
+    restsNeeded: 7, 
+    scale: 0.8, 
+    description: 'Growing strong',
+    image: require('../../assets/images/rose/young.png'),
+    wiltedImage: require('../../assets/images/rose/young_wilted.png'),
+  },
+  { 
+    name: 'Blooming', 
+    restsNeeded: 15, 
+    scale: 0.9, 
+    description: 'Almost there!',
+    image: require('../../assets/images/rose/blooming.png'),
+    wiltedImage: require('../../assets/images/rose/blooming_wilted.png'),
+  },
+  { 
+    name: 'Full Bloom', 
+    restsNeeded: 25, 
+    scale: 1.0, 
+    description: 'Beautiful!',
+    image: require('../../assets/images/rose/full_bloom.png'),
+    wiltedImage: require('../../assets/images/rose/full_bloom_wilted.png'),
+  },
+];
+
+const createLavenderGrowthStages = () => [
+  { 
+    name: 'Seed', 
+    restsNeeded: 0, 
+    scale: 0.5, 
+    description: 'Just planted!',
+    image: require('../../assets/images/lavender/seed.png'),
+    wiltedImage: require('../../assets/images/lavender/seed_wilted.png'),
+  },
+  { 
+    name: 'Sprout', 
+    restsNeeded: 3, 
+    scale: 0.65, 
+    description: 'Starting to grow',
+    image: require('../../assets/images/lavender/sprout.png'),
+    wiltedImage: require('../../assets/images/lavender/sprout_wilted.png'),
+  },
+  { 
+    name: 'Young', 
+    restsNeeded: 7, 
+    scale: 0.8, 
+    description: 'Growing strong',
+    image: require('../../assets/images/lavender/young.png'),
+    wiltedImage: require('../../assets/images/lavender/young_wilted.png'),
+  },
+  { 
+    name: 'Blooming', 
+    restsNeeded: 15, 
+    scale: 0.9, 
+    description: 'Almost there!',
+    image: require('../../assets/images/lavender/blooming.png'),
+    wiltedImage: require('../../assets/images/lavender/blooming_wilted.png'),
+  },
+  { 
+    name: 'Full Bloom', 
+    restsNeeded: 25, 
+    scale: 1.0, 
+    description: 'Beautiful!',
+    image: require('../../assets/images/lavender/full_bloom.png'),
+    wiltedImage: require('../../assets/images/lavender/full_bloom_wilted.png'),
+  },
+];
+
 export const FLOWER_TYPES = {
   sunflower: {
     id: 'sunflower',
@@ -101,7 +273,7 @@ export const FLOWER_TYPES = {
     description: 'Simple and pure, a symbol of innocence',
     rarity: 'Common',
     color: '#FFFFFF',
-    growthStages: createSunflowerGrowthStages(),
+    growthStages: createDaisyGrowthStages(),
   },
   tulip: {
     id: 'tulip',
@@ -110,7 +282,7 @@ export const FLOWER_TYPES = {
     description: 'Elegant and graceful, perfect love',
     rarity: 'Uncommon',
     color: '#FF69B4',
-    growthStages: createSunflowerGrowthStages(),
+    growthStages: createTulipGrowthStages(),
   },
   rose: {
     id: 'rose',
@@ -119,7 +291,7 @@ export const FLOWER_TYPES = {
     description: 'Classic beauty with thorns of protection',
     rarity: 'Uncommon',
     color: '#DC143C',
-    growthStages: createSunflowerGrowthStages(),
+    growthStages: createRoseGrowthStages(),
   },
   lavender: {
     id: 'lavender',
@@ -128,7 +300,7 @@ export const FLOWER_TYPES = {
     description: 'Calming fragrance, brings peace and serenity',
     rarity: 'Rare',
     color: '#9370DB',
-    growthStages: createSunflowerGrowthStages(),
+    growthStages: createLavenderGrowthStages(),
   },
   lily: {
     id: 'lily',

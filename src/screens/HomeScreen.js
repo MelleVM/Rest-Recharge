@@ -404,7 +404,12 @@ const HomeScreen = () => {
         }
         
         // If more than interval has passed since last activity, show overdue modal
-        if (lastActivityTime > 0 && (now - lastActivityTime) >= intervalMs) {
+        // But not if it was dismissed within the last 15 minutes
+        const restOverdueDismissedAt = await StorageService.getItem('restOverdueDismissedAt');
+        const fifteenMinutesMs = 15 * 60 * 1000;
+        const wasDismissedRecently = restOverdueDismissedAt && (now - restOverdueDismissedAt) < fifteenMinutesMs;
+        
+        if (lastActivityTime > 0 && (now - lastActivityTime) >= intervalMs && !wasDismissedRecently) {
           setShowRestOverdueModal(true);
         }
       }
@@ -1859,7 +1864,10 @@ const HomeScreen = () => {
             <View style={styles.reminderChoiceButtons}>
               <TouchableOpacity
                 style={styles.reminderChoiceButton}
-                onPress={() => setShowRestOverdueModal(false)}
+                onPress={async () => {
+                  await StorageService.setItem('restOverdueDismissedAt', Date.now());
+                  setShowRestOverdueModal(false);
+                }}
               >
                 <Text style={styles.reminderChoiceButtonText}>Later</Text>
               </TouchableOpacity>

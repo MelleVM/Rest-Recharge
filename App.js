@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, ActivityIndicator, View, AppState, Animated } from 'react-native';
+import { SafeAreaView, StatusBar, StyleSheet, View, AppState, Animated } from 'react-native';
 import { NavigationContainer, DefaultTheme as NavigationDefaultTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -22,6 +22,7 @@ import FontTestScreen from './src/screens/FontTestScreen';
 import NotificationService from './src/utils/NotificationService';
 import StorageService from './src/utils/StorageService';
 import RewardToast from './src/components/RewardToast';
+import SplashScreen from './src/screens/SplashScreen';
 import { FONTS } from './src/styles/fonts';
 import { setDefaultFontFamily } from './src/utils/setDefaultFontFamily';
 
@@ -261,6 +262,8 @@ function App() {
 
   useEffect(() => {
     const initialize = async () => {
+      const splashMinTime = new Promise(resolve => setTimeout(resolve, 1500));
+
       // Configure notifications with navigation callback and wakeup log callback
       NotificationService.configure(
         (screenName) => {
@@ -283,7 +286,8 @@ function App() {
       
       // Load pending unlocks count
       await loadPendingUnlocks();
-      
+
+      await splashMinTime;
       setIsLoading(false);
     };
     
@@ -340,10 +344,8 @@ function App() {
   if (isLoading) {
     return (
       <PaperProvider theme={theme}>
-        <View style={styles.loadingContainer}>
-          <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
-          <ActivityIndicator size="large" color="#4ECDC4" />
-        </View>
+        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+        <SplashScreen />
       </PaperProvider>
     );
   }
