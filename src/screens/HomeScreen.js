@@ -32,7 +32,7 @@ import { FONTS } from '../styles/fonts';
 import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import RestProgressGraph from '../components/RestProgressGraph';
 
-// Plant types with colors (synced with GardenScreen)
+// Plant types with colors
 const PLANT_TYPES = {
   classic: { name: 'Classic Tree', color: '#4CAF50' },
   rose: { name: 'Rose', color: '#E91E63' },
@@ -145,55 +145,9 @@ const HomeScreen = () => {
     return () => unsubscribe();
   }, []);
 
-  // Check if timer completed while app was closed
-  const checkForCompletedTimer = async () => {
-    const timerState = await NotificationService.getTimerState();
-    
-    if (timerState && timerState.isCompleted) {
-      console.log('HomeScreen: Timer completed while app was closed, handling completion');
-      
-      // Save to history
-      const history = await StorageService.getItem('restHistory') || [];
-      history.push({
-        timestamp: Date.now(),
-        date: new Date().toLocaleDateString(),
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      });
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const filteredHistory = history.filter(h => h.timestamp > thirtyDaysAgo);
-      await StorageService.setItem('restHistory', filteredHistory);
-      
-      // Update stats
-      const storedStats = await StorageService.getItem('stats') || {};
-      const previousTotalRests = storedStats.totalRests || 0;
-      const newTotalRests = previousTotalRests + 1;
-      storedStats.totalRests = newTotalRests;
-      await StorageService.setItem('stats', storedStats);
-      setStats(prev => ({ ...prev, totalRests: newTotalRests }));
-      
-      // Check for newly unlocked flowers and store as pending
-      const flowers = getFlowersInUnlockOrder();
-      const newlyUnlocked = flowers.find(
-        flower => flower.unlockAtRests > previousTotalRests && flower.unlockAtRests <= newTotalRests
-      );
-      if (newlyUnlocked) {
-        // Store pending unlock for GardenOverviewScreen to show
-        const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
-        if (!pendingUnlocks.includes(newlyUnlocked.id)) {
-          pendingUnlocks.push(newlyUnlocked.id);
-          await StorageService.setItem('pendingFlowerUnlocks', pendingUnlocks);
-          PendingUnlocksEvent.emit(pendingUnlocks.length);
-        }
-      }
-      
-      // Clear timer state
-      await NotificationService.clearTimerState();
-      await NotificationService.stopTimerNotification();
-      
-      // Schedule next reminder
-      await NotificationService.scheduleNextReminder();
-    }
-  };
+  // No-op: timer completion is handled exclusively by TimerScreen to avoid double-logging.
+  // HomeScreen refreshes its data via loadData() which picks up the updated stats.
+  const checkForCompletedTimer = async () => {};
 
   const updateGreeting = () => {
     const currentHour = new Date().getHours();
@@ -337,9 +291,11 @@ const HomeScreen = () => {
       }
       setWakeupHours(updatedWakeupHours);
       
-      // Show wakeup log modal if wakeup not logged for today (after tutorial check)
+      // Show wakeup log modal if wakeup not logged for today (after tutorial check, morning only)
       const hasSeenTutorial = await StorageService.getItem('homeTutorialSeen');
-      if (!wakeupLoggedToday && hasSeenTutorial) {
+      const currentHour = new Date().getHours();
+      const isMorning = currentHour >= 5 && currentHour < 14;
+      if (!wakeupLoggedToday && hasSeenTutorial && isMorning) {
         // Reset to current time when showing modal
         const now = new Date();
         setWakeupLogHour(now.getHours());
@@ -424,8 +380,10 @@ const HomeScreen = () => {
     setShowTutorial(false);
     await StorageService.setItem('homeTutorialSeen', true);
     
-    // Show wakeup modal after tutorial if wakeup not logged for today
-    if (!wakeupTime) {
+    // Show wakeup modal after tutorial if wakeup not logged for today (morning only)
+    const currentHour = new Date().getHours();
+    const isMorning = currentHour >= 5 && currentHour < 14;
+    if (!wakeupTime && isMorning) {
       const now = new Date();
       setWakeupLogHour(now.getHours());
       setWakeupLogMinute(Math.floor(now.getMinutes() / 5) * 5);
@@ -2551,7 +2509,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timelineDiamondCurrent: {
-    backgroundColor: '#EF4444',
+    backgroundColor: '#10B981',
   },
   timelineDiamondInner: {
     width: 6,

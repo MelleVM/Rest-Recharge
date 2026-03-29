@@ -331,14 +331,6 @@ export const FLOWER_TYPES = {
   },
 };
 
-export const PLOT_UNLOCK_REQUIREMENTS = [
-  { plotIndex: 0, restsRequired: 0 },
-  { plotIndex: 1, restsRequired: 10 },
-  { plotIndex: 2, restsRequired: 25 },
-  { plotIndex: 3, restsRequired: 50 },
-  { plotIndex: 4, restsRequired: 100 },
-];
-
 export const MAX_PLOTS = 5;
 
 export const ENERGY_DECAY_RATE = 0.1 / (60 * 60 * 1000);

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal, KeyboardAvoidingView, Platform, TextInput as RNTextInput } from 'react-native';
+import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal, KeyboardAvoidingView, Platform, TextInput as RNTextInput, Linking } from 'react-native';
 import { Switch, Surface, Text, useTheme } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
@@ -623,7 +623,7 @@ const SettingsScreen = ({ navigation }) => {
             title="Help & Support"
             subtitle="Get tips and assistance"
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={() => {}}
+            onPress={() => Linking.openURL('https://www.vdigital.nl/rechargerest-support.html')}
           />
           <View style={styles.divider} />
           <SettingItem
@@ -632,63 +632,63 @@ const SettingsScreen = ({ navigation }) => {
             title="Privacy Policy"
             subtitle="How we protect your data"
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={() => {}}
+            onPress={() => Linking.openURL('https://www.vdigital.nl/rechargerest-privacy-policy.html')}
           />
         </Surface>
 
-        <Text style={styles.sectionTitle}>Developer Options</Text>
-        <Surface style={styles.section}>
-          <SettingItem
-            icon={faLockOpen}
-            iconBg="#4CAF50"
-            title="Unlock All Flowers"
-            subtitle="Unlock all flower types in the garden"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={devUnlockAllFlowers}
-          />
-          <View style={styles.divider} />
-          <SettingItem
-            icon={faRotateLeft}
-            iconBg="#FF9800"
-            title="Reset Flower Progress"
-            subtitle="Reset flower unlock progress to 0"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={devResetFlowerProgress}
-          />
-          <View style={styles.divider} />
-          <SettingItem
-            icon={faTrashCan}
-            iconBg="#E74C3C"
-            title="Clear All Plots"
-            subtitle="Remove all planted flowers"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={devClearAllPlots}
-          />
-          <View style={styles.divider} />
-          <SettingItem
-            icon={faBell}
-            iconBg="#FFE66D"
-            title="Test Wakeup Reminder"
-            subtitle="Schedule a wakeup notification in 1 minute"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={async () => {
-              await NotificationService.scheduleTestWakeupNotification();
-              Alert.alert('Test Scheduled', 'A wakeup reminder will appear in 1 minute');
-            }}
-          />
-          <View style={styles.divider} />
-          <SettingItem
-            icon={faSun}
-            iconBg="#FF9800"
-            title="Clear Today's Wakeup"
-            subtitle="Remove wakeup time for current day"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
-            onPress={async () => {
-              await StorageService.removeItem('wakeupTime');
-              Alert.alert('Cleared', 'Today\'s wakeup time has been removed');
-            }}
-          />
-        </Surface>
+        {/*<Text style={styles.sectionTitle}>Developer Options</Text>*/}
+        {/*<Surface style={styles.section}>*/}
+        {/*  <SettingItem*/}
+        {/*    icon={faLockOpen}*/}
+        {/*    iconBg="#4CAF50"*/}
+        {/*    title="Unlock All Flowers"*/}
+        {/*    subtitle="Unlock all flower types in the garden"*/}
+        {/*    rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}*/}
+        {/*    onPress={devUnlockAllFlowers}*/}
+        {/*  />*/}
+        {/*  <View style={styles.divider} />*/}
+        {/*  <SettingItem*/}
+        {/*    icon={faRotateLeft}*/}
+        {/*    iconBg="#FF9800"*/}
+        {/*    title="Reset Flower Progress"*/}
+        {/*    subtitle="Reset flower unlock progress to 0"*/}
+        {/*    rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}*/}
+        {/*    onPress={devResetFlowerProgress}*/}
+        {/*  />*/}
+        {/*  <View style={styles.divider} />*/}
+        {/*  <SettingItem*/}
+        {/*    icon={faTrashCan}*/}
+        {/*    iconBg="#E74C3C"*/}
+        {/*    title="Clear All Plots"*/}
+        {/*    subtitle="Remove all planted flowers"*/}
+        {/*    rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}*/}
+        {/*    onPress={devClearAllPlots}*/}
+        {/*  />*/}
+        {/*  <View style={styles.divider} />*/}
+        {/*  <SettingItem*/}
+        {/*    icon={faBell}*/}
+        {/*    iconBg="#FFE66D"*/}
+        {/*    title="Test Wakeup Reminder"*/}
+        {/*    subtitle="Schedule a wakeup notification in 1 minute"*/}
+        {/*    rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}*/}
+        {/*    onPress={async () => {*/}
+        {/*      await NotificationService.scheduleTestWakeupNotification();*/}
+        {/*      Alert.alert('Test Scheduled', 'A wakeup reminder will appear in 1 minute');*/}
+        {/*    }}*/}
+        {/*  />*/}
+        {/*  <View style={styles.divider} />*/}
+        {/*  <SettingItem*/}
+        {/*    icon={faSun}*/}
+        {/*    iconBg="#FF9800"*/}
+        {/*    title="Clear Today's Wakeup"*/}
+        {/*    subtitle="Remove wakeup time for current day"*/}
+        {/*    rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}*/}
+        {/*    onPress={async () => {*/}
+        {/*      await StorageService.removeItem('wakeupTime');*/}
+        {/*      Alert.alert('Cleared', 'Today\'s wakeup time has been removed');*/}
+        {/*    }}*/}
+        {/*  />*/}
+        {/*</Surface>*/}
 
         <TouchableOpacity style={styles.resetButton} onPress={resetAllData} activeOpacity={0.8}>
           <FontAwesomeIcon icon={faTrashCan} size={24} color="#FF6B6B" />

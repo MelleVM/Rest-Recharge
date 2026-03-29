@@ -16,9 +16,10 @@ import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 import { ToastEvent } from '../components/RewardToast';
 import { FONTS } from '../styles/fonts';
-import { RestModeEvent } from '../../App';
+import { RestModeEvent, PendingUnlocksEvent } from '../../App';
+import { getFlowersInUnlockOrder } from '../config/flowerConfig';
 
-// Plant colors (synced with GardenScreen)
+// Plant colors
 const PLANT_COLORS = {
   classic: '#4CAF50',
   rose: '#E91E63',
@@ -112,10 +113,10 @@ const TimerScreen = () => {
     const subscription = AppState.addEventListener('change', async (nextAppState) => {
       if (nextAppState === 'active' && isInitialized.current) {
         console.log('App came to foreground, checking timer state');
-        await checkForCompletedTimer();
+        const alreadyHandled = await checkForCompletedTimer();
         
-        // If timer is still active, verify it hasn't completed
-        if (isActiveRef.current && endTimeRef.current) {
+        // If timer is still active and wasn't already handled, verify it hasn't completed
+        if (!alreadyHandled && isActiveRef.current && endTimeRef.current) {
           const now = Date.now();
           const remaining = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
           if (remaining <= 0) {
@@ -291,6 +292,20 @@ const TimerScreen = () => {
     stats.totalRests = newCount;
     await StorageService.setItem('stats', stats);
     setCompletedRests(newCount);
+    
+    // Check for newly unlocked flowers and store as pending
+    const flowers = getFlowersInUnlockOrder();
+    const newlyUnlocked = flowers.find(
+      flower => flower.unlockAtRests > currentRests && flower.unlockAtRests <= newCount
+    );
+    if (newlyUnlocked) {
+      const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
+      if (!pendingUnlocks.includes(newlyUnlocked.id)) {
+        pendingUnlocks.push(newlyUnlocked.id);
+        await StorageService.setItem('pendingFlowerUnlocks', pendingUnlocks);
+        PendingUnlocksEvent.emit(pendingUnlocks.length);
+      }
+    }
     
     // Award gems for completing rest
     const currentGardenData = await StorageService.getItem('gardenData') || { points: 0 };

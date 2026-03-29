@@ -20,6 +20,8 @@ import { faSeedling } from '@fortawesome/free-solid-svg-icons/faSeedling';
 import { faChevronLeft } from '@fortawesome/free-solid-svg-icons/faChevronLeft';
 import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight';
 import { faListUl } from '@fortawesome/free-solid-svg-icons/faListUl';
+import { faHandPointer } from '@fortawesome/free-solid-svg-icons/faHandPointer';
+import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import StorageService from '../utils/StorageService';
 import { FONTS } from '../styles/fonts';
 import { GardenScreenEvent, PendingUnlocksEvent } from '../../App';
@@ -80,6 +82,7 @@ const GardenOverviewScreen = ({ navigation }) => {
   const [showFlowerSelection, setShowFlowerSelection] = useState(false);
   const [timeOfDay, setTimeOfDay] = useState(getTimeOfDay());
   const [unlockedFlower, setUnlockedFlower] = useState(null);
+  const [showTutorial, setShowTutorial] = useState(false);
 
   const timeConfig = useMemo(() => TIME_OF_DAY_CONFIG[timeOfDay], [timeOfDay]);
 
@@ -154,6 +157,17 @@ const GardenOverviewScreen = ({ navigation }) => {
       if (plots.length > 5) {
         plots = plots.slice(0, 5);
       }
+
+      // Ensure there are always 5 plots
+      while (plots.length < 5) {
+        plots.push({
+          id: `plot-${plots.length}`,
+          flowerType: null,
+          restsGiven: 0,
+          plantedDate: null,
+          isUnlocked: true,
+        });
+      }
       
       // Ensure all plots are unlocked
       plots = plots.map(plot => ({ ...plot, isUnlocked: true }));
@@ -168,6 +182,12 @@ const GardenOverviewScreen = ({ navigation }) => {
 
       setGardenData(updatedData);
       await StorageService.setItem('sunflowerGarden', updatedData);
+
+      // Check if this is the first time visiting garden
+      const hasSeenTutorial = await StorageService.getItem('gardenTutorialSeen');
+      if (!hasSeenTutorial) {
+        setShowTutorial(true);
+      }
     } else {
       // Initialize with 5 unlocked empty plots
       const initialPlots = Array.from({ length: 5 }, (_, i) => ({
@@ -187,7 +207,18 @@ const GardenOverviewScreen = ({ navigation }) => {
       
       setGardenData(initialData);
       await StorageService.setItem('sunflowerGarden', initialData);
+
+      // First time visiting garden
+      const hasSeenTutorial = await StorageService.getItem('gardenTutorialSeen');
+      if (!hasSeenTutorial) {
+        setShowTutorial(true);
+      }
     }
+  };
+
+  const dismissTutorial = async () => {
+    setShowTutorial(false);
+    await StorageService.setItem('gardenTutorialSeen', true);
   };
 
   const getHealthStatus = (energy) => {
@@ -435,14 +466,14 @@ const GardenOverviewScreen = ({ navigation }) => {
             const flowerScale = currentStage?.scale || 1;
             
             const flowerPositions = [
-              { left: 135, top: -80 },
-              { left: 40, top: -25 },
-              { left: 135, top: -15 },
-              { left: 230, top: -25 },
-              { left: 135, top: 35 },
+              { left: 135, top: -90 },
+              { left: 40, top: -35 },
+              { left: 135, top: -25 },
+              { left: 230, top: -35 },
+              { left: 135, top: 25 },
             ];
             
-            const position = flowerPositions[plotIndex] || { left: 135, top: -15 };
+            const position = flowerPositions[plotIndex] || { left: 135, top: -25 };
             const isSelected = selectedPlotIndex === plotIndex;
             const flowerOpacity = selectedPlotIndex !== null && !isSelected ? 0.3 : 1;
             
@@ -735,6 +766,53 @@ const GardenOverviewScreen = ({ navigation }) => {
         </View>
       </Modal>
       </LinearGradient>
+
+      {/* First-time Tutorial Modal */}
+      <Modal
+        visible={showTutorial}
+        transparent={true}
+        animationType="fade"
+        onRequestClose={dismissTutorial}
+      >
+        <View style={styles.tutorialOverlay}>
+          <View style={styles.tutorialModal}>
+            <Text style={styles.tutorialTitle}>Your Garden</Text>
+            <Text style={styles.tutorialText}>
+              Grow and nurture your own flower garden. Complete rest sessions to earn energy and watch your flowers bloom!
+            </Text>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faHandPointer} size={16} color="#4ECDC4" />
+              <Text style={styles.tutorialStepText}>
+                Tap an empty plot to plant a new flower
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
+              <Text style={styles.tutorialStepText}>
+                Each rest gives energy and grows all your flowers
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faSun} size={16} color="#FF9800" />
+              <Text style={styles.tutorialStepText}>
+                Keep resting regularly — energy decays over time
+              </Text>
+            </View>
+            <View style={styles.tutorialStep}>
+              <FontAwesomeIcon icon={faSeedling} size={16} color="#4CAF50" />
+              <Text style={styles.tutorialStepText}>
+                Unlock new flower types as you complete more rests
+              </Text>
+            </View>
+            <TouchableOpacity 
+              style={[styles.tutorialButton, { backgroundColor: '#4CAF50' }]}
+              onPress={dismissTutorial}
+            >
+              <Text style={styles.tutorialButtonText}>Got It!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </GestureHandlerRootView>
   );
 };
@@ -1302,6 +1380,62 @@ const styles = StyleSheet.create({
     color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
+  },
+  tutorialOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0, 0, 0, 0.6)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: 24,
+  },
+  tutorialModal: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: 24,
+    padding: 28,
+    width: '100%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  tutorialTitle: {
+    fontSize: 22,
+    fontWeight: 'bold',
+    color: '#2D3436',
+    marginBottom: 12,
+    textAlign: 'center',
+  },
+  tutorialText: {
+    fontSize: 15,
+    color: '#636E72',
+    textAlign: 'center',
+    lineHeight: 22,
+    marginBottom: 20,
+  },
+  tutorialStep: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    backgroundColor: '#F8F9FA',
+    borderRadius: 12,
+    marginBottom: 10,
+  },
+  tutorialStepText: {
+    fontSize: 14,
+    color: '#2D3436',
+    flex: 1,
+  },
+  tutorialButton: {
+    paddingHorizontal: 32,
+    paddingVertical: 14,
+    borderRadius: 20,
+    marginTop: 16,
+  },
+  tutorialButtonText: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
   },
 });
 

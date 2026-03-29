@@ -16,7 +16,6 @@ import HomeScreen from './src/screens/HomeScreen';
 import TimerScreen from './src/screens/TimerScreen';
 import SettingsScreen from './src/screens/SettingsScreen';
 import OnboardingScreen from './src/screens/OnboardingScreen';
-import GardenScreen from './src/screens/GardenScreen';
 import GardenOverviewScreen from './src/screens/GardenOverviewScreen';
 import FontTestScreen from './src/screens/FontTestScreen';
 import NotificationService from './src/utils/NotificationService';
@@ -389,13 +388,6 @@ function App() {
               <Stack.Screen 
                 name="GardenOverview" 
                 component={GardenOverviewScreen}
-                options={{
-                  headerShown: false,
-                }}
-              />
-              <Stack.Screen 
-                name="GardenDetail" 
-                component={GardenScreen}
                 options={{
                   headerShown: false,
                 }}
