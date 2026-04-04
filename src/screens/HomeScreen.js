@@ -1866,7 +1866,7 @@ const HomeScreen = () => {
                 }}
               >
                 <FontAwesomeIcon icon={faStopwatch} size={14} color="#FFFFFF" style={{ marginRight: 6 }} />
-                <Text style={styles.reminderChoiceButtonTextPrimary}>Start Rest</Text>
+                <Text style={[styles.reminderChoiceButtonTextPrimary, { color: '#FFFFFF' }]}>Start Rest</Text>
               </TouchableOpacity>
             </View>
           </View>

@@ -49,7 +49,7 @@ const ThemeContext = createContext(null);
 export const ThemeProvider = ({ children }) => {
   console.log('[ThemeProvider] Rendering ThemeProvider');
   const systemColorScheme = useColorScheme();
-  const [themeMode, setThemeMode] = useState('light'); // 'light', 'dark', 'auto'
+  const [themeMode, setThemeMode] = useState('dark'); // 'light', 'dark', 'auto'
   const [isLoading, setIsLoading] = useState(true);
 
   // Load saved theme preference

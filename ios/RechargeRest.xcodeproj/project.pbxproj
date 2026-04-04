@@ -25,6 +25,7 @@
 		4CA77DFD2F24FB3B004AC2A1 /* TimerWidgetExtensionExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 4CA77DE72F24FB3A004AC2A1 /* TimerWidgetExtensionExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		4E99AC56365141D59A8D0CDB /* EvilIcons.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 11D8DA85F4A9449FACA86644 /* EvilIcons.ttf */; };
 		54A18491B8354DF5935705D7 /* Zocial.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1F74D4178CFC476D8CCEA3C8 /* Zocial.ttf */; };
+		5F36ECCA31C37E6BC41B1248 /* libPods-RechargeRest.a in Frameworks */ = {isa = PBXBuildFile; fileRef = A191D0D19E030A847C07E0D4 /* libPods-RechargeRest.a */; };
 		63347D2327E7492FA721E748 /* FontAwesome5_Brands.ttf in Resources */ = {isa = PBXBuildFile; fileRef = A7A84B2AC52F453B92731328 /* FontAwesome5_Brands.ttf */; };
 		676767667FC743E183219CBB /* Archivo_400Regular.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 29E22DBCEA17465FA439C122 /* Archivo_400Regular.ttf */; };
 		690A1CCAAEB67A0037BFF32E /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */; };
@@ -42,7 +43,6 @@
 		D9011D0D52F34E07A394D7BE /* Archivo_500Medium.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3FB8B56BB4444D9F973E12E9 /* Archivo_500Medium.ttf */; };
 		E2638F974FAF4CB2992D2646 /* Fontisto.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 4F940F60BB9D40CC88513B92 /* Fontisto.ttf */; };
 		E4DE5DF730304E398D7C409D /* Foundation.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 1D96E8757D434F159A173CA5 /* Foundation.ttf */; };
-		E7DA9ED72963F09D3F7397CB /* libPods-RechargeRest.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 17A45ADD19C8AEBF1222845D /* libPods-RechargeRest.a */; };
 		FF100A724D69474795536FDB /* AntDesign.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 24ED38884DF54866A7AE938F /* AntDesign.ttf */; };
 /* End PBXBuildFile section */
 
@@ -71,7 +71,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		0E80175E38455C6D7A786CAF /* Pods-RechargeRest.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RechargeRest.release.xcconfig"; path = "Target Support Files/Pods-RechargeRest/Pods-RechargeRest.release.xcconfig"; sourceTree = "<group>"; };
 		0FFDA63D063048DD81B38CA4 /* Feather.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Feather.ttf; path = "../node_modules/react-native-vector-icons/fonts/Feather.ttf"; sourceTree = "<group>"; };
 		11D8DA85F4A9449FACA86644 /* EvilIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = EvilIcons.ttf; path = "../node_modules/react-native-vector-icons/fonts/EvilIcons.ttf"; sourceTree = "<group>"; };
 		13B07F961A680F5B00A75B9A /* RechargeRest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = RechargeRest.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -79,7 +78,6 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = Info.plist; path = RechargeRest/Info.plist; sourceTree = "<group>"; };
 		13B07FB81A68108700A75B9A /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.plist.xml; name = PrivacyInfo.xcprivacy; path = RechargeRest/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		13CEED6371A44E328C717169 /* FontAwesome5_Regular.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome5_Regular.ttf; path = "../node_modules/react-native-vector-icons/fonts/FontAwesome5_Regular.ttf"; sourceTree = "<group>"; };
-		17A45ADD19C8AEBF1222845D /* libPods-RechargeRest.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RechargeRest.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		1D8887A7F0D4458D9CFEC230 /* Archivo_600SemiBold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Archivo_600SemiBold.ttf; path = ../assets/fonts/Archivo_600SemiBold.ttf; sourceTree = "<group>"; };
 		1D96E8757D434F159A173CA5 /* Foundation.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Foundation.ttf; path = "../node_modules/react-native-vector-icons/fonts/Foundation.ttf"; sourceTree = "<group>"; };
 		1F74D4178CFC476D8CCEA3C8 /* Zocial.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Zocial.ttf; path = "../node_modules/react-native-vector-icons/fonts/Zocial.ttf"; sourceTree = "<group>"; };
@@ -101,15 +99,17 @@
 		4CA77DEA2F24FB3A004AC2A1 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		4F940F60BB9D40CC88513B92 /* Fontisto.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Fontisto.ttf; path = "../node_modules/react-native-vector-icons/fonts/Fontisto.ttf"; sourceTree = "<group>"; };
 		616D870621A74E21A5C996E1 /* MaterialIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = MaterialIcons.ttf; path = "../node_modules/react-native-vector-icons/fonts/MaterialIcons.ttf"; sourceTree = "<group>"; };
+		709D02B31029962CB87A3FC9 /* Pods-RechargeRest.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RechargeRest.debug.xcconfig"; path = "Target Support Files/Pods-RechargeRest/Pods-RechargeRest.debug.xcconfig"; sourceTree = "<group>"; };
 		761780EC2CA45674006654EE /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AppDelegate.swift; path = RechargeRest/AppDelegate.swift; sourceTree = "<group>"; };
 		771408A2818A42C9A6FF2372 /* FontAwesome6_Solid.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome6_Solid.ttf; path = "../node_modules/react-native-vector-icons/fonts/FontAwesome6_Solid.ttf"; sourceTree = "<group>"; };
 		81AB9BB72411601600AC10FF /* LaunchScreen.storyboard */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = file.storyboard; name = LaunchScreen.storyboard; path = RechargeRest/LaunchScreen.storyboard; sourceTree = "<group>"; };
 		84EC4842213849B88858FDA7 /* FontAwesome5_Solid.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome5_Solid.ttf; path = "../node_modules/react-native-vector-icons/fonts/FontAwesome5_Solid.ttf"; sourceTree = "<group>"; };
+		89B096602D44B11CB04F2110 /* Pods-RechargeRest.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RechargeRest.release.xcconfig"; path = "Target Support Files/Pods-RechargeRest/Pods-RechargeRest.release.xcconfig"; sourceTree = "<group>"; };
 		9CA4C6CD725C484FA1B4EDEB /* FontAwesome6_Brands.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome6_Brands.ttf; path = "../node_modules/react-native-vector-icons/fonts/FontAwesome6_Brands.ttf"; sourceTree = "<group>"; };
+		A191D0D19E030A847C07E0D4 /* libPods-RechargeRest.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-RechargeRest.a"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A7A84B2AC52F453B92731328 /* FontAwesome5_Brands.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome5_Brands.ttf; path = "../node_modules/react-native-vector-icons/fonts/FontAwesome5_Brands.ttf"; sourceTree = "<group>"; };
 		AA0AE1ED72C445A7BECE791F /* SimpleLineIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = SimpleLineIcons.ttf; path = "../node_modules/react-native-vector-icons/fonts/SimpleLineIcons.ttf"; sourceTree = "<group>"; };
 		ACA39E33A5114EBCABBDAECE /* Archivo_700Bold.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Archivo_700Bold.ttf; path = ../assets/fonts/Archivo_700Bold.ttf; sourceTree = "<group>"; };
-		C47D4B421E40E43B8EADAF15 /* Pods-RechargeRest.debug.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-RechargeRest.debug.xcconfig"; path = "Target Support Files/Pods-RechargeRest/Pods-RechargeRest.debug.xcconfig"; sourceTree = "<group>"; };
 		DCAA708E29A149EF8481D95E /* MaterialCommunityIcons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = MaterialCommunityIcons.ttf; path = "../node_modules/react-native-vector-icons/fonts/MaterialCommunityIcons.ttf"; sourceTree = "<group>"; };
 		ED297162215061F000B7C4FE /* JavaScriptCore.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = JavaScriptCore.framework; path = System/Library/Frameworks/JavaScriptCore.framework; sourceTree = SDKROOT; };
 		F605CD7BB8174437A8617D95 /* FontAwesome.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = FontAwesome.ttf; path = "../node_modules/react-native-vector-icons/fonts/FontAwesome.ttf"; sourceTree = "<group>"; };
@@ -153,7 +153,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				E7DA9ED72963F09D3F7397CB /* libPods-RechargeRest.a in Frameworks */,
+				5F36ECCA31C37E6BC41B1248 /* libPods-RechargeRest.a in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -193,7 +193,7 @@
 				ED297162215061F000B7C4FE /* JavaScriptCore.framework */,
 				4CA77DE82F24FB3A004AC2A1 /* WidgetKit.framework */,
 				4CA77DEA2F24FB3A004AC2A1 /* SwiftUI.framework */,
-				17A45ADD19C8AEBF1222845D /* libPods-RechargeRest.a */,
+				A191D0D19E030A847C07E0D4 /* libPods-RechargeRest.a */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -233,8 +233,8 @@
 		BBD78D7AC51CEA395F1C20DB /* Pods */ = {
 			isa = PBXGroup;
 			children = (
-				C47D4B421E40E43B8EADAF15 /* Pods-RechargeRest.debug.xcconfig */,
-				0E80175E38455C6D7A786CAF /* Pods-RechargeRest.release.xcconfig */,
+				709D02B31029962CB87A3FC9 /* Pods-RechargeRest.debug.xcconfig */,
+				89B096602D44B11CB04F2110 /* Pods-RechargeRest.release.xcconfig */,
 			);
 			path = Pods;
 			sourceTree = "<group>";
@@ -276,14 +276,14 @@
 			isa = PBXNativeTarget;
 			buildConfigurationList = 13B07F931A680F5B00A75B9A /* Build configuration list for PBXNativeTarget "RechargeRest" */;
 			buildPhases = (
-				4528F92813D5BCAE23626E16 /* [CP] Check Pods Manifest.lock */,
+				21DEC25F8F554D858876A9A7 /* [CP] Check Pods Manifest.lock */,
 				13B07F871A680F5B00A75B9A /* Sources */,
 				13B07F8C1A680F5B00A75B9A /* Frameworks */,
 				13B07F8E1A680F5B00A75B9A /* Resources */,
 				00DD1BFF1BD5951E006B06BC /* Bundle React Native code and images */,
 				4CA77DFC2F24FB3B004AC2A1 /* Embed Foundation Extensions */,
-				C967FFD025DD25A2815D5710 /* [CP] Embed Pods Frameworks */,
-				951A6371BFF47C5646530EDC /* [CP] Copy Pods Resources */,
+				C6A568E38C8439E6E0D5E7AF /* [CP] Embed Pods Frameworks */,
+				B59978839D6F9D756B4940D1 /* [CP] Copy Pods Resources */,
 			);
 			buildRules = (
 			);
@@ -414,7 +414,7 @@
 			shellPath = /bin/sh;
 			shellScript = "set -e\n\nWITH_ENVIRONMENT=\"$REACT_NATIVE_PATH/scripts/xcode/with-environment.sh\"\nREACT_NATIVE_XCODE=\"$REACT_NATIVE_PATH/scripts/react-native-xcode.sh\"\n\n/bin/sh -c \"\\\"$WITH_ENVIRONMENT\\\" \\\"$REACT_NATIVE_XCODE\\\"\"\n";
 		};
-		4528F92813D5BCAE23626E16 /* [CP] Check Pods Manifest.lock */ = {
+		21DEC25F8F554D858876A9A7 /* [CP] Check Pods Manifest.lock */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -436,7 +436,7 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
-		951A6371BFF47C5646530EDC /* [CP] Copy Pods Resources */ = {
+		B59978839D6F9D756B4940D1 /* [CP] Copy Pods Resources */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -453,7 +453,7 @@
 			shellScript = "\"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-resources.sh\"\n";
 			showEnvVarsInLog = 0;
 		};
-		C967FFD025DD25A2815D5710 /* [CP] Embed Pods Frameworks */ = {
+		C6A568E38C8439E6E0D5E7AF /* [CP] Embed Pods Frameworks */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -505,7 +505,7 @@
 /* Begin XCBuildConfiguration section */
 		13B07F941A680F5B00A75B9A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C47D4B421E40E43B8EADAF15 /* Pods-RechargeRest.debug.xcconfig */;
+			baseConfigurationReference = 709D02B31029962CB87A3FC9 /* Pods-RechargeRest.debug.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
@@ -536,7 +536,7 @@
 		};
 		13B07F951A680F5B00A75B9A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0E80175E38455C6D7A786CAF /* Pods-RechargeRest.release.xcconfig */;
+			baseConfigurationReference = 89B096602D44B11CB04F2110 /* Pods-RechargeRest.release.xcconfig */;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = YES;
