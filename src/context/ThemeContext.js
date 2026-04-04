@@ -47,7 +47,6 @@ export const darkColors = DARK_COLORS;
 const ThemeContext = createContext(null);
 
 export const ThemeProvider = ({ children }) => {
-  console.log('[ThemeProvider] Rendering ThemeProvider');
   const systemColorScheme = useColorScheme();
   const [themeMode, setThemeMode] = useState('dark'); // 'light', 'dark', 'auto'
   const [isLoading, setIsLoading] = useState(true);
@@ -61,7 +60,7 @@ export const ThemeProvider = ({ children }) => {
           setThemeMode(savedTheme);
         }
       } catch (error) {
-        console.log('Error loading theme preference:', error);
+        // Error loading theme preference
       } finally {
         setIsLoading(false);
       }
@@ -75,7 +74,7 @@ export const ThemeProvider = ({ children }) => {
     try {
       await StorageService.setItem('themeMode', mode);
     } catch (error) {
-      console.log('Error saving theme preference:', error);
+      // Error saving theme preference
     }
   };
 
@@ -102,11 +101,8 @@ export const ThemeProvider = ({ children }) => {
 
 export const useAppTheme = () => {
   const context = useContext(ThemeContext);
-  console.log('[useAppTheme] context:', context);
-  console.log('[useAppTheme] context?.colors:', context?.colors);
   // Return default light theme values if context is not available or colors is undefined
   if (!context || !context?.colors) {
-    console.log('[useAppTheme] Returning default LIGHT_COLORS fallback');
     return {
       themeMode: 'light',
       setThemeMode: () => {},
@@ -115,7 +111,6 @@ export const useAppTheme = () => {
       isLoading: true,
     };
   }
-  console.log('[useAppTheme] Returning context with colors:', context.colors);
   return context;
 };
 

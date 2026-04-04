@@ -597,21 +597,6 @@ const SettingsScreen = ({ navigation }) => {
               />
             }
           />
-          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
-          <SettingItem
-            icon={faMobile}
-            iconBg="#4ECDC4"
-            title="Vibration"
-            subtitle="Buzz when timer ends"
-            rightComponent={
-              <Switch
-                value={vibrationEnabled}
-                onValueChange={setVibrationEnabled}
-                color="#4ECDC4"
-                disabled={!notificationsEnabled}
-              />
-            }
-          />
         </Surface>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Timer Settings</Text>

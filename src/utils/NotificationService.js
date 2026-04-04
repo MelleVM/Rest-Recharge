@@ -11,6 +11,7 @@ class NotificationService {
     this.defaultSettings = {
       notificationsEnabled: true,
       vibrationEnabled: true,
+      alarmSoundEnabled: true,
       darkModeEnabled: false,
       restInterval: 120,
       restDuration: 20,
@@ -304,15 +305,17 @@ class NotificationService {
     
     console.log('Next reminder pre-scheduled for:', nextReminderTime.toLocaleTimeString());
 
-    // Use AlarmKit for iOS (breaks through silent mode with repeating vibration)
-    // Fall back to regular notification for Android
+    // Use AlarmKit for iOS when sound is enabled (breaks through silent mode with sound+vibration)
+    // Use regular notifications for vibrate-only mode (iOS) or Android
     if (Platform.OS === 'ios') {
       const alarmResult = await AlarmKitService.scheduleCountdownAlarm(
         remaining,
-        'Eye Rest Complete!'
+        'Eye Rest Complete!',
+        settings.alarmSoundEnabled
       );
       console.log('AlarmKit alarm scheduled:', alarmResult);
     } else {
+      // Use regular notification for vibrate-only (iOS) or Android
       const completionTime = new Date(endTime);
       PushNotification.localNotificationSchedule({
         channelId: 'eye-rest-reminders',
@@ -321,9 +324,9 @@ class NotificationService {
         message: 'Great job. Press to collect your reward!',
         date: completionTime,
         allowWhileIdle: true,
-        vibrate: true,
-        playSound: true,
-        soundName: 'alarm.wav',
+        vibrate: true, // Always vibrate for timer completion
+        playSound: settings.alarmSoundEnabled,
+        soundName: settings.alarmSoundEnabled ? 'alarm.wav' : undefined,
         userInfo: { screen: 'Timer' },
         data: { screen: 'Timer' },
       });

@@ -14,6 +14,9 @@
 		462B599291D5460CA78894E1 /* FontAwesome5_Solid.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 84EC4842213849B88858FDA7 /* FontAwesome5_Solid.ttf */; };
 		49560ECEB61948C5BA0CAFC5 /* Entypo.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3D14A12B671B45EE97DE8704 /* Entypo.ttf */; };
 		49E573D67277467A91B9296F /* Ionicons.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 3695F9E5999B4CF68F80185C /* Ionicons.ttf */; };
+		4C0E7D382F816A2C00E2B906 /* alarm-silent.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4C0E7D372F816A2C00E2B906 /* alarm-silent.wav */; };
+		4C0E7D3C2F81714800E2B906 /* TimerData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4C0E7D3B2F81714800E2B906 /* TimerData.swift */; };
+		4C0E7D3E2F81771700E2B906 /* alarm-silent.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 4C0E7D3D2F81771700E2B906 /* alarm-silent.mp3 */; };
 		4C5E01992F24F6C0007B8E7C /* alarm.wav in Resources */ = {isa = PBXBuildFile; fileRef = 4C5E01982F24F6C0007B8E7C /* alarm.wav */; };
 		4C5E019A2F24F6C0007B8E7D /* alarm.caf in Resources */ = {isa = PBXBuildFile; fileRef = 4C5E019B2F24F6C0007B8E7D /* alarm.caf */; };
 		4C92A61B2F2510FF0012B22F /* LiveActivityModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 4C92A6192F2510FF0012B22F /* LiveActivityModule.m */; };
@@ -88,6 +91,9 @@
 		3695F9E5999B4CF68F80185C /* Ionicons.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Ionicons.ttf; path = "../node_modules/react-native-vector-icons/fonts/Ionicons.ttf"; sourceTree = "<group>"; };
 		3D14A12B671B45EE97DE8704 /* Entypo.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Entypo.ttf; path = "../node_modules/react-native-vector-icons/fonts/Entypo.ttf"; sourceTree = "<group>"; };
 		3FB8B56BB4444D9F973E12E9 /* Archivo_500Medium.ttf */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = Archivo_500Medium.ttf; path = ../assets/fonts/Archivo_500Medium.ttf; sourceTree = "<group>"; };
+		4C0E7D372F816A2C00E2B906 /* alarm-silent.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = "alarm-silent.wav"; sourceTree = "<group>"; };
+		4C0E7D3B2F81714800E2B906 /* TimerData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerData.swift; sourceTree = "<group>"; };
+		4C0E7D3D2F81771700E2B906 /* alarm-silent.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = "alarm-silent.mp3"; sourceTree = "<group>"; };
 		4C5E01982F24F6C0007B8E7C /* alarm.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; path = alarm.wav; sourceTree = "<group>"; };
 		4C5E019B2F24F6C0007B8E7D /* alarm.caf */ = {isa = PBXFileReference; lastKnownFileType = file; path = alarm.caf; sourceTree = "<group>"; };
 		4C92A6192F2510FF0012B22F /* LiveActivityModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = LiveActivityModule.m; path = RechargeRest/LiveActivityModule.m; sourceTree = "<group>"; };
@@ -116,14 +122,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4C92A60C2F2508150012B22F /* Exceptions for "TimerWidgetExtension" folder in "TimerWidgetExtensionExtension" target */ = {
+		4C92A60C2F2508150012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 4CA77DE62F24FB3A004AC2A1 /* TimerWidgetExtensionExtension */;
 		};
-		4C92A6182F250E070012B22F /* Exceptions for "TimerWidgetExtension" folder in "RechargeRest" target */ = {
+		4C92A6182F250E070012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				TimerAttributes.swift,
@@ -133,19 +139,7 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4CA77DEC2F24FB3A004AC2A1 /* TimerWidgetExtension */ = {
-			isa = PBXFileSystemSynchronizedRootGroup;
-			exceptions = (
-				4C92A6182F250E070012B22F /* Exceptions for "TimerWidgetExtension" folder in "RechargeRest" target */,
-				4C92A60C2F2508150012B22F /* Exceptions for "TimerWidgetExtension" folder in "TimerWidgetExtensionExtension" target */,
-			);
-			explicitFileTypes = {
-			};
-			explicitFolders = (
-			);
-			path = TimerWidgetExtension;
-			sourceTree = "<group>";
-		};
+		4CA77DEC2F24FB3A004AC2A1 /* TimerWidgetExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4C92A6182F250E070012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 4C92A60C2F2508150012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = TimerWidgetExtension; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -172,6 +166,9 @@
 		13B07FAE1A68108700A75B9A /* RechargeRest */ = {
 			isa = PBXGroup;
 			children = (
+				4C0E7D3D2F81771700E2B906 /* alarm-silent.mp3 */,
+				4C0E7D3B2F81714800E2B906 /* TimerData.swift */,
+				4C0E7D372F816A2C00E2B906 /* alarm-silent.wav */,
 				4C92A6192F2510FF0012B22F /* LiveActivityModule.m */,
 				4C92A61A2F2510FF0012B22F /* LiveActivityModule.swift */,
 				4C92A61E2F2510FF0012B22F /* AlarmKitModule.m */,
@@ -358,6 +355,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				81AB9BB82411601600AC10FF /* LaunchScreen.storyboard in Resources */,
+				4C0E7D382F816A2C00E2B906 /* alarm-silent.wav in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				4C5E01992F24F6C0007B8E7C /* alarm.wav in Resources */,
 				4C5E019A2F24F6C0007B8E7D /* alarm.caf in Resources */,
@@ -373,6 +371,7 @@
 				E4DE5DF730304E398D7C409D /* Foundation.ttf in Resources */,
 				49E573D67277467A91B9296F /* Ionicons.ttf in Resources */,
 				462B599291D5460CA78894E1 /* FontAwesome5_Solid.ttf in Resources */,
+				4C0E7D3E2F81771700E2B906 /* alarm-silent.mp3 in Resources */,
 				B03D45CC6638409692168AB9 /* FontAwesome5_Regular.ttf in Resources */,
 				A182053748C447C38A908D84 /* FontAwesome.ttf in Resources */,
 				54A18491B8354DF5935705D7 /* Zocial.ttf in Resources */,
@@ -444,9 +443,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-resources-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -461,9 +464,13 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
+			inputPaths = (
+			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-frameworks-${CONFIGURATION}-output-files.xcfilelist",
+			);
+			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -478,6 +485,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				4C92A61B2F2510FF0012B22F /* LiveActivityModule.m in Sources */,
+				4C0E7D3C2F81714800E2B906 /* TimerData.swift in Sources */,
 				4C92A61C2F2510FF0012B22F /* LiveActivityModule.swift in Sources */,
 				4C92A61D2F2510FF0012B22F /* AlarmKitModule.m in Sources */,
 				4C92A61F2F2510FF0012B22F /* AlarmKitModule.swift in Sources */,
@@ -518,7 +526,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.4;
+				MARKETING_VERSION = 1.0.5;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -548,7 +556,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.0.4;
+				MARKETING_VERSION = 1.0.5;
 				OTHER_LDFLAGS = (
 					"$(inherited)",
 					"-ObjC",
@@ -591,7 +599,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.4;
+				MARKETING_VERSION = 1.0.5;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vDigital.RechargeRest.TimerWidgetExtension;
@@ -637,7 +645,7 @@
 					"@executable_path/../../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0.4;
+				MARKETING_VERSION = 1.0.5;
 				MTL_FAST_MATH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.vDigital.RechargeRest.TimerWidgetExtension;
 				PRODUCT_NAME = "$(TARGET_NAME)";

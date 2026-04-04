@@ -11,10 +11,14 @@ import { faEye } from '@fortawesome/free-solid-svg-icons/faEye';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
+import { faVolumeHigh } from '@fortawesome/free-solid-svg-icons/faVolumeHigh';
+import { faVolumeXmark } from '@fortawesome/free-solid-svg-icons/faVolumeXmark';
+import { faMobile } from '@fortawesome/free-solid-svg-icons/faMobile';
 import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 import { ToastEvent } from '../components/RewardToast';
+import { Switch } from 'react-native';
 import { FONTS } from '../styles/fonts';
 import { RestModeEvent, PendingUnlocksEvent } from '../utils/EventEmitters';
 import { getFlowersInUnlockOrder } from '../config/flowerConfig';
@@ -38,21 +42,21 @@ const RADIUS = (TIMER_SIZE - STROKE_WIDTH) / 2;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
 const MOTIVATIONAL_QUOTES = [
-  { text: "Rest is not idleness, it is the key to greater productivity.", author: "John Lubbock" },
-  { text: "Take care of your body. It's the only place you have to live.", author: "Jim Rohn" },
-  { text: "Almost everything will work again if you unplug it for a few minutes.", author: "Anne Lamott" },
-  { text: "Your calm mind is the ultimate weapon against your challenges.", author: "Bryant McGill" },
-  { text: "The time to relax is when you don't have time for it.", author: "Sydney J. Harris" },
-  { text: "Tension is who you think you should be. Relaxation is who you are.", author: "Chinese Proverb" },
-  { text: "Rest when you're weary. Refresh and renew yourself.", author: "Ralph Marston" },
-  { text: "Sometimes the most productive thing you can do is rest.", author: "Mark Black" },
-  { text: "Your eyes are the windows to your soul. Take care of them.", author: "Unknown" },
-  { text: "A moment of patience in a moment of anger saves a thousand moments of regret.", author: "Ali Ibn Abi Talib" },
-  { text: "Breathe. Let go. And remind yourself that this very moment is the only one you know you have for sure.", author: "Oprah Winfrey" },
-  { text: "Self-care is not selfish. You cannot serve from an empty vessel.", author: "Eleanor Brown" },
-  { text: "In the midst of movement and chaos, keep stillness inside of you.", author: "Deepak Chopra" },
-  { text: "Give your stress wings and let it fly away.", author: "Terri Guillemets" },
-  { text: "The greatest weapon against stress is our ability to choose one thought over another.", author: "William James" },
+  "Rest is not a luxury. It's a necessity for healing.",
+  "Your body is working hard to heal. Give it the rest it needs.",
+  "Healing is not linear. Some days rest is the greatest victory.",
+  "Listen to your body. It knows what it needs to recover.",
+  "Rest is an active part of recovery, not a sign of weakness.",
+  "Small steps forward. Rest when needed. Healing takes time.",
+  "Your worth is not measured by productivity. Rest is healing.",
+  "Recovery is a journey. Be patient and kind to yourself.",
+  "Taking time to rest is taking time to heal.",
+  "You are doing better than you think. Rest is progress.",
+  "Chronic illness requires chronic self-compassion.",
+  "Rest today builds strength for tomorrow.",
+  "Your body deserves the same kindness you'd give a friend.",
+  "Healing happens in the quiet moments of rest.",
+  "Every rest break is an investment in your recovery.",
 ];
 
 const TimerScreen = () => {
@@ -67,6 +71,7 @@ const TimerScreen = () => {
   const [completedRests, setCompletedRests] = useState(0);
   const [gardenData, setGardenData] = useState({ points: 0 });
   const [showTutorial, setShowTutorial] = useState(false);
+  const [alarmSoundEnabled, setAlarmSoundEnabled] = useState(true);
   const endTimeRef = useRef(null);
   const startDurationRef = useRef(0);
   const animationFrameRef = useRef(null);
@@ -160,6 +165,7 @@ const TimerScreen = () => {
           const durationSeconds = durationMinutes * 60;
           setTime(durationSeconds);
           setTotalTime(durationSeconds);
+          setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
         }
         // Always refresh completed rests count and garden data
         await loadCompletedRests();
@@ -738,10 +744,42 @@ const TimerScreen = () => {
         </View>
 
         {!isActive && (
-          <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
-            <Text style={[styles.quoteText, { color: colors.text }]}>"{currentQuote.text}"</Text>
-            <Text style={[styles.quoteAuthor, { color: colors.textSecondary }]}>— {currentQuote.author}</Text>
-          </View>
+          <>
+            <Surface style={[styles.settingsCard, { backgroundColor: colors.surface }]}>
+              <Text style={[styles.settingsTitle, { color: colors.text }]}>Alarm Settings</Text>
+              
+              <View style={styles.settingRow}>
+                <View style={styles.settingLeft}>
+                  <FontAwesomeIcon 
+                    icon={alarmSoundEnabled ? faVolumeHigh : faMobile} 
+                    size={20} 
+                    color="#4ECDC4"
+                  />
+                  <View style={styles.settingTextContainer}>
+                    <Text style={[styles.settingLabel, { color: colors.text }]}>Alarm Type</Text>
+                    <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
+                      {alarmSoundEnabled ? 'Sound + Vibration' : 'Vibration Only'}
+                    </Text>
+                  </View>
+                </View>
+                <Switch
+                  value={alarmSoundEnabled}
+                  onValueChange={async (value) => {
+                    setAlarmSoundEnabled(value);
+                    const settings = await NotificationService.getSettings();
+                    settings.alarmSoundEnabled = value;
+                    await StorageService.setItem('settings', settings);
+                  }}
+                  trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
+                  thumbColor="#FFFFFF"
+                />
+              </View>
+            </Surface>
+            
+            <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
+              <Text style={[styles.quoteText, { color: colors.text }]}>"{currentQuote}"</Text>
+            </View>
+          </>
         )}
 
         <View style={styles.bottomPadding} />
@@ -960,6 +998,48 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: 'bold',
     color: '#FFFFFF',
+  },
+  settingsCard: {
+    borderRadius: 20,
+    padding: 20,
+    marginBottom: 20,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+  },
+  settingsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 16,
+  },
+  settingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 8,
+  },
+  settingLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+    gap: 12,
+  },
+  settingTextContainer: {
+    flex: 1,
+  },
+  settingLabel: {
+    fontSize: 16,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  settingDescription: {
+    fontSize: 13,
+  },
+  divider: {
+    height: 1,
+    marginVertical: 12,
   },
 });
 

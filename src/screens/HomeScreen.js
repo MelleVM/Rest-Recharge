@@ -33,8 +33,6 @@ import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import RestProgressGraph from '../components/RestProgressGraph';
 import { useAppTheme } from '../context/ThemeContext';
 
-console.log('[HomeScreen] Module loaded');
-
 // Plant types with colors
 const PLANT_TYPES = {
   classic: { name: 'Classic Tree', color: '#4CAF50' },
@@ -113,10 +111,7 @@ const HomeScreen = () => {
   const wakeupLogHourScrollRef = useRef(null);
   const wakeupLogMinuteScrollRef = useRef(null);
   const theme = useTheme();
-  console.log('[HomeScreen] About to call useAppTheme');
   const appTheme = useAppTheme();
-  console.log('[HomeScreen] appTheme result:', appTheme);
-  console.log('[HomeScreen] appTheme?.colors:', appTheme?.colors);
   const isDarkMode = appTheme?.isDarkMode ?? false;
   const colors = appTheme?.colors ?? {
     background: '#FFF9F0',
@@ -134,7 +129,6 @@ const HomeScreen = () => {
   // Refresh data when screen comes into focus
   useFocusEffect(
     useCallback(() => {
-      console.log('HomeScreen focused - refreshing data');
       checkForCompletedTimer();
       loadData();
       updateGreeting();
@@ -145,7 +139,6 @@ const HomeScreen = () => {
   useEffect(() => {
     const handleAppStateChange = async (nextAppState) => {
       if (nextAppState === 'active') {
-        console.log('App active - refreshing HomeScreen data');
         await checkForCompletedTimer();
         loadData();
         updateGreeting();
@@ -159,7 +152,6 @@ const HomeScreen = () => {
   // Subscribe to wakeup log event from notification
   useEffect(() => {
     const unsubscribe = WakeupLogEvent.subscribe(() => {
-      console.log('WakeupLogEvent received - showing modal');
       setShowWakeupLogModal(true);
     });
     return () => unsubscribe();
@@ -390,7 +382,7 @@ const HomeScreen = () => {
         }
       }
     } catch (error) {
-      console.log('Error loading data:', error);
+      // Error loading data
     } finally {
       setLoading(false);
     }
@@ -456,7 +448,7 @@ const HomeScreen = () => {
       await StorageService.setItem('stats', updatedStats);
       setStats(updatedStats);
     } catch (error) {
-      console.log('Error saving wakeup time:', error);
+      // Error saving wakeup time
     }
   };
 
@@ -578,22 +570,17 @@ const HomeScreen = () => {
         
         // Check for newly unlocked flowers and store as pending
         const flowers = getFlowersInUnlockOrder();
-        console.log('Checking unlock: previous=', previousTotalRests, 'new=', newTotalRests);
         const newlyUnlocked = flowers.find(
           flower => flower.unlockAtRests > previousTotalRests && flower.unlockAtRests <= newTotalRests
         );
-        console.log('Newly unlocked flower:', newlyUnlocked?.name || 'none');
         
         // Only award energy if rest is on current day and not too close to previous rest
         if (isToday && !tooClose) {
           await awardPointsForRest();
-        } else {
-          console.log('Skipping energy award: isToday=', isToday, 'tooClose=', tooClose);
         }
         
         // Store pending unlock for GardenOverviewScreen to show
         if (newlyUnlocked) {
-          console.log('Storing pending unlock:', newlyUnlocked.name);
           const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
           if (!pendingUnlocks.includes(newlyUnlocked.id)) {
             pendingUnlocks.push(newlyUnlocked.id);
@@ -634,7 +621,7 @@ const HomeScreen = () => {
         }
       }
     } catch (error) {
-      console.log('Error saving rest:', error);
+      // Error saving rest
     }
   };
 
@@ -737,7 +724,7 @@ const HomeScreen = () => {
       
       setShowReminderModal(false);
     } catch (error) {
-      console.log('Error saving reminder time:', error);
+      // Error saving reminder time
     }
   };
 
@@ -760,7 +747,7 @@ const HomeScreen = () => {
       setShowRestModal(false);
       setEditingRest(null);
     } catch (error) {
-      console.log('Error deleting rest:', error);
+      // Error deleting rest
     }
   };
 

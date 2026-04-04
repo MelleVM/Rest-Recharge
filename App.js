@@ -27,25 +27,14 @@ import { setDefaultFontFamily } from './src/utils/setDefaultFontFamily';
 import { ThemeProvider, useAppTheme, lightColors, darkColors } from './src/context/ThemeContext';
 import { RestModeEvent, WakeupLogEvent, PendingUnlocksEvent, ResetEvent, GardenScreenEvent } from './src/utils/EventEmitters';
 
-console.log('[App.js] Module loading - lightColors:', lightColors);
-console.log('[App.js] Module loading - darkColors:', darkColors);
-console.log('[App.js] DefaultTheme:', DefaultTheme);
-console.log('[App.js] DefaultTheme.colors:', DefaultTheme?.colors);
-console.log('[App.js] PaperDarkTheme:', PaperDarkTheme);
-console.log('[App.js] PaperDarkTheme.colors:', PaperDarkTheme?.colors);
-
 // Re-export for backward compatibility
 export { RestModeEvent, WakeupLogEvent, PendingUnlocksEvent, ResetEvent, GardenScreenEvent };
 
 setDefaultFontFamily();
-console.log('[App.js] setDefaultFontFamily called');
 
 const Tab = createBottomTabNavigator();
-console.log('[App.js] Tab navigator created');
 const Stack = createNativeStackNavigator();
-console.log('[App.js] Stack navigator created');
 
-console.log('[App.js] About to define PLANT_COLORS');
 // Plant colors (synced with GardenScreen)
 const PLANT_COLORS = {
   classic: '#4CAF50',
@@ -55,11 +44,8 @@ const PLANT_COLORS = {
   cherry: '#F48FB1',
   succulent: '#66BB6A',
 };
-console.log('[App.js] PLANT_COLORS defined');
-console.log('[App.js] About to define PlantColorEvent');
 
 // Simple event emitter for plant color changes
-console.log('[App.js] Defining PlantColorEvent now');
 export const PlantColorEvent = {
   listeners: [],
   subscribe(callback) {
@@ -166,8 +152,6 @@ const getNavigationTheme = (isDarkMode, isRestMode, colors) => {
   };
 };
 
-console.log('[App.js] getNavigationTheme defined');
-console.log('[App.js] About to create lightTheme');
 // Light theme for Paper
 const lightTheme = {
   ...DefaultTheme,
@@ -446,7 +430,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
 });
-
-console.log('[App.js] Module fully loaded, exporting App');
 
 export default App;

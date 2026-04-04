@@ -10,6 +10,7 @@ RCT_EXTERN_METHOD(getAuthorizationStatus:(RCTPromiseResolveBlock)resolve
 
 RCT_EXTERN_METHOD(scheduleCountdownAlarm:(int)durationSeconds
                   title:(NSString *)title
+                  soundEnabled:(BOOL)soundEnabled
                   resolver:(RCTPromiseResolveBlock)resolve
                   rejecter:(RCTPromiseRejectBlock)reject)
 

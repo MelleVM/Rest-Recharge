@@ -1,5 +1,7 @@
 import Foundation
 import SwiftUI
+import AlarmKit
+
 #if canImport(AlarmKit)
 import AlarmKit
 #endif
@@ -72,12 +74,13 @@ class AlarmKitModule: NSObject {
     @objc
     func scheduleCountdownAlarm(_ durationSeconds: Int,
                                 title: String,
+                                soundEnabled: Bool,
                                 resolver: @escaping RCTPromiseResolveBlock,
                                 rejecter: @escaping RCTPromiseRejectBlock) {
         #if canImport(AlarmKit)
         if #available(iOS 26.0, *) {
             Task {
-                await scheduleAlarmInternal(durationSeconds: durationSeconds, title: title, resolver: resolver, rejecter: rejecter)
+                await scheduleAlarmInternal(durationSeconds: durationSeconds, title: title, soundEnabled: soundEnabled, resolver: resolver, rejecter: rejecter)
             }
         } else {
             rejecter("UNSUPPORTED", "AlarmKit requires iOS 26.0 or later", nil)
@@ -89,7 +92,7 @@ class AlarmKitModule: NSObject {
     
     #if canImport(AlarmKit)
     @available(iOS 26.0, *)
-    private func scheduleAlarmInternal(durationSeconds: Int, title: String, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) async {
+    private func scheduleAlarmInternal(durationSeconds: Int, title: String, soundEnabled: Bool, resolver: @escaping RCTPromiseResolveBlock, rejecter: @escaping RCTPromiseRejectBlock) async {
         let manager = AlarmManager.shared
         
         // Check authorization first
@@ -123,14 +126,16 @@ class AlarmKitModule: NSObject {
                 presentation: AlarmPresentation(alert: alert),
                 tintColor: .green
             )
-            
-            // Schedule the countdown timer
+
+            // Schedule the countdown timer with sound configuration
+            // Use .default for sound+vibration mode, silent audio file for vibrate-only mode
             let alarmId = UUID()
             let _ = try await manager.schedule(
                 id: alarmId,
                 configuration: .timer(
                     duration: TimeInterval(durationSeconds),
-                    attributes: attributes
+                    attributes: attributes,
+                    sound: soundEnabled ? .default : .named("alarm-silent.mp3")
                 )
             )
             
