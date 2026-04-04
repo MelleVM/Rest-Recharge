@@ -5,8 +5,18 @@ import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
 import { getFlowersInUnlockOrder } from '../config/flowerConfig';
 import { FONTS } from '../styles/fonts';
+import { useAppTheme } from '../context/ThemeContext';
 
 const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
+  const appTheme = useAppTheme();
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    inputBackground: '#F0F0F0',
+  };
   const flowers = getFlowersInUnlockOrder();
 
   const getRarityColor = (rarity) => {
@@ -20,10 +30,10 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Choose a Flower</Text>
-        <Text style={styles.subtitle}>Select which flower to plant</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Choose a Flower</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Select which flower to plant</Text>
       </View>
 
       <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
@@ -37,6 +47,7 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
                 key={flower.id}
                 style={[
                   styles.flowerCard,
+                  { backgroundColor: colors.inputBackground },
                   !isUnlocked && styles.flowerCardLocked
                 ]}
                 onPress={() => isUnlocked && onSelectFlower(flower.id)}
@@ -45,7 +56,7 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
                 {/* Flower Icon */}
                 <View style={[
                   styles.flowerIcon,
-                  { borderColor: flower.color, borderWidth: 3 }
+                  { borderColor: flower.color, borderWidth: 3, backgroundColor: colors.surface }
                 ]}>
                   {isUnlocked ? (
                     <Image
@@ -54,8 +65,8 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
                       resizeMode="contain"
                     />
                   ) : (
-                    <View style={styles.lockOverlay}>
-                      <FontAwesomeIcon icon={faLock} size={24} color="#B0B0B0" />
+                    <View style={[styles.lockOverlay, { backgroundColor: colors.inputBackground }]}>
+                      <FontAwesomeIcon icon={faLock} size={24} color={colors.textMuted} />
                     </View>
                   )}
                 </View>
@@ -63,6 +74,7 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
                 {/* Flower Info */}
                 <Text style={[
                   styles.flowerName,
+                  { color: colors.text },
                   !isUnlocked && styles.flowerNameLocked
                 ]}>
                   {flower.name}
@@ -76,7 +88,7 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
                 </Text>
 
                 {!isUnlocked && (
-                  <Text style={styles.lockText}>
+                  <Text style={[styles.lockText, { color: colors.textMuted }]}>
                     {restsToGo} rests needed
                   </Text>
                 )}
@@ -86,8 +98,8 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
         </View>
       </ScrollView>
 
-      <TouchableOpacity style={styles.cancelButton} onPress={onClose}>
-        <Text style={styles.cancelButtonText}>Cancel</Text>
+      <TouchableOpacity style={[styles.cancelButton, { backgroundColor: colors.inputBackground }]} onPress={onClose}>
+        <Text style={[styles.cancelButtonText, { color: colors.textSecondary }]}>Cancel</Text>
       </TouchableOpacity>
     </View>
   );
@@ -95,7 +107,6 @@ const FlowerSelection = ({ totalRests, onSelectFlower, onClose }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 16,
     paddingTop: 20,
   },
@@ -106,13 +117,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#2D3436',
     fontFamily: FONTS.regular,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#636E72',
   },
   scrollView: {
     maxHeight: 320,
@@ -125,7 +134,6 @@ const styles = StyleSheet.create({
   },
   flowerCard: {
     width: '47%',
-    backgroundColor: '#F8F9FA',
     borderRadius: 16,
     padding: 16,
     alignItems: 'center',
@@ -143,7 +151,6 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     position: 'relative',
-    backgroundColor: '#FFFFFF',
   },
   flowerImage: {
     width: 56,
@@ -152,7 +159,6 @@ const styles = StyleSheet.create({
   lockOverlay: {
     width: 64,
     height: 64,
-    backgroundColor: '#F0F0F0',
     borderRadius: 32,
     justifyContent: 'center',
     alignItems: 'center',
@@ -160,7 +166,6 @@ const styles = StyleSheet.create({
   flowerName: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#2D3436',
     marginBottom: 4,
     textAlign: 'center',
   },
@@ -174,7 +179,6 @@ const styles = StyleSheet.create({
   },
   lockText: {
     fontSize: 11,
-    color: '#9E9E9E',
     textAlign: 'center',
   },
   cancelButton: {
@@ -182,14 +186,12 @@ const styles = StyleSheet.create({
     marginTop: 12,
     marginBottom: 16,
     paddingVertical: 12,
-    backgroundColor: '#E0E0E0',
     borderRadius: 12,
     alignItems: 'center',
   },
   cancelButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#636E72',
   },
 });
 

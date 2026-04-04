@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { SafeAreaView, StatusBar, StyleSheet, View, AppState, Animated } from 'react-native';
-import { NavigationContainer, DefaultTheme as NavigationDefaultTheme } from '@react-navigation/native';
+import { NavigationContainer, DefaultTheme as NavigationDefaultTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
-import { Provider as PaperProvider, DefaultTheme } from 'react-native-paper';
+import { Provider as PaperProvider, DefaultTheme, MD3DarkTheme as PaperDarkTheme } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
 import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
@@ -24,12 +24,28 @@ import RewardToast from './src/components/RewardToast';
 import SplashScreen from './src/screens/SplashScreen';
 import { FONTS } from './src/styles/fonts';
 import { setDefaultFontFamily } from './src/utils/setDefaultFontFamily';
+import { ThemeProvider, useAppTheme, lightColors, darkColors } from './src/context/ThemeContext';
+import { RestModeEvent, WakeupLogEvent, PendingUnlocksEvent, ResetEvent, GardenScreenEvent } from './src/utils/EventEmitters';
+
+console.log('[App.js] Module loading - lightColors:', lightColors);
+console.log('[App.js] Module loading - darkColors:', darkColors);
+console.log('[App.js] DefaultTheme:', DefaultTheme);
+console.log('[App.js] DefaultTheme.colors:', DefaultTheme?.colors);
+console.log('[App.js] PaperDarkTheme:', PaperDarkTheme);
+console.log('[App.js] PaperDarkTheme.colors:', PaperDarkTheme?.colors);
+
+// Re-export for backward compatibility
+export { RestModeEvent, WakeupLogEvent, PendingUnlocksEvent, ResetEvent, GardenScreenEvent };
 
 setDefaultFontFamily();
+console.log('[App.js] setDefaultFontFamily called');
 
 const Tab = createBottomTabNavigator();
+console.log('[App.js] Tab navigator created');
 const Stack = createNativeStackNavigator();
+console.log('[App.js] Stack navigator created');
 
+console.log('[App.js] About to define PLANT_COLORS');
 // Plant colors (synced with GardenScreen)
 const PLANT_COLORS = {
   classic: '#4CAF50',
@@ -39,8 +55,11 @@ const PLANT_COLORS = {
   cherry: '#F48FB1',
   succulent: '#66BB6A',
 };
+console.log('[App.js] PLANT_COLORS defined');
+console.log('[App.js] About to define PlantColorEvent');
 
 // Simple event emitter for plant color changes
+console.log('[App.js] Defining PlantColorEvent now');
 export const PlantColorEvent = {
   listeners: [],
   subscribe(callback) {
@@ -54,78 +73,15 @@ export const PlantColorEvent = {
   },
 };
 
-// Event emitter for showing wakeup log modal
-export const WakeupLogEvent = {
-  listeners: [],
-  subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
-    };
-  },
-  emit() {
-    this.listeners.forEach(callback => callback());
-  },
-};
-
-// Event emitter for triggering onboarding after reset
-export const ResetEvent = {
-  listeners: [],
-  subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
-    };
-  },
-  emit() {
-    this.listeners.forEach(callback => callback());
-  },
-};
-
-// Event emitter for Garden screen (to hide top safe area)
-export const GardenScreenEvent = {
-  listeners: [],
-  subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
-    };
-  },
-  emit(isActive) {
-    this.listeners.forEach(callback => callback(isActive));
-  },
-};
-
-// Event emitter for rest mode (dark mode during timer)
-export const RestModeEvent = {
-  listeners: [],
-  subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
-    };
-  },
-  emit(isActive) {
-    this.listeners.forEach(callback => callback(isActive));
-  },
-};
-
-// Event emitter for pending flower unlocks badge
-export const PendingUnlocksEvent = {
-  listeners: [],
-  subscribe(callback) {
-    this.listeners.push(callback);
-    return () => {
-      this.listeners = this.listeners.filter(l => l !== callback);
-    };
-  },
-  emit(count) {
-    this.listeners.forEach(callback => callback(count));
-  },
-};
-
 // Tab Navigator Component
-function TabNavigator({ plantColor, isRestMode, pendingUnlocks }) {
+function TabNavigator({ plantColor, isRestMode, pendingUnlocks, isDarkMode, colors: propColors }) {
+  // Use rest mode styling when timer is active, otherwise use theme colors
+  const colors = propColors || lightColors;
+  const effectiveDark = isRestMode || isDarkMode;
+  const bgColor = isRestMode ? '#121212' : colors.background;
+  const tabBarBg = isRestMode ? '#121212' : colors.tabBarBackground;
+  const inactiveColor = isRestMode ? '#444444' : colors.tabBarInactive;
+  
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -164,14 +120,14 @@ function TabNavigator({ plantColor, isRestMode, pendingUnlocks }) {
         },
         tabBarShowLabel: false,
         tabBarActiveTintColor: '#FF6B6B',
-        tabBarInactiveTintColor: isRestMode ? '#444444' : '#B2BEC3',
+        tabBarInactiveTintColor: inactiveColor,
         headerShown: false,
         tabBarHideOnKeyboard: true,
         lazy: false,
         unmountOnBlur: false,
-        sceneStyle: { backgroundColor: isRestMode ? '#121212' : '#FFF9F0' },
+        sceneStyle: { backgroundColor: bgColor },
         tabBarStyle: isRestMode ? { display: 'none' } : {
-          backgroundColor: '#FFF9F0',
+          backgroundColor: tabBarBg,
           borderTopWidth: 0,
           elevation: 20,
           shadowColor: '#000',
@@ -193,23 +149,33 @@ function TabNavigator({ plantColor, isRestMode, pendingUnlocks }) {
   );
 }
 
-// Navigation theme for NavigationContainer - created dynamically based on rest mode
-const getNavigationTheme = (isRestMode) => ({
-  ...NavigationDefaultTheme,
-  colors: {
-    ...NavigationDefaultTheme.colors,
-    background: isRestMode ? '#121212' : '#FFF9F0',
-  },
-});
+// Navigation theme for NavigationContainer - created dynamically based on theme and rest mode
+const getNavigationTheme = (isDarkMode, isRestMode, colors) => {
+  const safeColors = colors || lightColors;
+  const baseTheme = isDarkMode ? NavigationDarkTheme : NavigationDefaultTheme;
+  const bgColor = isRestMode ? '#121212' : safeColors.background;
+  return {
+    ...baseTheme,
+    colors: {
+      ...baseTheme.colors,
+      background: bgColor,
+      card: safeColors.surface,
+      text: safeColors.text,
+      border: safeColors.border,
+    },
+  };
+};
 
-// Fun, comic-style theme with bold colors
-const theme = {
+console.log('[App.js] getNavigationTheme defined');
+console.log('[App.js] About to create lightTheme');
+// Light theme for Paper
+const lightTheme = {
   ...DefaultTheme,
   colors: {
     ...DefaultTheme.colors,
-    primary: '#FF6B6B',      // Coral red
-    accent: '#4ECDC4',       // Teal
-    background: '#FFF9F0',   // Warm cream
+    primary: '#FF6B6B',
+    accent: '#4ECDC4',
+    background: '#FFF9F0',
     surface: '#FFFFFF',
     text: '#2D3436',
     error: '#FF6B6B',
@@ -238,7 +204,46 @@ const theme = {
   roundness: 20,
 };
 
-function App() {
+// Dark theme for Paper
+const darkTheme = {
+  ...PaperDarkTheme,
+  colors: {
+    ...PaperDarkTheme.colors,
+    primary: '#FF6B6B',
+    accent: '#4ECDC4',
+    background: '#121212',
+    surface: '#1E1E1E',
+    text: '#FFFFFF',
+    error: '#FF6B6B',
+    disabled: '#555555',
+    placeholder: '#808080',
+    backdrop: 'rgba(0, 0, 0, 0.7)',
+  },
+  fonts: {
+    regular: {
+      fontFamily: FONTS.regular,
+      fontWeight: '400',
+    },
+    medium: {
+      fontFamily: FONTS.medium,
+      fontWeight: '500',
+    },
+    light: {
+      fontFamily: FONTS.regular,
+      fontWeight: '300',
+    },
+    thin: {
+      fontFamily: FONTS.regular,
+      fontWeight: '100',
+    },
+  },
+  roundness: 20,
+};
+
+function AppContent() {
+  const appTheme = useAppTheme();
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? lightColors;
   const [isLoading, setIsLoading] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [plantColor, setPlantColor] = useState('#4CAF50'); // Default to classic green
@@ -246,6 +251,11 @@ function App() {
   const [isGardenScreen, setIsGardenScreen] = useState(false);
   const [pendingUnlocks, setPendingUnlocks] = useState(0);
   const navigationRef = React.useRef(null);
+  
+  // Determine effective dark mode (rest mode overrides theme)
+  const effectiveDark = isRestMode || isDarkMode;
+  const effectiveColors = isRestMode ? darkColors : colors;
+  const paperTheme = effectiveDark ? darkTheme : lightTheme;
 
   const loadPendingUnlocks = async () => {
     const pending = await StorageService.getItem('pendingFlowerUnlocks') || [];
@@ -342,8 +352,8 @@ function App() {
 
   if (isLoading) {
     return (
-      <PaperProvider theme={theme}>
-        <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+      <PaperProvider theme={paperTheme}>
+        <StatusBar barStyle={effectiveDark ? "light-content" : "dark-content"} backgroundColor={effectiveColors.background} />
         <SplashScreen />
       </PaperProvider>
     );
@@ -351,9 +361,9 @@ function App() {
 
   if (showOnboarding) {
     return (
-      <PaperProvider theme={theme}>
-        <SafeAreaView style={styles.container}>
-          <StatusBar barStyle="dark-content" backgroundColor="#FFF9F0" />
+      <PaperProvider theme={paperTheme}>
+        <SafeAreaView style={[styles.container, { backgroundColor: effectiveColors.background }]}>
+          <StatusBar barStyle={effectiveDark ? "light-content" : "dark-content"} backgroundColor={effectiveColors.background} />
           <OnboardingScreen onComplete={handleOnboardingComplete} />
         </SafeAreaView>
       </PaperProvider>
@@ -361,16 +371,16 @@ function App() {
   }
 
   return (
-    <PaperProvider theme={theme}>
-      <View style={[styles.rootContainer, isRestMode && styles.restModeRoot]}>
-        {!isGardenScreen && <SafeAreaView style={[styles.safeAreaTop, isRestMode && styles.restModeSafeArea]} />}
+    <PaperProvider theme={paperTheme}>
+      <View style={[styles.rootContainer, { backgroundColor: effectiveColors.background }]}>
+        {!isGardenScreen && <SafeAreaView style={[styles.safeAreaTop, { backgroundColor: effectiveColors.background }]} />}
         <RewardToast />
-        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor} theme={getNavigationTheme(isRestMode)}>
-          <View style={[styles.container, isRestMode && styles.restModeContainer]}>
-            <StatusBar barStyle={isRestMode ? "light-content" : "dark-content"} backgroundColor={isRestMode ? "#121212" : "#FFF9F0"} />
+        <NavigationContainer ref={navigationRef} onStateChange={loadPlantColor} theme={getNavigationTheme(isDarkMode, isRestMode, effectiveColors)}>
+          <View style={[styles.container, { backgroundColor: effectiveColors.background }]}>
+            <StatusBar barStyle={effectiveDark ? "light-content" : "dark-content"} backgroundColor={effectiveColors.background} />
             <Stack.Navigator screenOptions={{ headerShown: false }}>
               <Stack.Screen name="MainTabs">
-                {() => <TabNavigator plantColor={plantColor} isRestMode={isRestMode} pendingUnlocks={pendingUnlocks} />}
+                {() => <TabNavigator plantColor={plantColor} isRestMode={isRestMode} pendingUnlocks={pendingUnlocks} isDarkMode={isDarkMode} colors={effectiveColors} />}
               </Stack.Screen>
               <Stack.Screen 
                 name="Settings" 
@@ -380,9 +390,9 @@ function App() {
                   headerShown: true,
                   headerTitle: 'Settings',
                   headerStyle: {
-                    backgroundColor: '#FFF9F0',
+                    backgroundColor: effectiveColors.background,
                   },
-                  headerTintColor: '#2D3436',
+                  headerTintColor: effectiveColors.text,
                 }}
               />
               <Stack.Screen 
@@ -400,9 +410,9 @@ function App() {
                   headerShown: true,
                   headerTitle: 'Font Test',
                   headerStyle: {
-                    backgroundColor: '#FFF9F0',
+                    backgroundColor: effectiveColors.background,
                   },
-                  headerTintColor: '#2D3436',
+                  headerTintColor: effectiveColors.text,
                 }}
               />
             </Stack.Navigator>
@@ -413,33 +423,30 @@ function App() {
   );
 }
 
+function App() {
+  return (
+    <ThemeProvider>
+      <AppContent />
+    </ThemeProvider>
+  );
+}
+
 const styles = StyleSheet.create({
   rootContainer: {
     flex: 1,
-    backgroundColor: '#FFF9F0',
   },
   safeAreaTop: {
-    backgroundColor: '#FFF9F0',
   },
   container: {
     flex: 1,
-    backgroundColor: '#FFF9F0',
   },
   loadingContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#FFF9F0',
-  },
-  restModeRoot: {
-    backgroundColor: '#121212',
-  },
-  restModeSafeArea: {
-    backgroundColor: '#121212',
-  },
-  restModeContainer: {
-    backgroundColor: '#121212',
   },
 });
+
+console.log('[App.js] Module fully loaded, exporting App');
 
 export default App;

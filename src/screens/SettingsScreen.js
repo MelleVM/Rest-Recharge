@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, StyleSheet, ScrollView, Alert, TouchableOpacity, Modal, KeyboardAvoidingView, Platform, TextInput as RNTextInput, Linking } from 'react-native';
+import { version } from '../../package.json';
 import { Switch, Surface, Text, useTheme } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
@@ -32,15 +33,37 @@ import { faStore } from '@fortawesome/free-solid-svg-icons/faStore';
 import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
 import { faLockOpen } from '@fortawesome/free-solid-svg-icons/faLockOpen';
 import { faRotateLeft } from '@fortawesome/free-solid-svg-icons/faRotateLeft';
+import { faMoon } from '@fortawesome/free-solid-svg-icons/faMoon';
+import { faPalette } from '@fortawesome/free-solid-svg-icons/faPalette';
+import { faCircleHalfStroke } from '@fortawesome/free-solid-svg-icons/faCircleHalfStroke';
 import PushNotification from 'react-native-push-notification';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 import { ToastEvent } from '../components/RewardToast';
-import { ResetEvent } from '../../App';
+import { ResetEvent } from '../utils/EventEmitters';
+import { useAppTheme } from '../context/ThemeContext';
+
+console.log('[SettingsScreen] Module loaded');
+
+const THEME_OPTIONS = [
+  { id: 'light', label: 'Light', icon: faSun, color: '#F59E0B' },
+  { id: 'dark', label: 'Dark', icon: faMoon, color: '#6C5CE7' },
+  { id: 'auto', label: 'Automatic', icon: faCircleHalfStroke, color: '#4ECDC4' },
+];
 
 // Separate Modal Component to prevent re-renders
 const InputModal = React.memo(({ visible, onClose, title, value, onChangeText, onSave, label, note }) => {
   const [localValue, setLocalValue] = useState(value);
+  const appTheme = useAppTheme();
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    inputBackground: '#F0F0F0',
+    modalOverlay: 'rgba(0,0,0,0.5)',
+  };
   
   useEffect(() => {
     if (visible) {
@@ -65,28 +88,28 @@ const InputModal = React.memo(({ visible, onClose, title, value, onChangeText, o
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'} 
         style={styles.modalContainer}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{title}</Text>
-              <TouchableOpacity onPress={onClose} style={styles.closeButton}>
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.inputBackground }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>{title}</Text>
+              <TouchableOpacity onPress={onClose} style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}>
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
             <View style={styles.modalBody}>
               <View style={styles.inputContainer}>
-                <Text style={styles.inputLabel}>{label}</Text>
+                <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>{label}</Text>
                 <RNTextInput
-                  style={styles.input}
+                  style={[styles.input, { backgroundColor: colors.inputBackground, color: colors.text, borderColor: colors.inputBackground }]}
                   value={localValue}
                   onChangeText={setLocalValue}
                   keyboardType="numeric"
                   placeholder="Enter minutes"
-                  placeholderTextColor="#B2BEC3"
+                  placeholderTextColor={colors.textMuted}
                   autoFocus={true}
                 />
-                <Text style={styles.inputNote}>{note}</Text>
+                <Text style={[styles.inputNote, { color: colors.textMuted }]}>{note}</Text>
               </View>
             </View>
             
@@ -164,6 +187,20 @@ const SettingsScreen = ({ navigation }) => {
   });
   
   const theme = useTheme();
+  const appTheme = useAppTheme();
+  const themeMode = appTheme?.themeMode ?? 'light';
+  const setThemeMode = appTheme?.setThemeMode ?? (() => {});
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    divider: '#F0F0F0',
+    inputBackground: '#F0F0F0',
+    modalOverlay: 'rgba(0,0,0,0.5)',
+  };
 
   useEffect(() => {
     loadSettings();
@@ -485,8 +522,8 @@ const SettingsScreen = ({ navigation }) => {
         <FontAwesomeIcon icon={icon} size={22} color="#FFFFFF" />
       </View>
       <View style={styles.settingContent}>
-        <Text style={styles.settingTitle}>{title}</Text>
-        {subtitle && <Text style={styles.settingSubtitle}>{subtitle}</Text>}
+        <Text style={[styles.settingTitle, { color: colors.text }]}>{title}</Text>
+        {subtitle && <Text style={[styles.settingSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>}
       </View>
       {rightComponent}
     </TouchableOpacity>
@@ -494,44 +531,44 @@ const SettingsScreen = ({ navigation }) => {
 
   return (
     <>
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.title}>Settings</Text>
-          <Text style={styles.subtitle}>Rest & Recharge</Text>
+          <Text style={[styles.title, { color: colors.text }]}>Settings</Text>
+          <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Rest & Recharge</Text>
         </View>
 
-        <Text style={styles.sectionTitle}>Your Profile</Text>
-        <Surface style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Your Profile</Text>
+        <Surface style={[styles.section, { backgroundColor: colors.surface }]}>
           <SettingItem
             icon={faUser}
             iconBg="#74B9FF"
             title="Purpose"
             subtitle={getPurposeLabel()}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => setActiveModal('purpose')}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faHeart}
             iconBg="#FF6B6B"
             title="Health Condition"
             subtitle={getConditionLabel()}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => setActiveModal('condition')}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faSun}
             iconBg="#FFE66D"
             title="Usual Wake-up Time"
             subtitle={formatWakeupTime()}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => setActiveModal('wakeupTime')}
           />
         </Surface>
 
-        <Text style={styles.sectionTitle}>Notifications</Text>
-        <Surface style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Notifications</Text>
+        <Surface style={[styles.section, { backgroundColor: colors.surface }]}>
           <SettingItem
             icon={faBell}
             iconBg="#FF6B6B"
@@ -545,7 +582,7 @@ const SettingsScreen = ({ navigation }) => {
               />
             }
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faSun}
             iconBg="#FFE66D"
@@ -560,7 +597,7 @@ const SettingsScreen = ({ navigation }) => {
               />
             }
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faMobile}
             iconBg="#4ECDC4"
@@ -577,61 +614,72 @@ const SettingsScreen = ({ navigation }) => {
           />
         </Surface>
 
-        <Text style={styles.sectionTitle}>Timer Settings</Text>
-        <Surface style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Timer Settings</Text>
+        <Surface style={[styles.section, { backgroundColor: colors.surface }]}>
           <SettingItem
             icon={faClock}
             iconBg="#FFE66D"
             title="Rest Interval"
             subtitle={`Remind every ${restInterval} minutes`}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => setActiveModal('interval')}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faHourglass}
             iconBg="#74B9FF"
             title="Rest Duration"
             subtitle={`Rest for ${restDuration} minutes`}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => setActiveModal('duration')}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faBullseye}
             iconBg="#10B981"
             title="Daily Goal"
             subtitle={`${dailyGoal} rests per day`}
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => setActiveModal('dailyGoal')}
           />
         </Surface>
 
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Appearance</Text>
+        <Surface style={[styles.section, { backgroundColor: colors.surface }]}>
+          <SettingItem
+            icon={faPalette}
+            iconBg="#A29BFE"
+            title="Theme"
+            subtitle={THEME_OPTIONS.find(t => t.id === themeMode)?.label || 'Light'}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
+            onPress={() => setActiveModal('theme')}
+          />
+        </Surface>
 
-        <Text style={styles.sectionTitle}>About</Text>
-        <Surface style={styles.section}>
+        <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>About</Text>
+        <Surface style={[styles.section, { backgroundColor: colors.surface }]}>
           <SettingItem
             icon={faCircleInfo}
             iconBg="#FFE66D"
             title="Version"
-            subtitle="1.0.0"
+            subtitle={version}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faCircleQuestion}
             iconBg="#74B9FF"
             title="Help & Support"
             subtitle="Get tips and assistance"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => Linking.openURL('https://www.vdigital.nl/rechargerest-support.html')}
           />
-          <View style={styles.divider} />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
             icon={faShield}
             iconBg="#A29BFE"
             title="Privacy Policy"
             subtitle="How we protect your data"
-            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color="#B2BEC3" />}
+            rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
             onPress={() => Linking.openURL('https://www.vdigital.nl/rechargerest-privacy-policy.html')}
           />
         </Surface>
@@ -690,12 +738,12 @@ const SettingsScreen = ({ navigation }) => {
         {/*  />*/}
         {/*</Surface>*/}
 
-        <TouchableOpacity style={styles.resetButton} onPress={resetAllData} activeOpacity={0.8}>
+        <TouchableOpacity style={[styles.resetButton, { backgroundColor: colors.surface }]} onPress={resetAllData} activeOpacity={0.8}>
           <FontAwesomeIcon icon={faTrashCan} size={24} color="#FF6B6B" />
           <Text style={styles.resetText}>Reset All Data</Text>
         </TouchableOpacity>
 
-        <Text style={styles.resetWarning}>
+        <Text style={[styles.resetWarning, { color: colors.textMuted }]}>
           This will delete all your progress 😢
         </Text>
 
@@ -739,12 +787,12 @@ const SettingsScreen = ({ navigation }) => {
         visible={activeModal === 'purpose'}
         onRequestClose={() => setActiveModal(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Purpose</Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Select Purpose</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}>
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -761,7 +809,7 @@ const SettingsScreen = ({ navigation }) => {
                   <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
                     <FontAwesomeIcon icon={option.icon} size={20} color={option.color} />
                   </View>
-                  <Text style={styles.optionLabel}>{option.label}</Text>
+                  <Text style={[styles.optionLabel, { color: colors.text }]}>{option.label}</Text>
                   {purpose === option.id && (
                     <View style={[styles.optionCheck, { backgroundColor: option.color }]}>
                       <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
@@ -781,12 +829,12 @@ const SettingsScreen = ({ navigation }) => {
         visible={activeModal === 'condition'}
         onRequestClose={() => setActiveModal(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Health Condition</Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Health Condition</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}>
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -803,7 +851,7 @@ const SettingsScreen = ({ navigation }) => {
                   <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
                     <FontAwesomeIcon icon={option.icon} size={20} color={option.color} />
                   </View>
-                  <Text style={styles.optionLabel}>{option.label}</Text>
+                  <Text style={[styles.optionLabel, { color: colors.text }]}>{option.label}</Text>
                   {condition === option.id && (
                     <View style={[styles.optionCheck, { backgroundColor: option.color }]}>
                       <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
@@ -823,12 +871,12 @@ const SettingsScreen = ({ navigation }) => {
         visible={activeModal === 'wakeupTime'}
         onRequestClose={() => setActiveModal(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Wake-up Time</Text>
-              <TouchableOpacity onPress={() => setActiveModal(null)} style={styles.closeButton}>
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Wake-up Time</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}>
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             <View style={styles.modalBody}>
@@ -915,6 +963,59 @@ const SettingsScreen = ({ navigation }) => {
                 <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" style={styles.buttonIcon} />
                 <Text style={styles.saveButtonText}>Save</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Theme Selection Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeModal === 'theme'}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Choose Theme</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}>
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              {THEME_OPTIONS.map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionItem,
+                    { backgroundColor: colors.inputBackground, alignItems: 'center' },
+                    themeMode === option.id && styles.optionItemSelected,
+                    themeMode === option.id && { borderColor: option.color },
+                  ]}
+                  onPress={() => {
+                    setThemeMode(option.id);
+                    setActiveModal(null);
+                  }}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
+                    <FontAwesomeIcon icon={option.icon} size={20} color={option.color} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.optionLabel, { color: colors.text, marginLeft: 0 }]}>{option.label}</Text>
+                    {option.id === 'auto' && (
+                      <Text style={{ fontSize: 12, color: colors.textSecondary, marginTop: 2 }}>
+                        Follows device settings
+                      </Text>
+                    )}
+                  </View>
+                  {themeMode === option.id && (
+                    <View style={[styles.optionCheck, { backgroundColor: option.color }]}>
+                      <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
             </View>
           </View>
         </View>
@@ -1066,7 +1167,6 @@ const styles = StyleSheet.create({
     marginTop: 32,
     padding: 20,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
     borderWidth: 2,
     borderColor: '#FF6B6B',
     elevation: 2,
@@ -1079,7 +1179,6 @@ const styles = StyleSheet.create({
   },
   resetWarning: {
     textAlign: 'center',
-    color: '#B2BEC3',
     marginTop: 12,
     fontSize: 14,
   },
@@ -1202,7 +1301,6 @@ const styles = StyleSheet.create({
     borderColor: 'transparent',
   },
   optionItemSelected: {
-    backgroundColor: '#FFFFFF',
     elevation: 2,
   },
   optionIcon: {
@@ -1213,11 +1311,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   optionLabel: {
-    flex: 1,
     fontSize: 16,
     fontWeight: '600',
     color: '#2D3436',
-    marginLeft: 12,
   },
   optionCheck: {
     width: 24,

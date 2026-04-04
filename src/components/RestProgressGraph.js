@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faChevronLeft } from '@fortawesome/free-solid-svg-icons/faChevronLeft';
 import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight';
+import { useAppTheme } from '../context/ThemeContext';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_PADDING = 48;
@@ -18,6 +19,16 @@ const PERIODS = [
 const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [offset, setOffset] = useState(0); // 0 = current period, 1 = previous, etc.
+  const appTheme = useAppTheme();
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    inputBackground: '#F0F0F0',
+  };
 
   // Get period label for navigation header
   const getPeriodLabel = () => {
@@ -143,9 +154,9 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
   const maxBarHeight = 120;
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
       {/* Period Selector */}
-      <View style={styles.periodSelector}>
+      <View style={[styles.periodSelector, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]}>
         {PERIODS.map((period) => (
           <TouchableOpacity
             key={period.id}
@@ -159,6 +170,7 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
             <Text
               style={[
                 styles.periodButtonText,
+                { color: selectedPeriod === period.id ? '#FFFFFF' : '#EF4444' },
                 selectedPeriod === period.id && styles.periodButtonTextActive,
               ]}
             >
@@ -170,30 +182,30 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
 
       {/* Navigation Header */}
       <View style={styles.navHeader}>
-        <TouchableOpacity onPress={goToPrevious} style={styles.navButton} activeOpacity={0.7}>
+        <TouchableOpacity onPress={goToPrevious} style={[styles.navButton, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]} activeOpacity={0.7}>
           <FontAwesomeIcon icon={faChevronLeft} size={14} color="#EF4444" />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>{getPeriodLabel()}</Text>
+        <Text style={[styles.navTitle, { color: colors.text }]}>{getPeriodLabel()}</Text>
         <TouchableOpacity 
           onPress={goToNext} 
-          style={[styles.navButton, !canGoNext && styles.navButtonDisabled]} 
+          style={[styles.navButton, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }, !canGoNext && [styles.navButtonDisabled, { backgroundColor: colors.inputBackground }]]} 
           activeOpacity={0.7}
           disabled={!canGoNext}
         >
-          <FontAwesomeIcon icon={faChevronRight} size={14} color={canGoNext ? '#EF4444' : '#D1D5DB'} />
+          <FontAwesomeIcon icon={faChevronRight} size={14} color={canGoNext ? '#EF4444' : colors.textMuted} />
         </TouchableOpacity>
       </View>
 
       {/* Stats Row */}
-      <View style={styles.statsRow}>
+      <View style={[styles.statsRow, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2' }]}>
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{totalRests}</Text>
-          <Text style={styles.statLabel}>Total Rests</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{totalRests}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Rests</Text>
         </View>
-        <View style={styles.statDivider} />
+        <View style={[styles.statDivider, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : '#FECACA' }]} />
         <View style={styles.statItem}>
-          <Text style={styles.statValue}>{avgRests}</Text>
-          <Text style={styles.statLabel}>
+          <Text style={[styles.statValue, { color: colors.text }]}>{avgRests}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             {selectedPeriod === 'week' ? 'Daily Avg' : selectedPeriod === 'month' ? 'Weekly Avg' : 'Monthly Avg'}
           </Text>
         </View>
@@ -208,7 +220,7 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
               <View key={index} style={styles.barWrapper}>
                 <View style={styles.barColumn}>
                   {item.value > 0 && (
-                    <Text style={styles.barValue}>{item.value}</Text>
+                    <Text style={[styles.barValue, { color: colors.textSecondary }]}>{item.value}</Text>
                   )}
                   <View
                     style={[
@@ -216,12 +228,12 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
                       {
                         height: Math.max(barHeight, 4),
                         width: barWidth,
-                        backgroundColor: item.isCurrent ? '#EF4444' : '#FECACA',
+                        backgroundColor: item.isCurrent ? '#EF4444' : (isDarkMode ? 'rgba(239, 68, 68, 0.4)' : '#FECACA'),
                       },
                     ]}
                   />
                 </View>
-                <Text style={[styles.barLabel, item.isCurrent && styles.barLabelCurrent]}>
+                <Text style={[styles.barLabel, { color: colors.textMuted }, item.isCurrent && styles.barLabelCurrent]}>
                   {item.label}
                 </Text>
               </View>
@@ -231,9 +243,9 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
       </View>
 
       {/* Goal Line Indicator */}
-      <View style={styles.goalIndicator}>
+      <View style={[styles.goalIndicator, { borderTopColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]}>
         <View style={styles.goalLine} />
-        <Text style={styles.goalText}>
+        <Text style={[styles.goalText, { color: colors.textSecondary }]}>
           {selectedPeriod === 'week' ? `Goal: ${dailyGoal} rests/day` : selectedPeriod === 'month' ? `Goal: ${weeklyGoal} rests/week` : `Goal: ${monthlyGoal} rests/month`}
         </Text>
       </View>
@@ -243,16 +255,13 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   periodSelector: {
     flexDirection: 'row',
-    backgroundColor: '#FEE2E2',
     borderRadius: 8,
     padding: 4,
     marginBottom: 16,
@@ -269,7 +278,6 @@ const styles = StyleSheet.create({
   periodButtonText: {
     fontSize: 13,
     fontWeight: '500',
-    color: '#EF4444',
   },
   periodButtonTextActive: {
     color: '#FFFFFF',
@@ -285,17 +293,14 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
   },
   navButtonDisabled: {
-    backgroundColor: '#F9FAFB',
   },
   navTitle: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#1F2937',
   },
   statsRow: {
     flexDirection: 'row',
@@ -303,7 +308,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 20,
     paddingVertical: 12,
-    backgroundColor: '#FEF2F2',
     borderRadius: 8,
   },
   statItem: {
@@ -313,17 +317,14 @@ const styles = StyleSheet.create({
   statValue: {
     fontSize: 24,
     fontWeight: '700',
-    color: '#1F2937',
   },
   statLabel: {
     fontSize: 12,
-    color: '#6B7280',
     marginTop: 2,
   },
   statDivider: {
     width: 1,
     height: 32,
-    backgroundColor: '#FECACA',
   },
   chartContainer: {
     marginBottom: 12,
@@ -350,13 +351,11 @@ const styles = StyleSheet.create({
   barValue: {
     fontSize: 11,
     fontWeight: '600',
-    color: '#6B7280',
     marginBottom: 4,
   },
   barLabel: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#9CA3AF',
     marginTop: 8,
   },
   barLabelCurrent: {
@@ -370,7 +369,6 @@ const styles = StyleSheet.create({
     gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#FEE2E2',
   },
   goalLine: {
     width: 16,
@@ -380,7 +378,6 @@ const styles = StyleSheet.create({
   },
   goalText: {
     fontSize: 11,
-    color: '#6B7280',
     fontStyle: 'italic',
   },
 });

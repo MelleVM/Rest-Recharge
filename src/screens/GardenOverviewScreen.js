@@ -24,10 +24,13 @@ import { faHandPointer } from '@fortawesome/free-solid-svg-icons/faHandPointer';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import StorageService from '../utils/StorageService';
 import { FONTS } from '../styles/fonts';
-import { GardenScreenEvent, PendingUnlocksEvent } from '../../App';
+import { GardenScreenEvent, PendingUnlocksEvent } from '../utils/EventEmitters';
 import { FLOWER_TYPES, ENERGY_DECAY_RATE, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import FlowerTimeline from '../components/FlowerTimeline';
 import FlowerSelection from '../components/FlowerSelection';
+import { useAppTheme } from '../context/ThemeContext';
+
+console.log('[GardenOverviewScreen] Module loaded');
 
 const getTimeOfDay = () => {
   const hour = new Date().getHours();
@@ -70,6 +73,18 @@ const TIME_OF_DAY_CONFIG = {
 
 const GardenOverviewScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
+  const appTheme = useAppTheme();
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    divider: '#F0F0F0',
+    inputBackground: '#F0F0F0',
+    modalOverlay: 'rgba(0,0,0,0.5)',
+  };
   const [gardenData, setGardenData] = useState({
     energy: 0.5,
     totalRests: 0,
@@ -404,9 +419,9 @@ const GardenOverviewScreen = ({ navigation }) => {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle={timeOfDay === 'night' ? 'light-content' : 'dark-content'} />
+      <StatusBar translucent backgroundColor="transparent" barStyle={(isDarkMode || timeOfDay === 'night') ? 'light-content' : 'dark-content'} />
       <LinearGradient
-        colors={timeConfig.backgroundColors}
+        colors={isDarkMode && timeOfDay !== 'night' ? TIME_OF_DAY_CONFIG.night.backgroundColors : timeConfig.backgroundColors}
         style={styles.backgroundGradient}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
@@ -523,7 +538,7 @@ const GardenOverviewScreen = ({ navigation }) => {
                 onPress={() => navigateToPlot(plotIndex, { x: position.left, y: position.top })}
                 disabled={selectedPlotIndex !== null}
               >
-                <View style={styles.emptySpotCircle}>
+                <View style={[styles.emptySpotCircle, { backgroundColor: colors.surface, borderColor: isDarkMode ? 'rgba(139, 195, 74, 0.3)' : '#E8F5E9' }]}>
                   <FontAwesomeIcon icon={faSeedling} size={16} color="#8BC34A" />
                 </View>
               </TouchableOpacity>
@@ -546,7 +561,7 @@ const GardenOverviewScreen = ({ navigation }) => {
             
             return (
               <View key={plot.id} style={[styles.lockedSpot, { left: position.left, top: position.top }]}>
-                <FontAwesomeIcon icon={faLock} size={14} color="#D0D0D0" />
+                <FontAwesomeIcon icon={faLock} size={14} color={isDarkMode ? 'rgba(255, 255, 255, 0.3)' : '#D0D0D0'} />
               </View>
             );
           })}
@@ -660,12 +675,12 @@ const GardenOverviewScreen = ({ navigation }) => {
                 })()}
               </>
             ) : selectedPlot && !selectedPlot.flowerType ? (
-              <View style={styles.emptyPlotCard}>
-                <View style={styles.emptyPlotIconCircle}>
+              <View style={[styles.emptyPlotCard, { backgroundColor: colors.surface }]}>
+                <View style={[styles.emptyPlotIconCircle, { backgroundColor: isDarkMode ? 'rgba(139, 195, 74, 0.2)' : '#F1F8E9' }]}>
                   <FontAwesomeIcon icon={faSeedling} size={32} color="#8BC34A" />
                 </View>
-                <Text style={styles.emptyPlotTitle}>Ready to Plant</Text>
-                <Text style={styles.emptyPlotDescription}>
+                <Text style={[styles.emptyPlotTitle, { color: colors.text }]}>Ready to Plant</Text>
+                <Text style={[styles.emptyPlotDescription, { color: colors.textSecondary }]}>
                   Choose a flower to grow in this plot
                 </Text>
                 <TouchableOpacity 
@@ -688,8 +703,8 @@ const GardenOverviewScreen = ({ navigation }) => {
         animationType="fade"
         onRequestClose={() => setShowTimeline(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <FlowerTimeline 
               totalRests={gardenData.totalRests}
               onClose={() => setShowTimeline(false)}
@@ -705,8 +720,8 @@ const GardenOverviewScreen = ({ navigation }) => {
         animationType="fade"
         onRequestClose={() => setShowFlowerSelection(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
             <FlowerSelection 
               totalRests={gardenData.totalRests}
               onSelectFlower={handlePlantFlower}
@@ -723,15 +738,15 @@ const GardenOverviewScreen = ({ navigation }) => {
         visible={unlockedFlower !== null}
         onRequestClose={() => setUnlockedFlower(null)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.unlockModalContent}>
-            <View style={styles.unlockModalHeader}>
-              <Text style={styles.unlockModalTitle}>New Flower Unlocked!</Text>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.unlockModalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.unlockModalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.unlockModalTitle, { color: colors.text }]}>New Flower Unlocked!</Text>
               <TouchableOpacity
                 onPress={() => setUnlockedFlower(null)}
-                style={styles.unlockModalCloseButton}
+                style={[styles.unlockModalCloseButton, { backgroundColor: colors.inputBackground }]}
               >
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
             
@@ -744,11 +759,11 @@ const GardenOverviewScreen = ({ navigation }) => {
                     resizeMode="contain"
                   />
                 </View>
-                <Text style={styles.unlockFlowerName}>{unlockedFlower.name}</Text>
+                <Text style={[styles.unlockFlowerName, { color: colors.text }]}>{unlockedFlower.name}</Text>
                 <Text style={[styles.unlockFlowerRarity, { color: unlockedFlower.color }]}>
                   {unlockedFlower.rarity}
                 </Text>
-                <Text style={styles.unlockFlowerDescription}>
+                <Text style={[styles.unlockFlowerDescription, { color: colors.textSecondary }]}>
                   {unlockedFlower.description}
                 </Text>
               </View>
@@ -774,33 +789,33 @@ const GardenOverviewScreen = ({ navigation }) => {
         animationType="fade"
         onRequestClose={dismissTutorial}
       >
-        <View style={styles.tutorialOverlay}>
-          <View style={styles.tutorialModal}>
-            <Text style={styles.tutorialTitle}>Your Garden</Text>
-            <Text style={styles.tutorialText}>
+        <View style={[styles.tutorialOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.tutorialModal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.tutorialTitle, { color: colors.text }]}>Your Garden</Text>
+            <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
               Grow and nurture your own flower garden. Complete rest sessions to earn energy and watch your flowers bloom!
             </Text>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faHandPointer} size={16} color="#4ECDC4" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Tap an empty plot to plant a new flower
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Each rest gives energy and grows all your flowers
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faSun} size={16} color="#FF9800" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Keep resting regularly — energy decays over time
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faSeedling} size={16} color="#4CAF50" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Unlock new flower types as you complete more rests
               </Text>
             </View>
@@ -1061,7 +1076,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#FFFFFF',
     justifyContent: 'center',
     alignItems: 'center',
     shadowColor: '#000',
@@ -1070,7 +1084,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
     borderWidth: 2,
-    borderColor: '#E8F5E9',
   },
   lockedSpot: {
     position: 'absolute',
@@ -1246,11 +1259,11 @@ const styles = StyleSheet.create({
   },
   emptyPlotCard: {
     alignItems: 'center',
-    backgroundColor: '#FFFFFF',
     paddingVertical: 28,
     paddingHorizontal: 32,
     borderRadius: 20,
     marginHorizontal: 24,
+    marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
@@ -1261,7 +1274,6 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#E8F5E9',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -1269,12 +1281,10 @@ const styles = StyleSheet.create({
   emptyPlotTitle: {
     fontSize: 20,
     fontWeight: '600',
-    color: '#2D3436',
     marginBottom: 8,
   },
   emptyPlotDescription: {
     fontSize: 14,
-    color: '#636E72',
     textAlign: 'center',
     marginBottom: 24,
   },
@@ -1417,13 +1427,11 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
     borderRadius: 12,
     marginBottom: 10,
   },
   tutorialStepText: {
     fontSize: 14,
-    color: '#2D3436',
     flex: 1,
   },
   tutorialButton: {

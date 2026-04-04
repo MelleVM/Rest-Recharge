@@ -27,10 +27,13 @@ import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
 import { ToastEvent } from '../components/RewardToast';
-import { PendingUnlocksEvent, WakeupLogEvent } from '../../App';
+import { PendingUnlocksEvent, WakeupLogEvent } from '../utils/EventEmitters';
 import { FONTS } from '../styles/fonts';
 import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import RestProgressGraph from '../components/RestProgressGraph';
+import { useAppTheme } from '../context/ThemeContext';
+
+console.log('[HomeScreen] Module loaded');
 
 // Plant types with colors
 const PLANT_TYPES = {
@@ -110,6 +113,23 @@ const HomeScreen = () => {
   const wakeupLogHourScrollRef = useRef(null);
   const wakeupLogMinuteScrollRef = useRef(null);
   const theme = useTheme();
+  console.log('[HomeScreen] About to call useAppTheme');
+  const appTheme = useAppTheme();
+  console.log('[HomeScreen] appTheme result:', appTheme);
+  console.log('[HomeScreen] appTheme?.colors:', appTheme?.colors);
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    divider: '#F0F0F0',
+    inputBackground: '#F0F0F0',
+    modalOverlay: 'rgba(0,0,0,0.5)',
+    tabBarBackground: '#FFF9F0',
+    tabBarInactive: '#B2BEC3',
+  };
 
   // Refresh data when screen comes into focus
   useFocusEffect(
@@ -958,7 +978,7 @@ const HomeScreen = () => {
                 <View style={styles.timelineMarkerContainer}>
                   {isWakeupHour ? (
                     // Sun icon for wakeup hour
-                    <View style={styles.timelineWakeupMarker}>
+                    <View style={[styles.timelineWakeupMarker, { backgroundColor: isDarkMode ? 'rgba(255, 179, 71, 0.2)' : '#FFF3E0' }]}>
                       <FontAwesomeIcon icon={faSun} size={16} color="#FFB347" />
                     </View>
                   ) : rest ? (
@@ -967,18 +987,19 @@ const HomeScreen = () => {
                       styles.timelineDiamond,
                       isCurrent && styles.timelineDiamondCurrent,
                     ]}>
-                      <View style={styles.timelineDiamondInner} />
+                      <View style={[styles.timelineDiamondInner, { backgroundColor: colors.surface }]} />
                     </View>
                   ) : isReminderHour ? (
                     // Clock icon for scheduled reminder
-                    <View style={styles.timelineReminderMarker}>
-                      <FontAwesomeIcon icon={faClock} size={16} color="#6B7280" />
+                    <View style={[styles.timelineReminderMarker, { backgroundColor: colors.inputBackground }]}>
+                      <FontAwesomeIcon icon={faClock} size={16} color={colors.textSecondary} />
                     </View>
                   ) : (
                     // Small dot for non-rest hours
                     <View style={[
                       styles.timelineSmallDot,
-                      !isPast && styles.timelineSmallDotFuture,
+                      { backgroundColor: colors.textMuted },
+                      !isPast && [styles.timelineSmallDotFuture, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : colors.inputBackground }],
                       isCurrent && styles.timelineSmallDotCurrent,
                     ]} />
                   )}
@@ -989,7 +1010,7 @@ const HomeScreen = () => {
                   <View style={[
                     styles.timelineLineSegment,
                     segmentStatus === 'warning' && styles.timelineLineWarning,
-                    segmentStatus === 'future' && styles.timelineLineFuture,
+                    segmentStatus === 'future' && [styles.timelineLineFuture, { backgroundColor: colors.inputBackground }],
                   ]} />
                 )}
               </View>
@@ -1003,6 +1024,7 @@ const HomeScreen = () => {
             <View key={hour} style={styles.timelineLabelSlot}>
               <Text style={[
                 styles.timelineHour,
+                { color: colors.textSecondary },
                 index === 0 && styles.timelineHourFirst,
                 index === hours.length - 1 && styles.timelineHourLast,
               ]}>
@@ -1097,8 +1119,8 @@ const HomeScreen = () => {
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.primary} />
+      <View style={[styles.loadingContainer, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.primary || '#FF6B6B'} />
       </View>
     );
   }
@@ -1119,27 +1141,27 @@ const HomeScreen = () => {
         animationType="fade"
         onRequestClose={dismissTutorial}
       >
-        <View style={styles.tutorialOverlay}>
-          <View style={styles.tutorialModal}>
-            <Text style={styles.tutorialTitle}>Welcome to Rest & Recharge!</Text>
-            <Text style={styles.tutorialText}>
+        <View style={[styles.tutorialOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.tutorialModal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.tutorialTitle, { color: colors.text }]}>Welcome to Rest & Recharge!</Text>
+            <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
               Take regular breaks to rest your eyes and stay refreshed throughout the day.
             </Text>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faSun} size={16} color="#FFE66D" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Log your wake-up time each morning
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faBell} size={16} color="#FF6B6B" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Get reminders for regular eye rests
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Earn energy and grow your sunflower
               </Text>
             </View>
@@ -1153,16 +1175,16 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-      <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+      <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
         {/* Minimal Header */}
         <View style={styles.minimalHeader}>
-          <Text style={styles.minimalHeaderTitle}>Rest & Recharge</Text>
+          <Text style={[styles.minimalHeaderTitle, { color: colors.text }]}>Rest & Recharge</Text>
           <TouchableOpacity 
             style={styles.settingsIconButton}
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
           >
-            <FontAwesomeIcon icon={faGear} size={28} color="#B2BEC3" />
+            <FontAwesomeIcon icon={faGear} size={28} color={colors.textMuted} />
           </TouchableOpacity>
         </View>
 
@@ -1189,15 +1211,19 @@ const HomeScreen = () => {
                     setShowWakeupLogModal(true);
                   } : null}
                   activeOpacity={wakeupTime ? 1 : 0.7}
-                  style={[styles.flatActionCard, wakeupTime && styles.flatActionCardDone]}
+                  style={[
+                    styles.flatActionCard, 
+                    { backgroundColor: isDarkMode ? colors.inputBackground : colors.surface, borderColor: colors.inputBackground }, 
+                    wakeupTime && { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.2)' : '#F0FDF4', borderColor: isDarkMode ? 'rgba(16, 185, 129, 0.4)' : '#BBF7D0' }
+                  ]}
                 >
                   <FontAwesomeIcon
                     icon={wakeupTime ? faCheck : faSun}
                     size={20}
                     color={wakeupTime ? '#10B981' : '#F59E0B'}
                   />
-                  <Text style={styles.flatActionLabel}>{wakeupTime ? 'Woke up' : 'Log wake-up'}</Text>
-                  <Text style={styles.flatActionValue}>
+                  <Text style={[styles.flatActionLabel, { color: colors.textSecondary }]}>{wakeupTime ? 'Woke up' : 'Log wake-up'}</Text>
+                  <Text style={[styles.flatActionValue, { color: wakeupTime ? '#10B981' : colors.text }]}>
                     {wakeupTime ? wakeupTime.formattedTime : 'Tap here'}
                   </Text>
                 </TouchableOpacity>
@@ -1205,19 +1231,19 @@ const HomeScreen = () => {
                 <TouchableOpacity
                   onPress={openReminderModal}
                   activeOpacity={0.7}
-                  style={styles.flatActionCard}
+                  style={[styles.flatActionCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}
                 >
                   <FontAwesomeIcon icon={faBell} size={20} color="#EF4444" />
-                  <Text style={styles.flatActionLabel}>Next reminder</Text>
-                  <Text style={styles.flatActionValue}>
+                  <Text style={[styles.flatActionLabel, { color: colors.textSecondary }]}>Next reminder</Text>
+                  <Text style={[styles.flatActionValue, { color: colors.text }]}>
                     {nextReminderTime ? nextReminderTime.formattedTime : 'Set time'}
                   </Text>
                 </TouchableOpacity>
 
-                <View style={styles.flatActionCard}>
+                <View style={[styles.flatActionCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
                   <FontAwesomeIcon icon={faFire} size={20} color="#3B82F6" />
-                  <Text style={styles.flatActionLabel}>Today's rests</Text>
-                  <Text style={styles.flatActionValue}>{getRestsForDate(new Date()).length}</Text>
+                  <Text style={[styles.flatActionLabel, { color: colors.textSecondary }]}>Today's rests</Text>
+                  <Text style={[styles.flatActionValue, { color: colors.text }]}>{getRestsForDate(new Date()).length}</Text>
                 </View>
               </View>
             </>
@@ -1225,33 +1251,33 @@ const HomeScreen = () => {
         })()}
 
         {/* Flat Tab Navigation */}
-        <View style={styles.flatTabContainer}>
+        <View style={[styles.flatTabContainer, { borderBottomColor: colors.inputBackground }]}>
           <TouchableOpacity
-            style={[styles.flatTab, activeTab === 'activity' && styles.flatTabActive]}
+            style={[styles.flatTab, activeTab === 'activity' && [styles.flatTabActive, { borderBottomColor: colors.text }]]}
             onPress={() => setActiveTab('activity')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.flatTabText, activeTab === 'activity' && styles.flatTabTextActive]}>
+            <Text style={[styles.flatTabText, { color: colors.textMuted }, activeTab === 'activity' && [styles.flatTabTextActive, { color: colors.text }]]}>
               Activity
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.flatTab, activeTab === 'streak' && styles.flatTabActive]}
+            style={[styles.flatTab, activeTab === 'streak' && [styles.flatTabActive, { borderBottomColor: colors.text }]]}
             onPress={() => setActiveTab('streak')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.flatTabText, activeTab === 'streak' && styles.flatTabTextActive]}>
+            <Text style={[styles.flatTabText, { color: colors.textMuted }, activeTab === 'streak' && [styles.flatTabTextActive, { color: colors.text }]]}>
               Streak
             </Text>
           </TouchableOpacity>
           
           <TouchableOpacity
-            style={[styles.flatTab, activeTab === 'progress' && styles.flatTabActive]}
+            style={[styles.flatTab, activeTab === 'progress' && [styles.flatTabActive, { borderBottomColor: colors.text }]]}
             onPress={() => setActiveTab('progress')}
             activeOpacity={0.7}
           >
-            <Text style={[styles.flatTabText, activeTab === 'progress' && styles.flatTabTextActive]}>
+            <Text style={[styles.flatTabText, { color: colors.textMuted }, activeTab === 'progress' && [styles.flatTabTextActive, { color: colors.text }]]}>
               Progress
             </Text>
           </TouchableOpacity>
@@ -1284,10 +1310,10 @@ const HomeScreen = () => {
                 key={index}
                 onPress={() => setSelectedDate(date)}
                 activeOpacity={0.7}
-                style={[styles.dayItemScrollable, isSelected && styles.dayItemSelected]}
+                style={[styles.dayItemScrollable, { backgroundColor: colors.surface, borderColor: colors.inputBackground }, isSelected && styles.dayItemSelected]}
               >
-                <Text style={[styles.dayLetter, isSelected && styles.dayLetterSelected]}>{dayLetter}</Text>
-                <Text style={[styles.dayNumber, isSelected && styles.dayNumberSelected]}>{date.getDate()}</Text>
+                <Text style={[styles.dayLetter, { color: colors.textMuted }, isSelected && styles.dayLetterSelected]}>{dayLetter}</Text>
+                <Text style={[styles.dayNumber, { color: colors.text }, isSelected && styles.dayNumberSelected]}>{date.getDate()}</Text>
                 {rests.length > 0 && <View style={[styles.dayDot, isSelected && styles.dayDotSelected]} />}
               </TouchableOpacity>
             );
@@ -1295,51 +1321,51 @@ const HomeScreen = () => {
         </ScrollView>
 
         {/* Timeline Card - Flat */}
-        <View style={styles.flatCard}>
+        <View style={[styles.flatCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
           <View style={styles.flatCardHeader}>
-            <TouchableOpacity onPress={goToPreviousDay} style={styles.flatNavButton}>
-              <FontAwesomeIcon icon={faChevronLeft} size={14} color="#6B7280" />
+            <TouchableOpacity onPress={goToPreviousDay} style={[styles.flatNavButton, { backgroundColor: colors.inputBackground }]}>
+              <FontAwesomeIcon icon={faChevronLeft} size={14} color={colors.textSecondary} />
             </TouchableOpacity>
-            <Text style={styles.flatCardTitle}>{formatDateHeader(selectedDate)}</Text>
+            <Text style={[styles.flatCardTitle, { color: colors.text }]}>{formatDateHeader(selectedDate)}</Text>
             <TouchableOpacity
               onPress={goToNextDay}
-              style={[styles.flatNavButton, isSelectedToday && styles.flatNavButtonDisabled]}
+              style={[styles.flatNavButton, { backgroundColor: colors.inputBackground }, isSelectedToday && styles.flatNavButtonDisabled]}
               disabled={isSelectedToday}
             >
-              <FontAwesomeIcon icon={faChevronRight} size={14} color={isSelectedToday ? '#D1D5DB' : '#6B7280'} />
+              <FontAwesomeIcon icon={faChevronRight} size={14} color={isSelectedToday ? colors.textMuted : colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.timelineScrollContainer}>
             <View style={styles.timelineScrollContent}>
               <DayTimeline date={selectedDate} rests={selectedDateRests} />
             </View>
           </ScrollView>
 
-          <View style={styles.flatLegend}>
+          <View style={[styles.flatLegend, { borderTopColor: colors.inputBackground }]}>
             <View style={styles.flatLegendItem}>
               <FontAwesomeIcon icon={faSun} size={12} color="#FFB347" />
-              <Text style={styles.flatLegendText}>Wakeup</Text>
+              <Text style={[styles.flatLegendText, { color: colors.textSecondary }]}>Wakeup</Text>
             </View>
             <View style={styles.flatLegendItem}>
               <View style={styles.flatLegendDiamond} />
-              <Text style={styles.flatLegendText}>Rested</Text>
+              <Text style={[styles.flatLegendText, { color: colors.textSecondary }]}>Rested</Text>
             </View>
             <View style={styles.flatLegendItem}>
-              <FontAwesomeIcon icon={faClock} size={12} color="#6B7280" />
-              <Text style={styles.flatLegendText}>Reminder</Text>
+              <FontAwesomeIcon icon={faClock} size={12} color={colors.textSecondary} />
+              <Text style={[styles.flatLegendText, { color: colors.textSecondary }]}>Reminder</Text>
             </View>
           </View>
         </View>
 
         {/* Rest List - Flat */}
-        <View style={styles.flatCard}>
+        <View style={[styles.flatCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
           <View style={styles.flatCardHeader}>
-            <Text style={styles.flatCardTitle}>
+            <Text style={[styles.flatCardTitle, { color: colors.text }]}>
               {selectedDateRests.length > 0 ? 'Completed Rests' : 'No rests yet'}
             </Text>
             <TouchableOpacity
-              style={styles.flatAddButton}
+              style={[styles.flatAddButton, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.2)' : '#F0FDF4' }]}
               onPress={openAddRestModal}
               activeOpacity={0.7}
             >
@@ -1355,19 +1381,19 @@ const HomeScreen = () => {
                 .map((rest, index) => (
                   <TouchableOpacity
                     key={index}
-                    style={styles.flatRestItem}
+                    style={[styles.flatRestItem, { backgroundColor: colors.inputBackground }]}
                     onPress={() => openEditRestModal(rest)}
                     activeOpacity={0.7}
                   >
                     <View style={styles.flatRestDot} />
-                    <Text style={styles.flatRestTime}>{rest.time}</Text>
-                    <FontAwesomeIcon icon={faPencil} size={12} color="#9CA3AF" />
+                    <Text style={[styles.flatRestTime, { color: colors.text }]}>{rest.time}</Text>
+                    <FontAwesomeIcon icon={faPencil} size={12} color={colors.textMuted} />
                   </TouchableOpacity>
                 ))}
             </View>
           ) : (
             <View style={styles.flatEmptyState}>
-              <Text style={styles.flatEmptyText}>
+              <Text style={[styles.flatEmptyText, { color: colors.textSecondary }]}>
                 {isSelectedToday ? 'Start your first rest session' : 'No rests recorded'}
               </Text>
             </View>
@@ -1381,17 +1407,17 @@ const HomeScreen = () => {
         visible={showRestModal}
         onRequestClose={() => setShowRestModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {editingRest ? 'Edit Rest' : 'Log Rest'}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowRestModal(false)}
-                style={styles.modalCloseButton}
+                style={[styles.modalCloseButton, { backgroundColor: colors.inputBackground }]}
               >
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -1403,7 +1429,7 @@ const HomeScreen = () => {
                   <Text style={styles.timePickerLabel}>Hour</Text>
                   <ScrollView 
                     ref={hourScrollRef}
-                    style={styles.timePickerScroll}
+                    style={[styles.timePickerScroll, { backgroundColor: colors.inputBackground, borderColor: colors.inputBackground }]}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                   >
@@ -1436,7 +1462,7 @@ const HomeScreen = () => {
                   <Text style={styles.timePickerLabel}>Min</Text>
                   <ScrollView 
                     ref={minuteScrollRef}
-                    style={styles.timePickerScroll}
+                    style={[styles.timePickerScroll, { backgroundColor: colors.inputBackground, borderColor: colors.inputBackground }]}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                   >
@@ -1468,7 +1494,7 @@ const HomeScreen = () => {
               </Text>
             </View>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { borderTopColor: colors.inputBackground }]}>
               {editingRest && (
                 <TouchableOpacity
                   style={styles.deleteButton}
@@ -1484,7 +1510,7 @@ const HomeScreen = () => {
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={saveRest}>
+                <TouchableOpacity style={[styles.saveButton, { backgroundColor: isDarkMode ? '#10B981' : '#1F2937' }]} onPress={saveRest}>
                   <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" />
                   <Text style={styles.saveButtonText}>Save</Text>
                 </TouchableOpacity>
@@ -1502,26 +1528,26 @@ const HomeScreen = () => {
         visible={showReminderModal}
         onRequestClose={() => setShowReminderModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Set Reminder Time</Text>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Set Reminder Time</Text>
               <TouchableOpacity
                 onPress={() => setShowReminderModal(false)}
-                style={styles.modalCloseButton}
+                style={[styles.modalCloseButton, { backgroundColor: colors.inputBackground }]}
               >
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
             <View style={styles.modalBody}>
-              <Text style={styles.modalLabel}>When should we remind you?</Text>
+              <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>When should we remind you?</Text>
               <View style={styles.timePickerRow}>
                 {/* Hour Picker */}
                 <View style={styles.timePickerColumn}>
                   <Text style={styles.timePickerLabel}>Hour</Text>
                   <ScrollView 
-                    style={styles.timePickerScroll}
+                    style={[styles.timePickerScroll, { backgroundColor: colors.inputBackground, borderColor: colors.inputBackground }]}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                   >
@@ -1554,7 +1580,7 @@ const HomeScreen = () => {
                   <Text style={styles.timePickerLabel}>Min</Text>
                   <ScrollView 
                     ref={reminderMinuteScrollRef}
-                    style={styles.timePickerScroll}
+                    style={[styles.timePickerScroll, { backgroundColor: colors.inputBackground, borderColor: colors.inputBackground }]}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                     onLayout={() => {
@@ -1594,9 +1620,9 @@ const HomeScreen = () => {
               </Text>
             </View>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { borderTopColor: colors.inputBackground }]}>
               <TouchableOpacity
-                style={styles.clearReminderButton}
+                style={[styles.clearReminderButton, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }]}
                 onPress={async () => {
                   setShowReminderModal(false);
                   await NotificationService.cancelReminder();
@@ -1614,7 +1640,7 @@ const HomeScreen = () => {
                 >
                   <Text style={styles.cancelButtonText}>Cancel</Text>
                 </TouchableOpacity>
-                <TouchableOpacity style={styles.saveButton} onPress={saveReminderTime}>
+                <TouchableOpacity style={[styles.saveButton, { backgroundColor: isDarkMode ? '#10B981' : '#1F2937' }]} onPress={saveReminderTime}>
                   <FontAwesomeIcon icon={faCheck} size={16} color="#FFFFFF" />
                   <Text style={styles.saveButtonText}>Save</Text>
                 </TouchableOpacity>
@@ -1632,10 +1658,10 @@ const HomeScreen = () => {
         visible={showReminderChoiceModal}
         onRequestClose={() => setShowReminderChoiceModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.reminderChoiceContent}>
-            <Text style={styles.reminderChoiceTitle}>Update Next Reminder?</Text>
-            <Text style={styles.reminderChoiceSubtitle}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.reminderChoiceContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.reminderChoiceTitle, { color: colors.text }]}>Update Next Reminder?</Text>
+            <Text style={[styles.reminderChoiceSubtitle, { color: colors.textSecondary }]}>
               {nextReminderTime 
                 ? `Current reminder: ${nextReminderTime.formattedTime}`
                 : 'No reminder currently scheduled'}
@@ -1643,10 +1669,10 @@ const HomeScreen = () => {
             
             <View style={styles.reminderChoiceButtons}>
               <TouchableOpacity
-                style={styles.reminderChoiceButton}
+                style={[styles.reminderChoiceButton, { backgroundColor: colors.inputBackground }]}
                 onPress={() => handleReminderChoice(true)}
               >
-                <Text style={styles.reminderChoiceButtonText}>Keep Current</Text>
+                <Text style={[styles.reminderChoiceButtonText, { color: colors.text }]}>Keep Current</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -1671,19 +1697,19 @@ const HomeScreen = () => {
         visible={showWakeupLogModal}
         onRequestClose={() => setShowWakeupLogModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View key={`wakeup-modal-${wakeupLogModalKey}`} style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View key={`wakeup-modal-${wakeupLogModalKey}`} style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
                 {new Date().getHours() < 12 ? '☀️ Good Morning!' : 
                  new Date().getHours() < 17 ? '🌤️ Good Afternoon!' : 
                  '🌙 Good Evening!'}
               </Text>
               <TouchableOpacity
                 onPress={() => setShowWakeupLogModal(false)}
-                style={styles.modalCloseButton}
+                style={[styles.modalCloseButton, { backgroundColor: colors.inputBackground }]}
               >
-                <FontAwesomeIcon icon={faTimes} size={22} color="#636E72" />
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
               </TouchableOpacity>
             </View>
 
@@ -1695,7 +1721,7 @@ const HomeScreen = () => {
                   <Text style={styles.timePickerLabel}>Hour</Text>
                   <ScrollView 
                     ref={wakeupLogHourScrollRef}
-                    style={styles.timePickerScroll}
+                    style={[styles.timePickerScroll, { backgroundColor: colors.inputBackground, borderColor: colors.inputBackground }]}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                     onLayout={() => {
@@ -1735,7 +1761,7 @@ const HomeScreen = () => {
                   <Text style={styles.timePickerLabel}>Min</Text>
                   <ScrollView 
                     ref={wakeupLogMinuteScrollRef}
-                    style={styles.timePickerScroll}
+                    style={[styles.timePickerScroll, { backgroundColor: colors.inputBackground, borderColor: colors.inputBackground }]}
                     showsVerticalScrollIndicator={false}
                     contentContainerStyle={styles.timePickerScrollContent}
                     onLayout={() => {
@@ -1780,7 +1806,7 @@ const HomeScreen = () => {
               </Text>
             </View>
 
-            <View style={styles.modalFooter}>
+            <View style={[styles.modalFooter, { borderTopColor: colors.inputBackground }]}>
               <View style={styles.modalFooterButtons}>
                 <TouchableOpacity
                   style={styles.cancelButton}
@@ -1812,22 +1838,24 @@ const HomeScreen = () => {
         visible={showRestOverdueModal}
         onRequestClose={() => setShowRestOverdueModal(false)}
       >
-        <View style={styles.modalOverlay}>
-          <View style={styles.reminderChoiceContent}>
-            <Text style={styles.reminderChoiceTitle}>⏰ Time for a Rest!</Text>
-            <Text style={styles.reminderChoiceSubtitle}>
-              It's been a while since your last eye rest. Take a moment to recharge your eyes.
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.reminderChoiceContent, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.reminderChoiceTitle, { color: colors.text }]}>⏰ Time for a Rest!</Text>
+            <Text style={[styles.reminderChoiceSubtitle, { color: colors.textSecondary }]}>
+              {stats.totalRests === 0 
+                ? "Time for your first rest! Take a moment to recharge your eyes."
+                : "It's been a while since your last eye rest. Take a moment to recharge your eyes."}
             </Text>
             
             <View style={styles.reminderChoiceButtons}>
               <TouchableOpacity
-                style={styles.reminderChoiceButton}
+                style={[styles.reminderChoiceButton, { backgroundColor: colors.inputBackground }]}
                 onPress={async () => {
                   await StorageService.setItem('restOverdueDismissedAt', Date.now());
                   setShowRestOverdueModal(false);
                 }}
               >
-                <Text style={styles.reminderChoiceButtonText}>Later</Text>
+                <Text style={[styles.reminderChoiceButtonText, { color: colors.text }]}>Later</Text>
               </TouchableOpacity>
               
               <TouchableOpacity
@@ -1855,18 +1883,18 @@ const HomeScreen = () => {
             <View style={styles.flatStreakStats}>
               <View style={styles.flatStreakMain}>
                 <FontAwesomeIcon icon={faFire} size={28} color="#EF4444" />
-                <Text style={styles.flatStreakNumber}>{streakData.currentStreak}</Text>
-                <Text style={styles.flatStreakLabel}>day streak</Text>
+                <Text style={[styles.flatStreakNumber, { color: colors.text }]}>{streakData.currentStreak}</Text>
+                <Text style={[styles.flatStreakLabel, { color: colors.textSecondary }]}>day streak</Text>
               </View>
-              <View style={styles.flatStreakBest}>
-                <Text style={styles.flatStreakBestLabel}>Best</Text>
-                <Text style={styles.flatStreakBestNum}>{streakData.longestStreak}</Text>
+              <View style={[styles.flatStreakBest, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7' }]}>
+                <Text style={[styles.flatStreakBestLabel, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>Best</Text>
+                <Text style={[styles.flatStreakBestNum, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>{streakData.longestStreak}</Text>
               </View>
             </View>
 
             {/* Week Progress - Flat */}
-            <View style={styles.flatCard}>
-              <Text style={styles.flatCardTitle}>This Week</Text>
+            <View style={[styles.flatCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
+              <Text style={[styles.flatCardTitle, { color: colors.text }]}>This Week</Text>
               <View style={styles.flatStreakWeek}>
                 {getLast7Days().map((date, index) => {
                   const status = getStreakStatusForDate(date);
@@ -1875,8 +1903,9 @@ const HomeScreen = () => {
                     <View key={index} style={styles.flatStreakDay}>
                       <View style={[
                         styles.flatStreakCircle,
+                        { backgroundColor: colors.inputBackground },
                         status.goalMet && styles.flatStreakCircleDone,
-                        status.isToday && styles.flatStreakCircleToday,
+                        status.isToday && [styles.flatStreakCircleToday, { borderColor: colors.text }],
                         !status.goalMet && status.count > 0 && styles.flatStreakCirclePartial,
                       ]}>
                         {status.goalMet ? (
@@ -1885,14 +1914,14 @@ const HomeScreen = () => {
                           <Text style={styles.flatStreakCount}>{status.count}</Text>
                         ) : null}
                       </View>
-                      <Text style={[styles.flatStreakDayLabel, status.isToday && styles.flatStreakDayLabelToday]}>
+                      <Text style={[styles.flatStreakDayLabel, { color: colors.textSecondary }, status.isToday && [styles.flatStreakDayLabelToday, { color: colors.text }]]}>
                         {dayLabel}
                       </Text>
                     </View>
                   );
                 })}
               </View>
-              <Text style={styles.flatStreakGoal}>Complete {dailyGoal} rests per day to maintain streak</Text>
+              <Text style={[styles.flatStreakGoal, { color: colors.textMuted }]}>Complete {dailyGoal} rests per day to maintain streak</Text>
             </View>
           </>
         )}
@@ -2020,12 +2049,10 @@ const styles = StyleSheet.create({
   },
   flatActionCard: {
     flex: 1,
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 14,
     alignItems: 'center',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   flatActionCardDone: {
     backgroundColor: '#F0FDF4',
@@ -2034,14 +2061,12 @@ const styles = StyleSheet.create({
   flatActionLabel: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#6B7280',
     marginTop: 8,
     textAlign: 'center',
   },
   flatActionValue: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#1F2937',
     marginTop: 2,
   },
 
@@ -2050,7 +2075,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     marginBottom: 16,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   flatTab: {
     flex: 1,
@@ -2059,15 +2083,12 @@ const styles = StyleSheet.create({
   },
   flatTabActive: {
     borderBottomWidth: 2,
-    borderBottomColor: '#1F2937',
   },
   flatTabText: {
     fontSize: 15,
     fontWeight: '500',
-    color: '#9CA3AF',
   },
   flatTabTextActive: {
-    color: '#1F2937',
     fontWeight: '600',
   },
 
@@ -2100,9 +2121,7 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     marginHorizontal: 4,
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   dayItemSelected: {
     backgroundColor: '#EF4444',
@@ -2111,7 +2130,6 @@ const styles = StyleSheet.create({
   dayLetter: {
     fontSize: 12,
     fontWeight: '500',
-    color: '#9CA3AF',
     marginBottom: 4,
   },
   dayLetterSelected: {
@@ -2120,7 +2138,7 @@ const styles = StyleSheet.create({
   dayNumber: {
     fontSize: 22,
     fontWeight: '600',
-    color: '#1F2937',
+    marginTop: 2,
   },
   dayNumberSelected: {
     color: '#FFFFFF',
@@ -2138,12 +2156,10 @@ const styles = StyleSheet.create({
 
   // Flat Card
   flatCard: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     padding: 16,
     marginBottom: 12,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   flatCardHeader: {
     flexDirection: 'row',
@@ -2160,12 +2176,11 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
   flatNavButtonDisabled: {
-    backgroundColor: '#FAFAFA',
+    opacity: 0.5,
   },
 
   // Flat Legend
@@ -2176,7 +2191,6 @@ const styles = StyleSheet.create({
     marginTop: 12,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F3F4F6',
   },
   flatLegendItem: {
     flexDirection: 'row',
@@ -2225,7 +2239,6 @@ const styles = StyleSheet.create({
     gap: 14,
     paddingVertical: 14,
     paddingHorizontal: 16,
-    backgroundColor: '#F9FAFB',
     borderRadius: 12,
   },
   flatRestDot: {
@@ -2237,7 +2250,6 @@ const styles = StyleSheet.create({
   flatRestTime: {
     fontSize: 17,
     fontWeight: '500',
-    color: '#1F2937',
     flex: 1,
   },
   flatEmptyState: {
@@ -2246,7 +2258,6 @@ const styles = StyleSheet.create({
   },
   flatEmptyText: {
     fontSize: 15,
-    color: '#9CA3AF',
   },
 
   // Flat Streak Styles
@@ -2264,31 +2275,26 @@ const styles = StyleSheet.create({
   flatStreakNumber: {
     fontSize: 36,
     fontWeight: '700',
-    color: '#1F2937',
   },
   flatStreakLabel: {
     fontSize: 14,
-    color: '#6B7280',
     fontWeight: '500',
   },
   flatStreakBest: {
     alignItems: 'center',
     paddingHorizontal: 14,
     paddingVertical: 8,
-    backgroundColor: '#FEF3C7',
     borderRadius: 8,
   },
   flatStreakBestLabel: {
     fontSize: 10,
     fontWeight: '600',
-    color: '#D97706',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
   flatStreakBestNum: {
     fontSize: 18,
     fontWeight: '700',
-    color: '#D97706',
   },
   flatStreakWeek: {
     flexDirection: 'row',
@@ -2304,7 +2310,6 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    backgroundColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2313,7 +2318,6 @@ const styles = StyleSheet.create({
   },
   flatStreakCircleToday: {
     borderWidth: 2,
-    borderColor: '#1F2937',
   },
   flatStreakCirclePartial: {
     backgroundColor: '#FDE68A',
@@ -2326,15 +2330,12 @@ const styles = StyleSheet.create({
   flatStreakDayLabel: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#6B7280',
   },
   flatStreakDayLabelToday: {
-    color: '#1F2937',
     fontWeight: '600',
   },
   flatStreakGoal: {
     fontSize: 12,
-    color: '#9CA3AF',
     textAlign: 'center',
     fontStyle: 'italic',
   },
@@ -2479,6 +2480,10 @@ const styles = StyleSheet.create({
   timelineContainer: {
     marginBottom: 16,
   },
+  timelineScrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+  },
   timelineScrollContent: {
     minWidth: 500,
     paddingRight: 10,
@@ -2514,17 +2519,14 @@ const styles = StyleSheet.create({
   timelineDiamondInner: {
     width: 6,
     height: 6,
-    backgroundColor: '#FFFFFF',
     transform: [{ rotate: '0deg' }],
   },
   timelineSmallDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#9CA3AF',
   },
   timelineSmallDotFuture: {
-    backgroundColor: '#E5E7EB',
   },
   timelineSmallDotCurrent: {
     backgroundColor: '#6B7280',
@@ -2536,7 +2538,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#E5E7EB',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2544,7 +2545,6 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#FFF3E0',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2558,7 +2558,6 @@ const styles = StyleSheet.create({
     backgroundColor: '#F59E0B',
   },
   timelineLineFuture: {
-    backgroundColor: '#E5E7EB',
   },
   timelineLabelsRow: {
     flexDirection: 'row',
@@ -2571,7 +2570,6 @@ const styles = StyleSheet.create({
   timelineHour: {
     fontSize: 11,
     fontWeight: '500',
-    color: '#6B7280',
   },
   timelineHourFirst: {
     marginLeft: -6,
@@ -2586,7 +2584,6 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   legendItem: {
     flexDirection: 'row',
@@ -2618,7 +2615,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   restListHeader: {
     flexDirection: 'row',
@@ -2665,7 +2661,6 @@ const styles = StyleSheet.create({
     marginTop: 16,
     paddingTop: 16,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
     alignItems: 'center',
   },
   noRestsText: {
@@ -2690,7 +2685,6 @@ const styles = StyleSheet.create({
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 20,
@@ -2698,7 +2692,6 @@ const styles = StyleSheet.create({
   modalContent: {
     width: '100%',
     borderRadius: 16,
-    backgroundColor: '#FFFFFF',
   },
   modalHeader: {
     flexDirection: 'row',
@@ -2706,18 +2699,15 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     padding: 20,
     borderBottomWidth: 1,
-    borderBottomColor: '#E5E7EB',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: '600',
-    color: '#1F2937',
   },
   modalCloseButton: {
     width: 36,
     height: 36,
     borderRadius: 8,
-    backgroundColor: '#F3F4F6',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -2727,7 +2717,6 @@ const styles = StyleSheet.create({
   modalLabel: {
     fontSize: 14,
     fontWeight: '500',
-    color: '#6B7280',
     marginBottom: 12,
   },
   timePickerRow: {
@@ -2748,10 +2737,8 @@ const styles = StyleSheet.create({
   timePickerScroll: {
     height: 150,
     width: 70,
-    backgroundColor: '#F9FAFB',
     borderRadius: 8,
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   timePickerScrollContent: {
     paddingVertical: 8,
@@ -2765,7 +2752,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   timePickerItemSelected: {
-    backgroundColor: '#1F2937',
+    backgroundColor: '#4B5563',
   },
   timePickerItemText: {
     fontSize: 18,
@@ -2792,7 +2779,6 @@ const styles = StyleSheet.create({
     flexDirection: 'column',
     padding: 20,
     borderTopWidth: 1,
-    borderTopColor: '#E5E7EB',
     gap: 12,
   },
   modalFooterButtons: {
@@ -2807,7 +2793,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingVertical: 10,
     borderRadius: 8,
-    backgroundColor: '#FEF2F2',
   },
   clearReminderButtonText: {
     fontSize: 14,
@@ -2839,7 +2824,6 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 20,
     paddingVertical: 12,
-    backgroundColor: '#1F2937',
     borderRadius: 8,
   },
   saveButtonText: {
@@ -2891,16 +2875,13 @@ const styles = StyleSheet.create({
   },
   tutorialOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   tutorialModal: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 28,
-    width: '100%',
     maxWidth: 340,
     alignItems: 'center',
   },
@@ -2911,13 +2892,11 @@ const styles = StyleSheet.create({
   tutorialTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#2D3436',
     marginBottom: 12,
     textAlign: 'center',
   },
   tutorialText: {
     fontSize: 15,
-    color: '#636E72',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
@@ -2929,13 +2908,11 @@ const styles = StyleSheet.create({
     width: '100%',
     paddingVertical: 10,
     paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
     borderRadius: 12,
     marginBottom: 10,
   },
   tutorialStepText: {
     fontSize: 14,
-    color: '#2D3436',
     flex: 1,
   },
   tutorialButton: {
@@ -2947,13 +2924,11 @@ const styles = StyleSheet.create({
   tutorialButtonText: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#FFFFFF',
   },
   // Streak Card Styles
   streakCard: {
     borderRadius: 20,
     padding: 20,
-    backgroundColor: '#FFFFFF',
     marginBottom: 16,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
@@ -2976,32 +2951,27 @@ const styles = StyleSheet.create({
     width: 56,
     height: 56,
     borderRadius: 16,
-    backgroundColor: '#FFF5F5',
     justifyContent: 'center',
     alignItems: 'center',
   },
   streakCurrentNumber: {
     fontSize: 28,
     fontWeight: 'bold',
-    color: '#2C3E50',
+    marginTop: 12,
   },
   streakCurrentLabel: {
     fontSize: 13,
-    color: '#95A5A6',
     fontWeight: '500',
   },
   streakBestContainer: {
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingVertical: 8,
-    backgroundColor: '#FFF9F0',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#FFE4B5',
   },
   streakBestLabel: {
     fontSize: 11,
-    color: '#F39C12',
     fontWeight: '600',
     textTransform: 'uppercase',
     letterSpacing: 0.5,
@@ -3009,12 +2979,10 @@ const styles = StyleSheet.create({
   streakBestNumber: {
     fontSize: 20,
     fontWeight: 'bold',
-    color: '#F39C12',
     marginTop: 2,
   },
   streakDivider: {
     height: 1,
-    backgroundColor: '#F0F0F0',
     marginBottom: 20,
   },
   streakCirclesContainer: {
@@ -3030,11 +2998,9 @@ const styles = StyleSheet.create({
     width: 44,
     height: 44,
     borderRadius: 22,
-    backgroundColor: '#E8E8E8',
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 2,
-    borderColor: '#E8E8E8',
   },
   streakCircleComplete: {
     backgroundColor: '#4ECDC4',
@@ -3056,35 +3022,29 @@ const styles = StyleSheet.create({
   streakCircleCount: {
     fontSize: 16,
     fontWeight: 'bold',
-    color: '#F39C12',
   },
   streakCircleLabel: {
     fontSize: 12,
     fontWeight: '600',
-    color: '#95A5A6',
   },
   streakCircleLabelToday: {
-    color: '#4ECDC4',
     fontWeight: 'bold',
   },
   streakGoalContainer: {
     flexDirection: 'row',
+    justifyContent: 'space-between',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 8,
     paddingTop: 12,
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   streakGoalText: {
     fontSize: 12,
-    color: '#95A5A6',
     fontStyle: 'italic',
   },
   // Tab Navigation Styles
   tabContainer: {
     flexDirection: 'row',
-    backgroundColor: '#F8F9FA',
     borderRadius: 16,
     padding: 4,
     marginBottom: 20,
@@ -3101,7 +3061,6 @@ const styles = StyleSheet.create({
     gap: 8,
   },
   tabActive: {
-    backgroundColor: '#FFFFFF',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.08,
@@ -3111,10 +3070,8 @@ const styles = StyleSheet.create({
   tabText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#95A5A6',
   },
   tabTextActive: {
-    color: '#2C3E50',
   },
   // Unlock Modal Styles
   unlockModalBody: {
@@ -3126,7 +3083,6 @@ const styles = StyleSheet.create({
     height: 100,
     borderRadius: 50,
     borderWidth: 4,
-    backgroundColor: '#FFF9F0',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
@@ -3138,7 +3094,6 @@ const styles = StyleSheet.create({
   unlockFlowerName: {
     fontSize: 22,
     fontWeight: '700',
-    color: '#2D3436',
     marginBottom: 4,
   },
   unlockFlowerRarity: {
@@ -3148,7 +3103,6 @@ const styles = StyleSheet.create({
   },
   unlockFlowerDescription: {
     fontSize: 14,
-    color: '#636E72',
     textAlign: 'center',
     paddingHorizontal: 16,
   },
@@ -3163,12 +3117,10 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingVertical: 14,
     borderRadius: 12,
-    backgroundColor: '#F0F0F0',
     alignItems: 'center',
     marginRight: 6,
   },
   unlockModalSecondaryButtonText: {
-    color: '#636E72',
     fontSize: 15,
     fontWeight: '600',
   },
@@ -3178,31 +3130,28 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: 'center',
     marginLeft: 6,
-    backgroundColor: '#4CAF50',
   },
   unlockModalPrimaryButtonText: {
-    color: '#FFFFFF',
     fontSize: 15,
     fontWeight: '600',
   },
   // Reminder Choice Modal Styles
   reminderChoiceContent: {
-    width: '85%',
-    backgroundColor: '#FFFFFF',
+    width: '100%',
     borderRadius: 20,
     padding: 24,
     alignItems: 'center',
   },
   reminderChoiceTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#2D3436',
+    fontSize: 20,
+    fontWeight: 'bold',
     marginBottom: 8,
+    textAlign: 'center',
   },
   reminderChoiceSubtitle: {
     fontSize: 14,
-    color: '#636E72',
     marginBottom: 20,
+    textAlign: 'center',
   },
   reminderChoiceButtons: {
     width: '100%',
@@ -3213,21 +3162,18 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingVertical: 14,
+    paddingHorizontal: 16,
     borderRadius: 12,
-    backgroundColor: '#F0F0F0',
   },
   reminderChoiceButtonPrimary: {
-    backgroundColor: '#6B7280',
   },
   reminderChoiceButtonText: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#636E72',
   },
   reminderChoiceButtonTextPrimary: {
     fontSize: 15,
     fontWeight: '600',
-    color: '#FFFFFF',
   },
   wakeupLogButtonPrimary: {
     backgroundColor: '#FFB347',

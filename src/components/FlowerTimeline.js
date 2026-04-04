@@ -6,8 +6,18 @@ import { faLock } from '@fortawesome/free-solid-svg-icons/faLock';
 import { faCheck } from '@fortawesome/free-solid-svg-icons/faCheck';
 import { getFlowersInUnlockOrder } from '../config/flowerConfig';
 import { FONTS } from '../styles/fonts';
+import { useAppTheme } from '../context/ThemeContext';
 
 const FlowerTimeline = ({ totalRests, onClose }) => {
+  const appTheme = useAppTheme();
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    inputBackground: '#F0F0F0',
+  };
   const flowers = getFlowersInUnlockOrder();
 
   const getRarityColor = (rarity) => {
@@ -21,10 +31,10 @@ const FlowerTimeline = ({ totalRests, onClose }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.surface }]}>
       <View style={styles.header}>
-        <Text style={styles.title}>Flower Collection</Text>
-        <Text style={styles.subtitle}>Unlock flowers by completing rests</Text>
+        <Text style={[styles.title, { color: colors.text }]}>Flower Collection</Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>Unlock flowers by completing rests</Text>
       </View>
 
       <ScrollView 
@@ -41,7 +51,8 @@ const FlowerTimeline = ({ totalRests, onClose }) => {
               {/* Flower Icon/Circle */}
               <View style={[
                 styles.flowerCircle,
-                isUnlocked && styles.flowerCircleUnlocked,
+                { backgroundColor: colors.inputBackground },
+                isUnlocked && [styles.flowerCircleUnlocked, { backgroundColor: colors.surface }],
                 { borderColor: flower.color }
               ]}>
                 {isUnlocked ? (
@@ -51,8 +62,8 @@ const FlowerTimeline = ({ totalRests, onClose }) => {
                     resizeMode="contain"
                   />
                 ) : (
-                  <View style={styles.flowerIconLocked}>
-                    <FontAwesomeIcon icon={faLock} size={20} color="#B0B0B0" />
+                  <View style={[styles.flowerIconLocked, { backgroundColor: colors.inputBackground }]}>
+                    <FontAwesomeIcon icon={faLock} size={20} color={colors.textMuted} />
                   </View>
                 )}
               </View>
@@ -69,6 +80,7 @@ const FlowerTimeline = ({ totalRests, onClose }) => {
               <View style={styles.flowerInfo}>
                 <Text style={[
                   styles.flowerName,
+                  { color: colors.text },
                   !isUnlocked && styles.flowerNameLocked
                 ]}>
                   {flower.name}
@@ -83,7 +95,7 @@ const FlowerTimeline = ({ totalRests, onClose }) => {
                   {isUnlocked ? (
                     <Text style={styles.unlockedText}>✓ Unlocked</Text>
                   ) : (
-                    <Text style={styles.lockedText}>{restsToGo} rests to go</Text>
+                    <Text style={[styles.lockedText, { color: colors.textMuted }]}>{restsToGo} rests to go</Text>
                   )}
                 </Text>
               </View>
@@ -101,7 +113,6 @@ const FlowerTimeline = ({ totalRests, onClose }) => {
 
 const styles = StyleSheet.create({
   container: {
-    backgroundColor: '#FFFFFF',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
     paddingTop: 24,
@@ -113,13 +124,11 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#2D3436',
     fontFamily: FONTS.regular,
     marginBottom: 4,
   },
   subtitle: {
     fontSize: 14,
-    color: '#636E72',
   },
   timelineContainer: {
     paddingHorizontal: 24,
@@ -139,11 +148,9 @@ const styles = StyleSheet.create({
     borderColor: '#E0E0E0',
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F8F9FA',
     marginBottom: 12,
   },
   flowerCircleUnlocked: {
-    backgroundColor: '#FFFFFF',
   },
   flowerImage: {
     width: 56,
@@ -155,7 +162,6 @@ const styles = StyleSheet.create({
     borderRadius: 28,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0F0F0',
   },
   flowerInfo: {
     alignItems: 'center',
@@ -163,7 +169,6 @@ const styles = StyleSheet.create({
   flowerName: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#2D3436',
     marginBottom: 2,
     textAlign: 'center',
   },
@@ -183,7 +188,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   lockedText: {
-    color: '#9E9E9E',
   },
   connectionLine: {
     position: 'absolute',

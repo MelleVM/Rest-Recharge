@@ -16,8 +16,11 @@ import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
 import { ToastEvent } from '../components/RewardToast';
 import { FONTS } from '../styles/fonts';
-import { RestModeEvent, PendingUnlocksEvent } from '../../App';
+import { RestModeEvent, PendingUnlocksEvent } from '../utils/EventEmitters';
 import { getFlowersInUnlockOrder } from '../config/flowerConfig';
+import { useAppTheme } from '../context/ThemeContext';
+
+console.log('[TimerScreen] Module loaded');
 
 // Plant colors
 const PLANT_COLORS = {
@@ -72,6 +75,15 @@ const TimerScreen = () => {
   const isInitialized = useRef(false);
   const isActiveRef = useRef(false);
   const theme = useTheme();
+  const appTheme = useAppTheme();
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+  };
 
   // Keep refs in sync with state
   useEffect(() => {
@@ -598,27 +610,27 @@ const TimerScreen = () => {
         animationType="fade"
         onRequestClose={dismissTutorial}
       >
-        <View style={styles.tutorialOverlay}>
-          <View style={styles.tutorialModal}>
-            <Text style={styles.tutorialTitle}>Eye Rest Timer</Text>
-            <Text style={styles.tutorialText}>
+        <View style={[styles.tutorialOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.tutorialModal, { backgroundColor: colors.surface }]}>
+            <Text style={[styles.tutorialTitle, { color: colors.text }]}>Eye Rest Timer</Text>
+            <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
               Give your eyes a break with timed rest sessions. Close your eyes and relax while the timer counts down.
             </Text>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faPlay} size={16} color="#4ECDC4" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Press play to start your rest session
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faEye} size={16} color="#FF6B6B" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Close your eyes and relax until the timer ends
               </Text>
             </View>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
-              <Text style={styles.tutorialStepText}>
+              <Text style={[styles.tutorialStepText, { color: colors.text }]}>
                 Earn 25% energy for each completed rest
               </Text>
             </View>
@@ -633,25 +645,25 @@ const TimerScreen = () => {
       </Modal>
 
       <StatusBar 
-        barStyle={isActive ? "light-content" : "dark-content"} 
-        backgroundColor={isActive ? "#121212" : "#FFF9F0"} 
+        barStyle={(isActive || isDarkMode) ? "light-content" : "dark-content"} 
+        backgroundColor={isActive ? "#121212" : colors.background} 
       />
       
       <ScrollView 
-        style={[styles.container, isActive && styles.restModeContainer]} 
+        style={[styles.container, { backgroundColor: colors.background }, isActive && styles.restModeContainer]} 
         contentContainerStyle={[styles.contentContainer, isActive && styles.restModeContentContainer]} 
         showsVerticalScrollIndicator={false}
         scrollEnabled={!isActive}
       >
         {!isActive && (
           <View style={styles.header}>
-            <Text style={styles.title}>Rest & Recharge</Text>
+            <Text style={[styles.title, { color: colors.text }]}>Rest & Recharge</Text>
             <TouchableOpacity
               style={styles.settingsButton}
               onPress={() => navigation.navigate('Settings')}
               activeOpacity={0.7}
             >
-              <FontAwesomeIcon icon={faGear} size={28} color="#B2BEC3" />
+              <FontAwesomeIcon icon={faGear} size={28} color={colors.textMuted} />
             </TouchableOpacity>
           </View>
         )}
@@ -665,15 +677,15 @@ const TimerScreen = () => {
                 cx={TIMER_SIZE / 2}
                 cy={TIMER_SIZE / 2}
                 r={RADIUS}
-                stroke={isActive ? "#333333" : "#E0E0E0"}
+                stroke={isActive ? "#333333" : (isDarkMode ? "#444444" : "#E0E0E0")}
                 strokeWidth={STROKE_WIDTH}
-                fill={isActive ? "#1a1a1a" : "white"}
+                fill={isActive ? "#1a1a1a" : colors.surface}
               />
               <Circle
                 cx={TIMER_SIZE / 2}
                 cy={TIMER_SIZE / 2}
                 r={RADIUS}
-                stroke={theme.colors.primary}
+                stroke={colors.primary || '#FF6B6B'}
                 strokeWidth={STROKE_WIDTH}
                 fill="transparent"
                 strokeDasharray={CIRCUMFERENCE}
@@ -685,9 +697,9 @@ const TimerScreen = () => {
             </Svg>
             
             <View style={styles.timerTextContainer}>
-              <Text style={[styles.timerText, isActive && styles.restModeTimerText]}>{formatTime(time)}</Text>
+              <Text style={[styles.timerText, { color: colors.text }, isActive && styles.restModeTimerText]}>{formatTime(time)}</Text>
               {!isActive && (
-                <Text style={styles.timerLabel}>
+                <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>
                   {time === 0
                     ? "Click to collect your reward 💎"
                     : "Start when ready"
@@ -726,9 +738,9 @@ const TimerScreen = () => {
         </View>
 
         {!isActive && (
-          <View style={styles.quoteCard}>
-            <Text style={styles.quoteText}>"{currentQuote.text}"</Text>
-            <Text style={styles.quoteAuthor}>— {currentQuote.author}</Text>
+          <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
+            <Text style={[styles.quoteText, { color: colors.text }]}>"{currentQuote.text}"</Text>
+            <Text style={[styles.quoteAuthor, { color: colors.textSecondary }]}>— {currentQuote.author}</Text>
           </View>
         )}
 
@@ -872,20 +884,16 @@ const styles = StyleSheet.create({
     borderRadius: 24,
     padding: 24,
     marginBottom: 20,
-    backgroundColor: '#FFFFFF',
     borderWidth: 1,
-    borderColor: '#E5E7EB',
   },
   quoteText: {
     fontSize: 16,
     fontStyle: 'italic',
-    color: '#2D3436',
     lineHeight: 24,
     textAlign: 'center',
   },
   quoteAuthor: {
     fontSize: 14,
-    color: '#636E72',
     marginTop: 12,
     textAlign: 'center',
     fontWeight: '500',
@@ -902,16 +910,13 @@ const styles = StyleSheet.create({
   },
   tutorialOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.6)',
     justifyContent: 'center',
     alignItems: 'center',
     padding: 24,
   },
   tutorialModal: {
-    backgroundColor: '#FFFFFF',
     borderRadius: 24,
     padding: 28,
-    width: '100%',
     maxWidth: 340,
     alignItems: 'center',
   },
@@ -922,13 +927,11 @@ const styles = StyleSheet.create({
   tutorialTitle: {
     fontSize: 22,
     fontWeight: 'bold',
-    color: '#2D3436',
     marginBottom: 12,
     textAlign: 'center',
   },
   tutorialText: {
     fontSize: 15,
-    color: '#636E72',
     textAlign: 'center',
     lineHeight: 22,
     marginBottom: 20,
@@ -939,14 +942,12 @@ const styles = StyleSheet.create({
     gap: 12,
     width: '100%',
     paddingVertical: 10,
-    paddingHorizontal: 16,
-    backgroundColor: '#F8F9FA',
+    paddingHorizontal: 12,
     borderRadius: 12,
     marginBottom: 10,
   },
   tutorialStepText: {
     fontSize: 14,
-    color: '#2D3436',
     flex: 1,
   },
   tutorialButton: {

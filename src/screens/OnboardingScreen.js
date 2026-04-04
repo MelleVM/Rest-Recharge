@@ -24,8 +24,14 @@ import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faHourglass } from '@fortawesome/free-solid-svg-icons/faHourglass';
 import { faBan } from '@fortawesome/free-solid-svg-icons/faBan';
 import { faBullseye } from '@fortawesome/free-solid-svg-icons/faBullseye';
+import { faMoon } from '@fortawesome/free-solid-svg-icons/faMoon';
+import { faCircleHalfStroke } from '@fortawesome/free-solid-svg-icons/faCircleHalfStroke';
+import { faPalette } from '@fortawesome/free-solid-svg-icons/faPalette';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
+import { useAppTheme } from '../context/ThemeContext';
+
+console.log('[OnboardingScreen] Module loaded');
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -97,6 +103,17 @@ const QUESTIONS = [
       { id: '5', label: '5 rests per day', icon: faBullseye, color: '#A29BFE' },
     ],
   },
+  {
+    id: 'theme',
+    title: 'Choose your theme',
+    subtitle: 'You can change this later in settings',
+    type: 'single',
+    options: [
+      { id: 'light', label: 'Light Mode', icon: faSun, color: '#FFE66D' },
+      { id: 'dark', label: 'Dark Mode', icon: faMoon, color: '#6C5CE7' },
+      { id: 'auto', label: 'Automatic', icon: faCircleHalfStroke, color: '#4ECDC4', recommended: true },
+    ],
+  },
 ];
 
 const OnboardingScreen = ({ onComplete }) => {
@@ -108,9 +125,21 @@ const OnboardingScreen = ({ onComplete }) => {
     restInterval: '120',
     restDuration: '20',
     dailyGoal: '4',
+    theme: 'dark',
   });
   const scrollViewRef = useRef(null);
   const progressAnim = useRef(new Animated.Value(0)).current;
+  const appTheme = useAppTheme();
+  const setThemeMode = appTheme?.setThemeMode ?? (() => {});
+  const isDarkMode = appTheme?.isDarkMode ?? false;
+  const colors = appTheme?.colors ?? {
+    background: '#FFF9F0',
+    surface: '#FFFFFF',
+    text: '#2D3436',
+    textSecondary: '#636E72',
+    textMuted: '#B2BEC3',
+    inputBackground: '#F0F0F0',
+  };
 
   const currentQuestion = QUESTIONS[currentStep];
   const isLastStep = currentStep === QUESTIONS.length - 1;
@@ -187,6 +216,9 @@ const OnboardingScreen = ({ onComplete }) => {
     settings.dailyGoal = parseInt(answers.dailyGoal, 10);
     settings.wakeupNotificationEnabled = true;
     await StorageService.setItem('settings', settings);
+    
+    // Save theme preference
+    setThemeMode(answers.theme);
 
     await StorageService.setItem('onboardingCompleted', true);
     
@@ -231,8 +263,9 @@ const OnboardingScreen = ({ onComplete }) => {
         key={option.id}
         style={[
           styles.optionCard,
+          { backgroundColor: colors.surface },
           isSelected && styles.optionCardSelected,
-          isSelected && { borderColor: option.color },
+          isSelected && { borderColor: option.color, backgroundColor: colors.surface },
         ]}
         onPress={() => handleOptionSelect(option.id)}
         activeOpacity={0.7}
@@ -240,7 +273,7 @@ const OnboardingScreen = ({ onComplete }) => {
         <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
           <FontAwesomeIcon icon={option.icon} size={24} color={option.color} />
         </View>
-        <Text style={[styles.optionLabel, isSelected && styles.optionLabelSelected]}>
+        <Text style={[styles.optionLabel, { color: colors.text }, isSelected && styles.optionLabelSelected]}>
           {option.label}
         </Text>
         {option.recommended && (
@@ -262,41 +295,41 @@ const OnboardingScreen = ({ onComplete }) => {
     
     return (
       <View style={styles.timePickerContainer}>
-        <Surface style={styles.timePickerCard}>
+        <Surface style={[styles.timePickerCard, { backgroundColor: colors.surface }]}>
           <View style={styles.timePickerRow}>
             {/* Hour */}
             <View style={styles.timeColumn}>
               <TouchableOpacity
-                style={styles.timeButton}
+                style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                 onPress={() => handleTimeChange('hour', 1)}
               >
-                <Text style={styles.timeButtonText}>▲</Text>
+                <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▲</Text>
               </TouchableOpacity>
-              <Text style={styles.timeValue}>{hour.toString().padStart(2, '0')}</Text>
+              <Text style={[styles.timeValue, { color: colors.text }]}>{hour.toString().padStart(2, '0')}</Text>
               <TouchableOpacity
-                style={styles.timeButton}
+                style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                 onPress={() => handleTimeChange('hour', -1)}
               >
-                <Text style={styles.timeButtonText}>▼</Text>
+                <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▼</Text>
               </TouchableOpacity>
             </View>
 
-            <Text style={styles.timeSeparator}>:</Text>
+            <Text style={[styles.timeSeparator, { color: colors.text }]}>:</Text>
 
             {/* Minute */}
             <View style={styles.timeColumn}>
               <TouchableOpacity
-                style={styles.timeButton}
+                style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                 onPress={() => handleTimeChange('minute', 15)}
               >
-                <Text style={styles.timeButtonText}>▲</Text>
+                <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▲</Text>
               </TouchableOpacity>
-              <Text style={styles.timeValue}>{minute.toString().padStart(2, '0')}</Text>
+              <Text style={[styles.timeValue, { color: colors.text }]}>{minute.toString().padStart(2, '0')}</Text>
               <TouchableOpacity
-                style={styles.timeButton}
+                style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                 onPress={() => handleTimeChange('minute', -15)}
               >
-                <Text style={styles.timeButtonText}>▼</Text>
+                <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▼</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -308,6 +341,7 @@ const OnboardingScreen = ({ onComplete }) => {
               key={h}
               style={[
                 styles.quickTimeButton,
+                { backgroundColor: colors.surface, borderColor: colors.inputBackground },
                 hour === h && minute === 0 && styles.quickTimeButtonActive,
               ]}
               onPress={() => setAnswers(prev => ({
@@ -317,6 +351,7 @@ const OnboardingScreen = ({ onComplete }) => {
             >
               <Text style={[
                 styles.quickTimeText,
+                { color: colors.text },
                 hour === h && minute === 0 && styles.quickTimeTextActive,
               ]}>
                 {h}:00
@@ -329,10 +364,10 @@ const OnboardingScreen = ({ onComplete }) => {
   };
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       {/* Progress Bar */}
       <View style={styles.progressContainer}>
-        <View style={styles.progressTrack}>
+        <View style={[styles.progressTrack, { backgroundColor: colors.inputBackground }]}>
           <Animated.View
             style={[
               styles.progressFill,
@@ -345,7 +380,7 @@ const OnboardingScreen = ({ onComplete }) => {
             ]}
           />
         </View>
-        <Text style={styles.progressText}>
+        <Text style={[styles.progressText, { color: colors.textSecondary }]}>
           {currentStep + 1} of {QUESTIONS.length}
         </Text>
       </View>
@@ -357,8 +392,8 @@ const OnboardingScreen = ({ onComplete }) => {
         contentContainerStyle={styles.contentContainer}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={styles.questionTitle}>{currentQuestion.title}</Text>
-        <Text style={styles.questionSubtitle}>{currentQuestion.subtitle}</Text>
+        <Text style={[styles.questionTitle, { color: colors.text }]}>{currentQuestion.title}</Text>
+        <Text style={[styles.questionSubtitle, { color: colors.textSecondary }]}>{currentQuestion.subtitle}</Text>
 
         {currentQuestion.type === 'single' && (
           <View style={styles.optionsContainer}>
@@ -370,15 +405,15 @@ const OnboardingScreen = ({ onComplete }) => {
       </ScrollView>
 
       {/* Navigation */}
-      <View style={styles.navigation}>
+      <View style={[styles.navigation, { backgroundColor: colors.surface, borderTopColor: isDarkMode ? colors.inputBackground : '#F0F0F0' }]}>
         {currentStep > 0 ? (
           <TouchableOpacity
             style={styles.backButton}
             onPress={handleBack}
             activeOpacity={0.7}
           >
-            <FontAwesomeIcon icon={faChevronLeft} size={18} color="#636E72" />
-            <Text style={styles.backButtonText}>Back</Text>
+            <FontAwesomeIcon icon={faChevronLeft} size={18} color={colors.textSecondary} />
+            <Text style={[styles.backButtonText, { color: colors.textSecondary }]}>Back</Text>
           </TouchableOpacity>
         ) : (
           <View style={styles.backButton} />
@@ -471,7 +506,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
   },
   optionCardSelected: {
-    backgroundColor: '#FFFFFF',
     elevation: 4,
   },
   optionIcon: {
@@ -516,7 +550,6 @@ const styles = StyleSheet.create({
   timePickerCard: {
     padding: 24,
     borderRadius: 24,
-    backgroundColor: '#FFFFFF',
     elevation: 4,
   },
   timePickerRow: {
@@ -531,26 +564,24 @@ const styles = StyleSheet.create({
     height: 44,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#F0F0F0',
     borderRadius: 12,
   },
   timeButtonText: {
     fontSize: 18,
-    color: '#636E72',
   },
   timeValue: {
     fontSize: 56,
     fontWeight: 'bold',
-    color: '#2D3436',
     marginVertical: 8,
-    width: 80,
+    minWidth: 90,
     textAlign: 'center',
   },
   timeSeparator: {
     fontSize: 48,
     fontWeight: 'bold',
-    color: '#2D3436',
     marginHorizontal: 8,
+    minWidth: 20,
+    textAlign: 'center',
   },
   quickTimeOptions: {
     flexDirection: 'row',
@@ -560,10 +591,8 @@ const styles = StyleSheet.create({
   quickTimeButton: {
     paddingHorizontal: 16,
     paddingVertical: 10,
-    backgroundColor: '#FFFFFF',
     borderRadius: 12,
     borderWidth: 1,
-    borderColor: '#E0E0E0',
   },
   quickTimeButtonActive: {
     backgroundColor: '#4ECDC4',
@@ -572,7 +601,6 @@ const styles = StyleSheet.create({
   quickTimeText: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#636E72',
   },
   quickTimeTextActive: {
     color: '#FFFFFF',
@@ -583,9 +611,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 20,
-    backgroundColor: '#FFFFFF',
     borderTopWidth: 1,
-    borderTopColor: '#F0F0F0',
   },
   backButton: {
     flexDirection: 'row',
@@ -597,7 +623,6 @@ const styles = StyleSheet.create({
   backButtonText: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#636E72',
     marginLeft: 8,
   },
   nextButton: {
