@@ -101,6 +101,7 @@ const HomeScreen = () => {
   const [restInterval, setRestInterval] = useState(120);
   const [activeTab, setActiveTab] = useState('activity');
   const [showRestOverdueModal, setShowRestOverdueModal] = useState(false);
+  const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
   const daySelectorScrollRef = useRef(null);
@@ -279,6 +280,13 @@ const HomeScreen = () => {
       
       setRestHistory(storedHistory);
       
+      // Check for pending daily goal celebration (from timer completion)
+      const pendingCelebration = await StorageService.getItem('pendingDailyGoalCelebration');
+      if (pendingCelebration) {
+        await StorageService.removeItem('pendingDailyGoalCelebration');
+        setShowDailyGoalModal(true);
+      }
+      
       // Handle wakeup time and extract wakeup hours
       let updatedWakeupHours = { ...storedWakeupHours };
       const todayKey = new Date().toLocaleDateString();
@@ -326,6 +334,9 @@ const HomeScreen = () => {
           await StorageService.removeItem('nextReminderTime');
           setNextReminderTime(null);
         }
+      } else {
+        // No reminder in storage, clear the UI state
+        setNextReminderTime(null);
       }
       
       // Handle stats
@@ -356,16 +367,18 @@ const HomeScreen = () => {
       }
       
       // Check if rest is overdue (no rest for interval duration)
-      if (wakeupLoggedToday && hasSeenTutorial) {
+      // Don't show overdue popup after 21:00 (quiet hours)
+      const isQuietHours = currentHour >= 21 || currentHour < 7;
+      
+      if (wakeupLoggedToday && hasSeenTutorial && !isQuietHours) {
         const now = Date.now();
         const intervalMs = storedRestInterval * 60 * 1000;
-        const todayKey = new Date().toLocaleDateString();
-        const todayRests = storedHistory.filter(r => r.date === todayKey);
         
-        // Find the most recent rest or wakeup time
+        // Find the most recent rest timestamp (not filtered by date)
+        // This ensures we catch rests that might have a slightly different date key
         let lastActivityTime = storedWakeupTime?.timestamp || 0;
-        if (todayRests.length > 0) {
-          const latestRest = todayRests.reduce((latest, rest) => 
+        if (storedHistory.length > 0) {
+          const latestRest = storedHistory.reduce((latest, rest) => 
             rest.timestamp > latest.timestamp ? rest : latest
           );
           lastActivityTime = Math.max(lastActivityTime, latestRest.timestamp);
@@ -377,9 +390,29 @@ const HomeScreen = () => {
         const fifteenMinutesMs = 15 * 60 * 1000;
         const wasDismissedRecently = restOverdueDismissedAt && (now - restOverdueDismissedAt) < fifteenMinutesMs;
         
-        if (lastActivityTime > 0 && (now - lastActivityTime) >= intervalMs && !wasDismissedRecently) {
+        const timeSinceLastActivity = now - lastActivityTime;
+        const isOverdue = lastActivityTime > 0 && timeSinceLastActivity >= intervalMs && !wasDismissedRecently;
+        
+        console.log('Rest overdue check:', {
+          now,
+          lastActivityTime,
+          timeSinceLastActivityMinutes: Math.round(timeSinceLastActivity / 60000),
+          intervalMinutes: storedRestInterval,
+          isOverdue,
+          wasDismissedRecently,
+          historyLength: storedHistory.length,
+          latestRestTime: storedHistory.length > 0 ? new Date(storedHistory.reduce((l, r) => r.timestamp > l.timestamp ? r : l).timestamp).toLocaleTimeString() : 'none',
+        });
+        
+        if (isOverdue) {
           setShowRestOverdueModal(true);
+        } else {
+          setShowRestOverdueModal(false);
         }
+      } else {
+        console.log('Rest overdue check skipped:', { wakeupLoggedToday, hasSeenTutorial });
+        // Not checking for overdue (no wakeup logged today or tutorial not seen), hide modal
+        setShowRestOverdueModal(false);
       }
     } catch (error) {
       // Error loading data
@@ -600,6 +633,18 @@ const HomeScreen = () => {
       // Recalculate streak
       const calculatedStreak = calculateStreakData(filteredHistory);
       setStreakData(calculatedStreak);
+      
+      // Check if daily goal was just reached (for new rests on today only)
+      if (!editingRest && isToday) {
+        const todayKey = new Date().toLocaleDateString();
+        const todayRestsBeforeAdd = restHistory.filter(r => r.date === todayKey).length;
+        const todayRestsAfterAdd = filteredHistory.filter(r => r.date === todayKey).length;
+        
+        // Show celebration if we just hit the daily goal
+        if (todayRestsBeforeAdd < dailyGoal && todayRestsAfterAdd >= dailyGoal) {
+          setShowDailyGoalModal(true);
+        }
+      }
       
       setShowRestModal(false);
       setEditingRest(null);
@@ -1484,10 +1529,11 @@ const HomeScreen = () => {
             <View style={[styles.modalFooter, { borderTopColor: colors.inputBackground }]}>
               {editingRest && (
                 <TouchableOpacity
-                  style={styles.deleteButton}
+                  style={[styles.clearReminderButton, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEF2F2' }]}
                   onPress={() => deleteRest(editingRest)}
                 >
-                  <FontAwesomeIcon icon={faTrash} size={16} color="#FF6B6B" />
+                  <FontAwesomeIcon icon={faTrash} size={14} color="#EF4444" />
+                  <Text style={styles.clearReminderButtonText}>Delete Rest</Text>
                 </TouchableOpacity>
               )}
               <View style={styles.modalFooterButtons}>
@@ -1506,6 +1552,68 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
+
+          </>
+        )}
+
+        {/* Streak Tab Content */}
+        {activeTab === 'streak' && (
+          <>
+            {/* Streak Stats Row */}
+            <View style={styles.flatStreakStats}>
+              <View style={styles.flatStreakMain}>
+                <FontAwesomeIcon icon={faFire} size={28} color="#EF4444" />
+                <Text style={[styles.flatStreakNumber, { color: colors.text }]}>{streakData.currentStreak}</Text>
+                <Text style={[styles.flatStreakLabel, { color: colors.textSecondary }]}>day streak</Text>
+              </View>
+              <View style={[styles.flatStreakBest, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7' }]}>
+                <Text style={[styles.flatStreakBestLabel, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>Best</Text>
+                <Text style={[styles.flatStreakBestNum, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>{streakData.longestStreak}</Text>
+              </View>
+            </View>
+
+            {/* Week Progress - Flat */}
+            <View style={[styles.flatCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
+              <Text style={[styles.flatCardTitle, { color: colors.text }]}>This Week</Text>
+              <View style={styles.flatStreakWeek}>
+                {getLast7Days().map((date, index) => {
+                  const status = getStreakStatusForDate(date);
+                  const dayLabel = date.toLocaleDateString([], { weekday: 'short' }).substring(0, 2);
+                  return (
+                    <View key={index} style={styles.flatStreakDay}>
+                      <View style={[
+                        styles.flatStreakCircle,
+                        { backgroundColor: colors.inputBackground },
+                        status.goalMet && styles.flatStreakCircleDone,
+                        status.isToday && [styles.flatStreakCircleToday, { borderColor: colors.text }],
+                        !status.goalMet && status.count > 0 && styles.flatStreakCirclePartial,
+                      ]}>
+                        {status.goalMet ? (
+                          <FontAwesomeIcon icon={faCheck} size={14} color="#FFFFFF" />
+                        ) : status.count > 0 ? (
+                          <Text style={styles.flatStreakCount}>{status.count}</Text>
+                        ) : null}
+                      </View>
+                      <Text style={[styles.flatStreakDayLabel, { color: colors.textSecondary }, status.isToday && [styles.flatStreakDayLabelToday, { color: colors.text }]]}>
+                        {dayLabel}
+                      </Text>
+                    </View>
+                  );
+                })}
+              </View>
+              <Text style={[styles.flatStreakGoal, { color: colors.textMuted }]}>Complete {dailyGoal} rests per day to maintain streak</Text>
+            </View>
+          </>
+        )}
+
+        {/* Progress Tab Content */}
+        {activeTab === 'progress' && (
+          <RestProgressGraph restHistory={restHistory} dailyGoal={dailyGoal} />
+        )}
+
+        <View style={styles.bottomPadding} />
+      </View>
+      </ScrollView>
 
       {/* Edit Reminder Time Modal */}
       {showReminderModal && (
@@ -1818,6 +1926,77 @@ const HomeScreen = () => {
       </Modal>
       )}
 
+      {/* Daily Goal Celebration Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDailyGoalModal}
+        onRequestClose={() => setShowDailyGoalModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.dailyGoalModalContent, { backgroundColor: colors.surface }]}>
+            <View style={styles.dailyGoalCelebration}>
+              <Text style={[styles.dailyGoalTitle, { color: colors.text }]}>Daily Goal Reached!</Text>
+              <Text style={[styles.dailyGoalSubtitle, { color: colors.textSecondary }]}>
+                You completed {dailyGoal} rests today
+              </Text>
+            </View>
+            
+            <View style={[styles.dailyGoalStreakCard, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
+              <View style={styles.dailyGoalStreakRow}>
+                <FontAwesomeIcon icon={faFire} size={32} color="#EF4444" />
+                <View style={styles.dailyGoalStreakInfo}>
+                  <Text style={[styles.dailyGoalStreakNumber, { color: colors.text }]}>
+                    {streakData.currentStreak + 1}
+                  </Text>
+                  <Text style={[styles.dailyGoalStreakLabel, { color: colors.textSecondary }]}>
+                    day streak
+                  </Text>
+                </View>
+              </View>
+              {streakData.currentStreak + 1 > streakData.longestStreak && (
+                <View style={[styles.dailyGoalNewRecord, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.3)' : '#FEF3C7' }]}>
+                  <Text style={[styles.dailyGoalNewRecordText, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>
+                    🏆 New Record!
+                  </Text>
+                </View>
+              )}
+            </View>
+            
+            <View style={styles.dailyGoalWeekPreview}>
+              <Text style={[styles.dailyGoalWeekTitle, { color: colors.textSecondary }]}>This Week</Text>
+              <View style={styles.dailyGoalWeekDays}>
+                {getLast7Days().map((date, index) => {
+                  const status = getStreakStatusForDate(date);
+                  // For today, show as completed since we just reached the goal
+                  const isToday = status.isToday;
+                  const goalMet = isToday ? true : status.goalMet;
+                  return (
+                    <View key={index} style={[
+                      styles.dailyGoalDayCircle,
+                      { backgroundColor: colors.inputBackground },
+                      goalMet && styles.dailyGoalDayCircleDone,
+                      isToday && styles.dailyGoalDayCircleToday,
+                    ]}>
+                      {goalMet && (
+                        <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
+                      )}
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.dailyGoalButton}
+              onPress={() => setShowDailyGoalModal(false)}
+            >
+              <Text style={styles.dailyGoalButtonText}>Awesome!</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
       {/* Rest Overdue Modal - shown when rest hasn't been taken for interval duration */}
       <Modal
         animationType="fade"
@@ -1859,68 +2038,6 @@ const HomeScreen = () => {
           </View>
         </View>
       </Modal>
-
-          </>
-        )}
-
-        {/* Streak Tab Content */}
-        {activeTab === 'streak' && (
-          <>
-            {/* Streak Stats Row */}
-            <View style={styles.flatStreakStats}>
-              <View style={styles.flatStreakMain}>
-                <FontAwesomeIcon icon={faFire} size={28} color="#EF4444" />
-                <Text style={[styles.flatStreakNumber, { color: colors.text }]}>{streakData.currentStreak}</Text>
-                <Text style={[styles.flatStreakLabel, { color: colors.textSecondary }]}>day streak</Text>
-              </View>
-              <View style={[styles.flatStreakBest, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7' }]}>
-                <Text style={[styles.flatStreakBestLabel, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>Best</Text>
-                <Text style={[styles.flatStreakBestNum, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>{streakData.longestStreak}</Text>
-              </View>
-            </View>
-
-            {/* Week Progress - Flat */}
-            <View style={[styles.flatCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
-              <Text style={[styles.flatCardTitle, { color: colors.text }]}>This Week</Text>
-              <View style={styles.flatStreakWeek}>
-                {getLast7Days().map((date, index) => {
-                  const status = getStreakStatusForDate(date);
-                  const dayLabel = date.toLocaleDateString([], { weekday: 'short' }).substring(0, 2);
-                  return (
-                    <View key={index} style={styles.flatStreakDay}>
-                      <View style={[
-                        styles.flatStreakCircle,
-                        { backgroundColor: colors.inputBackground },
-                        status.goalMet && styles.flatStreakCircleDone,
-                        status.isToday && [styles.flatStreakCircleToday, { borderColor: colors.text }],
-                        !status.goalMet && status.count > 0 && styles.flatStreakCirclePartial,
-                      ]}>
-                        {status.goalMet ? (
-                          <FontAwesomeIcon icon={faCheck} size={14} color="#FFFFFF" />
-                        ) : status.count > 0 ? (
-                          <Text style={styles.flatStreakCount}>{status.count}</Text>
-                        ) : null}
-                      </View>
-                      <Text style={[styles.flatStreakDayLabel, { color: colors.textSecondary }, status.isToday && [styles.flatStreakDayLabelToday, { color: colors.text }]]}>
-                        {dayLabel}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-              <Text style={[styles.flatStreakGoal, { color: colors.textMuted }]}>Complete {dailyGoal} rests per day to maintain streak</Text>
-            </View>
-          </>
-        )}
-
-        {/* Progress Tab Content */}
-        {activeTab === 'progress' && (
-          <RestProgressGraph restHistory={restHistory} dailyGoal={dailyGoal} />
-        )}
-
-        <View style={styles.bottomPadding} />
-      </View>
-      </ScrollView>
     </>
   );
 };
@@ -3167,6 +3284,106 @@ const styles = StyleSheet.create({
   },
   restOverdueButtonPrimary: {
     backgroundColor: '#4ECDC4',
+  },
+  // Daily Goal Celebration Modal Styles
+  dailyGoalModalContent: {
+    width: '85%',
+    borderRadius: 24,
+    padding: 24,
+    alignItems: 'center',
+  },
+  dailyGoalCelebration: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dailyGoalEmoji: {
+    fontSize: 48,
+    marginBottom: 12,
+  },
+  dailyGoalTitle: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    marginBottom: 6,
+    textAlign: 'center',
+  },
+  dailyGoalSubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+  },
+  dailyGoalStreakCard: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 16,
+  },
+  dailyGoalStreakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 12,
+  },
+  dailyGoalStreakInfo: {
+    alignItems: 'flex-start',
+  },
+  dailyGoalStreakNumber: {
+    fontSize: 36,
+    fontWeight: 'bold',
+    lineHeight: 40,
+  },
+  dailyGoalStreakLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  dailyGoalNewRecord: {
+    marginTop: 12,
+    paddingVertical: 6,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    alignSelf: 'center',
+  },
+  dailyGoalNewRecordText: {
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  dailyGoalWeekPreview: {
+    width: '100%',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dailyGoalWeekTitle: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginBottom: 10,
+  },
+  dailyGoalWeekDays: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  dailyGoalDayCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dailyGoalDayCircleDone: {
+    backgroundColor: '#4CAF50',
+  },
+  dailyGoalDayCircleToday: {
+    borderWidth: 2,
+    borderColor: '#4CAF50',
+  },
+  dailyGoalButton: {
+    width: '100%',
+    backgroundColor: '#4CAF50',
+    paddingVertical: 14,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  dailyGoalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
   },
 });
 

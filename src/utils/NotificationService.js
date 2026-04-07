@@ -251,7 +251,8 @@ class NotificationService {
     return onboardingData;
   };
 
-  startTimerNotification = async (endTime, isResumingFromPause = false) => {
+  startTimerNotification = async (endTime, isResumingFromPause = false, isBonusRest = false) => {
+    console.log('startTimerNotification called with isBonusRest:', isBonusRest);
     await StorageService.setItem('timerEndTime', endTime);
     
     const now = Date.now();
@@ -271,39 +272,47 @@ class NotificationService {
       console.log('Live Activity started for timer');
     }
     
-    // Cancel any existing ongoing notification and old reminder
+    // Cancel any existing ongoing notification
     PushNotification.cancelLocalNotification('999');
-    PushNotification.cancelLocalNotification('1'); // Cancel old reminder if resuming
     
-    // Schedule the next reminder for when this timer completes
-    // This ensures reminder is scheduled even if app is closed when timer finishes
-    // This works for both new timers and resumed timers with the new end time
     const settings = await this.getSettings();
-    const intervalMinutes = settings.temporaryInterval || settings.restInterval;
-    const nextReminderTime = new Date(endTime + (intervalMinutes * 60 * 1000));
     
-    PushNotification.localNotificationSchedule({
-      channelId: 'eye-rest-reminders',
-      id: '1',
-      title: 'Time for an Eye Rest 👁️',
-      message: `Close your eyes for ${settings.restDuration} minutes to recharge`,
-      date: nextReminderTime,
-      allowWhileIdle: true,
-      vibrate: settings.vibrationEnabled,
-      playSound: true,
-      soundName: 'default',
-      userInfo: { screen: 'Timer' },
-      data: { screen: 'Timer' },
-    });
-    
-    await StorageService.setItem('nextReminderTime', {
-      id: 'next-reminder',
-      timestamp: nextReminderTime.getTime(),
-      formattedTime: nextReminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-      date: nextReminderTime.toLocaleDateString(),
-    });
-    
-    console.log('Next reminder pre-scheduled for:', nextReminderTime.toLocaleTimeString());
+    // For bonus rest, keep the existing reminder schedule
+    // For regular rest, cancel old reminder and schedule new one
+    if (!isBonusRest) {
+      PushNotification.cancelLocalNotification('1'); // Cancel old reminder
+      
+      // Schedule the next reminder for when this timer completes
+      // This ensures reminder is scheduled even if app is closed when timer finishes
+      // This works for both new timers and resumed timers with the new end time
+      const intervalMinutes = settings.temporaryInterval || settings.restInterval;
+      const nextReminderTime = new Date(endTime + (intervalMinutes * 60 * 1000));
+      
+      PushNotification.localNotificationSchedule({
+        channelId: 'eye-rest-reminders',
+        id: '1',
+        title: 'Time for an Eye Rest 👁️',
+        message: `Close your eyes for ${settings.restDuration} minutes to recharge`,
+        date: nextReminderTime,
+        allowWhileIdle: true,
+        vibrate: settings.vibrationEnabled,
+        playSound: true,
+        soundName: 'default',
+        userInfo: { screen: 'Timer' },
+        data: { screen: 'Timer' },
+      });
+      
+      await StorageService.setItem('nextReminderTime', {
+        id: 'next-reminder',
+        timestamp: nextReminderTime.getTime(),
+        formattedTime: nextReminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        date: nextReminderTime.toLocaleDateString(),
+      });
+      
+      console.log('Next reminder pre-scheduled for:', nextReminderTime.toLocaleTimeString());
+    } else {
+      console.log('Bonus rest - keeping existing reminder schedule');
+    }
 
     // Use AlarmKit for iOS when sound is enabled (breaks through silent mode with sound+vibration)
     // Use regular notifications for vibrate-only mode (iOS) or Android
@@ -347,7 +356,7 @@ class NotificationService {
     await LiveActivityService.updateTimer(remainingSeconds, false);
   };
 
-  stopTimerNotification = async () => {
+  stopTimerNotification = async (keepReminder = false) => {
     await StorageService.removeItem('timerEndTime');
     
     // Stop Live Activity if active
@@ -358,15 +367,17 @@ class NotificationService {
       await AlarmKitService.cancelAlarm();
     }
     
-    // Cancel all timer-related notifications including pre-scheduled reminder
+    // Cancel timer-related notifications
     PushNotification.cancelLocalNotification('999');
     PushNotification.cancelLocalNotification('998');
-    PushNotification.cancelLocalNotification('1'); // Cancel pre-scheduled reminder
     
-    // Clear the stored next reminder time
-    await StorageService.removeItem('nextReminderTime');
+    // Only cancel pre-scheduled reminder if not keeping it (e.g., when user cancels timer)
+    if (!keepReminder) {
+      PushNotification.cancelLocalNotification('1');
+      await StorageService.removeItem('nextReminderTime');
+    }
     
-    console.log('Timer notification stopped');
+    console.log('Timer notification stopped, keepReminder:', keepReminder);
   };
 
   pauseTimerNotification = async (remainingSeconds) => {

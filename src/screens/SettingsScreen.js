@@ -786,6 +786,7 @@ const SettingsScreen = ({ navigation }) => {
                   key={option.id}
                   style={[
                     styles.optionItem,
+                    { backgroundColor: colors.inputBackground },
                     purpose === option.id && styles.optionItemSelected,
                     purpose === option.id && { borderColor: option.color },
                   ]}
@@ -828,6 +829,7 @@ const SettingsScreen = ({ navigation }) => {
                   key={option.id}
                   style={[
                     styles.optionItem,
+                    { backgroundColor: colors.inputBackground },
                     condition === option.id && styles.optionItemSelected,
                     condition === option.id && { borderColor: option.color },
                   ]}
@@ -868,49 +870,49 @@ const SettingsScreen = ({ navigation }) => {
               <View style={styles.timePickerRow}>
                 <View style={styles.timeColumn}>
                   <TouchableOpacity
-                    style={styles.timeButton}
+                    style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                     onPress={() => setUsualWakeupTime(prev => ({
                       ...prev,
                       hour: (prev.hour + 1) % 24
                     }))}
                   >
-                    <Text style={styles.timeButtonText}>▲</Text>
+                    <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▲</Text>
                   </TouchableOpacity>
-                  <Text style={styles.timeValue}>
+                  <Text style={[styles.timeValue, { color: colors.text }]}>
                     {usualWakeupTime.hour.toString().padStart(2, '0')}
                   </Text>
                   <TouchableOpacity
-                    style={styles.timeButton}
+                    style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                     onPress={() => setUsualWakeupTime(prev => ({
                       ...prev,
                       hour: (prev.hour - 1 + 24) % 24
                     }))}
                   >
-                    <Text style={styles.timeButtonText}>▼</Text>
+                    <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▼</Text>
                   </TouchableOpacity>
                 </View>
-                <Text style={styles.timeSeparator}>:</Text>
+                <Text style={[styles.timeSeparator, { color: colors.text }]}>:</Text>
                 <View style={styles.timeColumn}>
                   <TouchableOpacity
-                    style={styles.timeButton}
+                    style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                     onPress={() => setUsualWakeupTime(prev => ({
                       ...prev,
                       minute: (prev.minute + 15) % 60
                     }))}
                   >
-                    <Text style={styles.timeButtonText}>▲</Text>
+                    <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▲</Text>
                   </TouchableOpacity>
-                  <Text style={styles.timeValue}>
+                  <Text style={[styles.timeValue, { color: colors.text }]}>
                     {usualWakeupTime.minute.toString().padStart(2, '0')}
                   </Text>
                   <TouchableOpacity
-                    style={styles.timeButton}
+                    style={[styles.timeButton, { backgroundColor: colors.inputBackground }]}
                     onPress={() => setUsualWakeupTime(prev => ({
                       ...prev,
                       minute: (prev.minute - 15 + 60) % 60
                     }))}
                   >
-                    <Text style={styles.timeButtonText}>▼</Text>
+                    <Text style={[styles.timeButtonText, { color: colors.textSecondary }]}>▼</Text>
                   </TouchableOpacity>
                 </View>
               </View>
@@ -920,12 +922,14 @@ const SettingsScreen = ({ navigation }) => {
                     key={h}
                     style={[
                       styles.quickTimeBtn,
+                      { backgroundColor: colors.inputBackground },
                       usualWakeupTime.hour === h && usualWakeupTime.minute === 0 && styles.quickTimeBtnActive,
                     ]}
                     onPress={() => setUsualWakeupTime({ hour: h, minute: 0 })}
                   >
                     <Text style={[
                       styles.quickTimeTxt,
+                      { color: colors.textSecondary },
                       usualWakeupTime.hour === h && usualWakeupTime.minute === 0 && styles.quickTimeTxtActive,
                     ]}>
                       {h}:00
@@ -936,10 +940,10 @@ const SettingsScreen = ({ navigation }) => {
             </View>
             <View style={styles.modalFooter}>
               <TouchableOpacity
-                style={[styles.modalButton, styles.cancelButton]}
+                style={[styles.modalButton, styles.cancelButton, { backgroundColor: colors.inputBackground }]}
                 onPress={() => setActiveModal(null)}
               >
-                <Text style={styles.cancelButtonText}>Cancel</Text>
+                <Text style={[styles.cancelButtonText, { color: colors.text }]}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
@@ -1279,7 +1283,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 14,
-    backgroundColor: '#F8F9FA',
     borderRadius: 14,
     marginBottom: 10,
     borderWidth: 2,
@@ -1298,7 +1301,8 @@ const styles = StyleSheet.create({
   optionLabel: {
     fontSize: 16,
     fontWeight: '600',
-    color: '#2D3436',
+    marginLeft: 12,
+    flex: 1,
   },
   optionCheck: {
     width: 24,

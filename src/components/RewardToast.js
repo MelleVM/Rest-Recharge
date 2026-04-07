@@ -4,6 +4,7 @@ import { Text } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
 import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
+import { useAppTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
 
@@ -22,6 +23,8 @@ export const ToastEvent = {
 };
 
 const RewardToast = () => {
+  const appTheme = useAppTheme();
+  const isDarkMode = appTheme?.isDarkMode ?? false;
   const [visible, setVisible] = useState(false);
   const [type, setType] = useState('gems');
   const [amount, setAmount] = useState(0);
@@ -81,10 +84,10 @@ const RewardToast = () => {
         {
           transform: [{ translateY: slideAnim }],
           opacity: fadeAnim,
-        },
+        }
       ]}
     >
-      <View style={styles.content}>
+      <View style={[styles.content, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.9)' : 'rgba(0, 0, 0, 0.85)' }]}>
         {type === 'gems' && (
           <FontAwesomeIcon icon={faGem} size={24} color="#FFD700" style={styles.icon} />
         )}
@@ -92,10 +95,10 @@ const RewardToast = () => {
           <FontAwesomeIcon icon={faBolt} size={24} color="#FFC107" style={styles.icon} />
         )}
         <View style={styles.textContainer}>
-          <Text style={[styles.amount, type === 'energy' && styles.amountEnergy]}>
+          <Text style={[styles.amount, type === 'energy' && styles.amountEnergy, isDarkMode && styles.amountDark]}>
             +{amount}{type === 'energy' ? '%' : ''}
           </Text>
-          <Text style={styles.message}>{message}</Text>
+          <Text style={[styles.message, isDarkMode && styles.messageDark]}>{message}</Text>
         </View>
       </View>
     </Animated.View>
@@ -112,7 +115,6 @@ const styles = StyleSheet.create({
     elevation: 10,
   },
   content: {
-    backgroundColor: 'rgba(0, 0, 0, 0.85)',
     borderRadius: 12,
     padding: 16,
     flexDirection: 'row',
@@ -141,6 +143,12 @@ const styles = StyleSheet.create({
   message: {
     fontSize: 14,
     color: '#FFFFFF',
+  },
+  amountDark: {
+    color: '#2D3436',
+  },
+  messageDark: {
+    color: '#2D3436',
   },
 });
 

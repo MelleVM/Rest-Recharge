@@ -14,6 +14,10 @@ import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { faVolumeHigh } from '@fortawesome/free-solid-svg-icons/faVolumeHigh';
 import { faVolumeXmark } from '@fortawesome/free-solid-svg-icons/faVolumeXmark';
 import { faMobile } from '@fortawesome/free-solid-svg-icons/faMobile';
+import { faChevronUp } from '@fortawesome/free-solid-svg-icons/faChevronUp';
+import { faChevronDown } from '@fortawesome/free-solid-svg-icons/faChevronDown';
+import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight';
+import { faCalendarPlus } from '@fortawesome/free-solid-svg-icons/faCalendarPlus';
 import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
@@ -72,6 +76,16 @@ const TimerScreen = () => {
   const [gardenData, setGardenData] = useState({ points: 0 });
   const [showTutorial, setShowTutorial] = useState(false);
   const [alarmSoundEnabled, setAlarmSoundEnabled] = useState(true);
+  const [durationMinutes, setDurationMinutes] = useState(20);
+  const [settingsExpanded, setSettingsExpanded] = useState(false);
+  const [bonusRest, setBonusRestState] = useState(false);
+  const bonusRestRef = useRef(false);
+  const setBonusRest = (value) => {
+    console.log('setBonusRest called with:', value);
+    setBonusRestState(value);
+    bonusRestRef.current = value;
+    console.log('bonusRestRef.current is now:', bonusRestRef.current);
+  };
   const endTimeRef = useRef(null);
   const startDurationRef = useRef(0);
   const animationFrameRef = useRef(null);
@@ -138,7 +152,7 @@ const TimerScreen = () => {
           const remaining = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
           if (remaining <= 0) {
             console.log('Timer completed while in background');
-            NotificationService.stopTimerNotification();
+            // Don't call stopTimerNotification here - handleTimerCompletedWhileActive will do it with keepReminder=true
             handleTimerCompletedWhileActive();
           }
         }
@@ -208,8 +222,9 @@ const TimerScreen = () => {
 
   const loadSettingsAndRecoverTimer = async () => {
     const settings = await NotificationService.getSettings();
-    const durationMinutes = settings.restDuration || 20;
-    const durationSeconds = durationMinutes * 60;
+    const loadedDurationMinutes = settings.restDuration || 20;
+    const durationSeconds = loadedDurationMinutes * 60;
+    setDurationMinutes(loadedDurationMinutes);
     setTotalTime(durationSeconds);
     
     // Check for active timer state
@@ -232,6 +247,20 @@ const TimerScreen = () => {
     } else {
       setTime(durationSeconds);
     }
+  };
+  
+  // Adjust duration from the timer screen
+  const adjustDuration = async (delta) => {
+    const newMinutes = Math.max(1, Math.min(60, durationMinutes + delta));
+    setDurationMinutes(newMinutes);
+    const newSeconds = newMinutes * 60;
+    setTime(newSeconds);
+    setTotalTime(newSeconds);
+    
+    // Save to settings
+    const settings = await NotificationService.getSettings();
+    settings.restDuration = newMinutes;
+    await StorageService.setItem('settings', settings);
   };
 
   // Handle app state changes
@@ -279,15 +308,28 @@ const TimerScreen = () => {
   const saveRestToHistory = async (timestamp) => {
     try {
       const history = await StorageService.getItem('restHistory') || [];
+      const todayKey = new Date(timestamp).toLocaleDateString();
+      const todayRestsBeforeAdd = history.filter(r => r.date === todayKey).length;
+      
       history.push({
         timestamp,
-        date: new Date(timestamp).toLocaleDateString(),
+        date: todayKey,
         time: new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
       });
       // Keep only last 30 days of history
       const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
       const filteredHistory = history.filter(h => h.timestamp > thirtyDaysAgo);
       await StorageService.setItem('restHistory', filteredHistory);
+      
+      // Check if daily goal was just reached
+      const settings = await StorageService.getItem('settings') || {};
+      const dailyGoal = settings.dailyGoal || 4;
+      const todayRestsAfterAdd = filteredHistory.filter(r => r.date === todayKey).length;
+      
+      if (todayRestsBeforeAdd < dailyGoal && todayRestsAfterAdd >= dailyGoal) {
+        // Store flag for HomeScreen to show celebration
+        await StorageService.setItem('pendingDailyGoalCelebration', true);
+      }
     } catch (error) {
       console.log('Error saving rest history:', error);
     }
@@ -346,11 +388,9 @@ const TimerScreen = () => {
     // Show toast notification
     ToastEvent.show('energy', 25, 'Rest completed!');
     
-    // Clear timer state
+    // Clear timer state and stop notification (keep the pre-scheduled reminder)
     await NotificationService.clearTimerState();
-    await NotificationService.stopTimerNotification();
-    
-    // Reminder was already pre-scheduled when timer started, no need to schedule again
+    await NotificationService.stopTimerNotification(true);
     
     // Clean up the stored completion time
     await StorageService.removeItem('lastCompletionTime');
@@ -426,8 +466,7 @@ const TimerScreen = () => {
         lastUpdateRef.current = now;
         
         if (remaining <= 0) {
-          // Stop Live Activity and notification immediately when timer completes
-          NotificationService.stopTimerNotification();
+          // Timer completed - handleTimerCompletedWhileActive will stop notification with keepReminder=true
           handleTimerCompletedWhileActive();
           return;
         }
@@ -459,7 +498,10 @@ const TimerScreen = () => {
       setIsActive(true);
       RestModeEvent.emit(true);
       
-      await NotificationService.startTimerNotification(newEndTime, false);
+      // Use ref to get current value (avoid stale closure)
+      const isBonusRest = bonusRestRef.current;
+      console.log('Starting timer, bonusRestRef.current:', isBonusRest, 'bonusRest state:', bonusRest);
+      await NotificationService.startTimerNotification(newEndTime, false, isBonusRest);
       startTimerLoop();
     }
   };
@@ -510,11 +552,15 @@ const TimerScreen = () => {
     }
     
     // Stop timer and clear state
-    await NotificationService.stopTimerNotification();
+    // For bonus rest, keep the existing reminder; for regular rest, cancel it
+    const isBonusRest = bonusRestRef.current;
+    await NotificationService.stopTimerNotification(isBonusRest);
     await NotificationService.clearTimerState();
     
-    // Schedule next reminder from now (cancels the pre-scheduled one)
-    await NotificationService.scheduleNextReminder();
+    // Schedule next reminder from now (only for regular rest, not bonus rest)
+    if (!isBonusRest) {
+      await NotificationService.scheduleNextReminder();
+    }
     
     // Reset UI
     const settings = await NotificationService.getSettings();
@@ -526,6 +572,9 @@ const TimerScreen = () => {
     setTime(durationSeconds);
     setTotalTime(durationSeconds);
     endTimeRef.current = null;
+    
+    // Reset bonus rest toggle
+    setBonusRest(false);
   };
 
   // Get a new random quote
@@ -572,14 +621,12 @@ const TimerScreen = () => {
     // Show a new motivational quote
     getNewQuote();
     
-    // Clear timer state and stop notification
-    await NotificationService.stopTimerNotification();
+    // Clear timer state and stop notification (keep the pre-scheduled reminder)
+    await NotificationService.stopTimerNotification(true);
     await NotificationService.clearTimerState();
     
     // Store completion time for history tracking
     await StorageService.setItem('lastCompletionTime', completionTime);
-    
-    // Reminder was already pre-scheduled when timer started, no need to schedule again
     
     // Vibrate device
     const settings = await NotificationService.getSettings();
@@ -592,6 +639,9 @@ const TimerScreen = () => {
     const durationSeconds = durationMinutes * 60;
     setTime(durationSeconds);
     setTotalTime(durationSeconds);
+    
+    // Reset bonus rest toggle for next rest
+    setBonusRest(false);
   };
 
   const formatTime = (seconds) => {
@@ -616,11 +666,23 @@ const TimerScreen = () => {
         animationType="fade"
         onRequestClose={dismissTutorial}
       >
-        <View style={[styles.tutorialOverlay, { backgroundColor: colors.modalOverlay }]}>
-          <View style={[styles.tutorialModal, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.tutorialTitle, { color: colors.text }]}>Eye Rest Timer</Text>
-            <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
-              Give your eyes a break with timed rest sessions. Close your eyes and relax while the timer counts down.
+        <View
+          style={[
+            styles.tutorialOverlay,
+            { backgroundColor: colors.modalOverlay },
+          ]}
+        >
+          <View
+            style={[styles.tutorialModal, { backgroundColor: colors.surface }]}
+          >
+            <Text style={[styles.tutorialTitle, { color: colors.text }]}>
+              Eye Rest Timer
+            </Text>
+            <Text
+              style={[styles.tutorialText, { color: colors.textSecondary }]}
+            >
+              Give your eyes a break with timed rest sessions. Close your eyes
+              and relax while the timer counts down.
             </Text>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faPlay} size={16} color="#4ECDC4" />
@@ -640,7 +702,7 @@ const TimerScreen = () => {
                 Earn 25% energy for each completed rest
               </Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.tutorialButton, { backgroundColor: plantColor }]}
               onPress={dismissTutorial}
             >
@@ -650,30 +712,43 @@ const TimerScreen = () => {
         </View>
       </Modal>
 
-      <StatusBar 
-        barStyle={(isActive || isDarkMode) ? "light-content" : "dark-content"} 
-        backgroundColor={isActive ? "#121212" : colors.background} 
+      <StatusBar
+        barStyle={isActive || isDarkMode ? 'light-content' : 'dark-content'}
+        backgroundColor={isActive ? '#121212' : colors.background}
       />
-      
-      <ScrollView 
-        style={[styles.container, { backgroundColor: colors.background }, isActive && styles.restModeContainer]} 
-        contentContainerStyle={[styles.contentContainer, isActive && styles.restModeContentContainer]} 
+
+      <ScrollView
+        style={[
+          styles.container,
+          { backgroundColor: colors.background },
+          isActive && styles.restModeContainer,
+        ]}
+        contentContainerStyle={[
+          styles.contentContainer,
+          isActive && styles.restModeContentContainer,
+        ]}
         showsVerticalScrollIndicator={false}
         scrollEnabled={!isActive}
       >
         {!isActive && (
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.text }]}>Rest & Recharge</Text>
+            <Text style={[styles.title, { color: colors.text }]}>
+              Rest & Recharge
+            </Text>
             <TouchableOpacity
               style={styles.settingsButton}
               onPress={() => navigation.navigate('Settings')}
               activeOpacity={0.7}
             >
-              <FontAwesomeIcon icon={faGear} size={28} color={colors.textMuted} />
+              <FontAwesomeIcon
+                icon={faGear}
+                size={28}
+                color={colors.textMuted}
+              />
             </TouchableOpacity>
           </View>
         )}
-        
+
         {isActive && <View style={styles.restModeHeaderSpacer} />}
 
         <View style={styles.timerContainer}>
@@ -683,9 +758,11 @@ const TimerScreen = () => {
                 cx={TIMER_SIZE / 2}
                 cy={TIMER_SIZE / 2}
                 r={RADIUS}
-                stroke={isActive ? "#333333" : (isDarkMode ? "#444444" : "#E0E0E0")}
+                stroke={
+                  isActive ? '#333333' : isDarkMode ? '#444444' : '#E0E0E0'
+                }
                 strokeWidth={STROKE_WIDTH}
-                fill={isActive ? "#1a1a1a" : colors.surface}
+                fill={isActive ? '#1a1a1a' : colors.surface}
               />
               <Circle
                 cx={TIMER_SIZE / 2}
@@ -701,42 +778,52 @@ const TimerScreen = () => {
                 origin={`${TIMER_SIZE / 2}, ${TIMER_SIZE / 2}`}
               />
             </Svg>
-            
+
             <View style={styles.timerTextContainer}>
-              <Text style={[styles.timerText, { color: colors.text }, isActive && styles.restModeTimerText]}>{formatTime(time)}</Text>
+              <Text
+                style={[
+                  styles.timerText,
+                  { color: colors.text },
+                  isActive && styles.restModeTimerText,
+                ]}
+              >
+                {formatTime(time)}
+              </Text>
               {!isActive && (
-                <Text style={[styles.timerLabel, { color: colors.textSecondary }]}>
+                <Text
+                  style={[styles.timerLabel, { color: colors.textSecondary }]}
+                >
                   {time === 0
-                    ? "Click to collect your reward 💎"
-                    : "Start when ready"
-                  }
+                    ? 'Click to collect your reward 💎'
+                    : 'Start when ready'}
                 </Text>
               )}
             </View>
           </View>
         </View>
-        
+
         {isActive && (
           <>
-            <Text style={styles.restModeMessage}>You can turn off your screen</Text>
-            <Text style={styles.restModeSubMessage}>The timer will continue in the background</Text>
+            <Text style={styles.restModeMessage}>
+              You can turn off your screen
+            </Text>
+            <Text style={styles.restModeSubMessage}>
+              The timer will continue in the background
+            </Text>
           </>
         )}
 
         <View style={styles.controlsContainer}>
           {isActive ? (
-            <TouchableOpacity 
-              style={[styles.controlButton, styles.restModeCancelButton]} 
+            <TouchableOpacity
+              style={[styles.controlButton, styles.restModeCancelButton]}
               onPress={cancel}
             >
               <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
               <Text style={styles.buttonText}>Cancel</Text>
             </TouchableOpacity>
           ) : (
-            <TouchableOpacity 
-              style={styles.controlButton} 
-              onPress={start}
-            >
+            <TouchableOpacity style={styles.controlButton} onPress={start}>
               <FontAwesomeIcon icon={faPlay} size={24} color="#FFFFFF" />
               <Text style={styles.buttonText}>Start</Text>
             </TouchableOpacity>
@@ -745,39 +832,158 @@ const TimerScreen = () => {
 
         {!isActive && (
           <>
-            <Surface style={[styles.settingsCard, { backgroundColor: colors.surface }]}>
-              <Text style={[styles.settingsTitle, { color: colors.text }]}>Alarm Settings</Text>
-              
-              <View style={styles.settingRow}>
-                <View style={styles.settingLeft}>
-                  <FontAwesomeIcon 
-                    icon={alarmSoundEnabled ? faVolumeHigh : faMobile} 
-                    size={20} 
-                    color="#4ECDC4"
-                  />
-                  <View style={styles.settingTextContainer}>
-                    <Text style={[styles.settingLabel, { color: colors.text }]}>Alarm Type</Text>
-                    <Text style={[styles.settingDescription, { color: colors.textSecondary }]}>
-                      {alarmSoundEnabled ? 'Sound + Vibration' : 'Vibration Only'}
-                    </Text>
-                  </View>
-                </View>
-                <Switch
-                  value={alarmSoundEnabled}
-                  onValueChange={async (value) => {
-                    setAlarmSoundEnabled(value);
-                    const settings = await NotificationService.getSettings();
-                    settings.alarmSoundEnabled = value;
-                    await StorageService.setItem('settings', settings);
-                  }}
-                  trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
-                  thumbColor="#FFFFFF"
+            <View
+              style={[
+                styles.settingsCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.inputBackground,
+                },
+              ]}
+            >
+              <TouchableOpacity
+                style={styles.settingsHeader}
+                onPress={() => setSettingsExpanded(!settingsExpanded)}
+                activeOpacity={0.7}
+              >
+                <Text style={[styles.settingsTitle, { color: colors.text }]}>
+                  Settings
+                </Text>
+                <FontAwesomeIcon
+                  icon={faChevronRight}
+                  size={16}
+                  color={colors.textMuted}
+                  style={{ transform: [{ rotate: settingsExpanded ? '90deg' : '0deg' }] }}
                 />
-              </View>
-            </Surface>
-            
-            <View style={[styles.quoteCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
-              <Text style={[styles.quoteText, { color: colors.text }]}>"{currentQuote}"</Text>
+              </TouchableOpacity>
+
+              {settingsExpanded && (
+                <>
+                  <View style={{ height: 12 }} />
+                  <View style={styles.settingRow}>
+                    <View style={styles.settingLeft}>
+                      <FontAwesomeIcon
+                        icon={faClock}
+                        size={20}
+                        color="#4ECDC4"
+                      />
+                      <View style={styles.settingTextContainer}>
+                        <Text style={[styles.settingLabel, { color: colors.text }]}>
+                          Duration
+                        </Text>
+                        <Text
+                          style={[
+                            styles.settingDescription,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          Rest timer length
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.durationPickerRow}>
+                      <TouchableOpacity
+                        style={[styles.durationAdjustButton, { backgroundColor: colors.inputBackground }]}
+                        onPress={() => adjustDuration(-1)}
+                      >
+                        <FontAwesomeIcon icon={faChevronDown} size={14} color={colors.text} />
+                      </TouchableOpacity>
+                      <Text style={[styles.durationValueText, { color: colors.text }]}>
+                        {durationMinutes} min
+                      </Text>
+                      <TouchableOpacity
+                        style={[styles.durationAdjustButton, { backgroundColor: colors.inputBackground }]}
+                        onPress={() => adjustDuration(1)}
+                      >
+                        <FontAwesomeIcon icon={faChevronUp} size={14} color={colors.text} />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
+
+                  <View style={styles.settingRow}>
+                    <View style={styles.settingLeft}>
+                      <FontAwesomeIcon
+                        icon={alarmSoundEnabled ? faVolumeHigh : faMobile}
+                        size={20}
+                        color="#4ECDC4"
+                      />
+                      <View style={styles.settingTextContainer}>
+                        <Text style={[styles.settingLabel, { color: colors.text }]}>
+                          Alarm Type
+                        </Text>
+                        <Text
+                          style={[
+                            styles.settingDescription,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {alarmSoundEnabled
+                            ? 'Sound + Vibration'
+                            : 'Vibration Only'}
+                        </Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={alarmSoundEnabled}
+                      onValueChange={async value => {
+                        setAlarmSoundEnabled(value);
+                        const settings = await NotificationService.getSettings();
+                        settings.alarmSoundEnabled = value;
+                        await StorageService.setItem('settings', settings);
+                      }}
+                      trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+
+                  <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
+
+                  <View style={styles.settingRow}>
+                    <View style={styles.settingLeft}>
+                      <FontAwesomeIcon
+                        icon={faCalendarPlus}
+                        size={20}
+                        color="#4ECDC4"
+                      />
+                      <View style={styles.settingTextContainer}>
+                        <Text style={[styles.settingLabel, { color: colors.text }]}>
+                          Bonus Rest
+                        </Text>
+                        <Text
+                          style={[
+                            styles.settingDescription,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          Keep current reminder schedule
+                        </Text>
+                      </View>
+                    </View>
+                    <Switch
+                      value={bonusRest}
+                      onValueChange={setBonusRest}
+                      trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
+                      thumbColor="#FFFFFF"
+                    />
+                  </View>
+                </>
+              )}
+            </View>
+
+            <View
+              style={[
+                styles.quoteCard,
+                {
+                  backgroundColor: colors.surface,
+                  borderColor: colors.inputBackground,
+                },
+              ]}
+            >
+              <Text style={[styles.quoteText, { color: colors.text }]}>
+                "{currentQuote}"
+              </Text>
             </View>
           </>
         )}
@@ -894,6 +1100,28 @@ const styles = StyleSheet.create({
     color: '#636E72',
     marginTop: 8,
   },
+  settingDivider: {
+    height: 1,
+    marginVertical: 12,
+  },
+  durationPickerRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
+  durationAdjustButton: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  durationValueText: {
+    fontSize: 16,
+    fontWeight: '600',
+    minWidth: 55,
+    textAlign: 'center',
+  },
   controlsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -1003,16 +1231,17 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     padding: 20,
     marginBottom: 20,
+    borderWidth: 1,
     elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
+  },
+  settingsHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   settingsTitle: {
     fontSize: 18,
     fontWeight: 'bold',
-    marginBottom: 16,
   },
   settingRow: {
     flexDirection: 'row',

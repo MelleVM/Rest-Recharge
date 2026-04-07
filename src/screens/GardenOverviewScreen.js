@@ -71,6 +71,22 @@ const TIME_OF_DAY_CONFIG = {
   },
 };
 
+const getContrastTextColor = (hexColor) => {
+  // Remove # if present
+  const hex = hexColor.replace('#', '');
+  
+  // Convert to RGB
+  const r = parseInt(hex.substring(0, 2), 16);
+  const g = parseInt(hex.substring(2, 4), 16);
+  const b = parseInt(hex.substring(4, 6), 16);
+  
+  // Calculate relative luminance
+  const luminance = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+  
+  // Return dark text for light backgrounds, light text for dark backgrounds
+  return luminance > 0.6 ? '#2D3436' : '#FFFFFF';
+};
+
 const GardenOverviewScreen = ({ navigation }) => {
   const insets = useSafeAreaInsets();
   const appTheme = useAppTheme();
@@ -135,6 +151,16 @@ const GardenOverviewScreen = ({ navigation }) => {
       };
     }, [])
   );
+
+  useEffect(() => {
+    const unsubscribe = PendingUnlocksEvent.subscribe((count) => {
+      if (count > 0) {
+        checkPendingUnlocks();
+      }
+    });
+
+    return unsubscribe;
+  }, []);
 
   const checkPendingUnlocks = async () => {
     const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
@@ -419,18 +445,35 @@ const GardenOverviewScreen = ({ navigation }) => {
 
   return (
     <GestureHandlerRootView style={styles.container}>
-      <StatusBar translucent backgroundColor="transparent" barStyle={(isDarkMode || timeOfDay === 'night') ? 'light-content' : 'dark-content'} />
+      <StatusBar
+        translucent
+        backgroundColor="transparent"
+        barStyle={
+          isDarkMode || timeOfDay === 'night' ? 'light-content' : 'dark-content'
+        }
+      />
       <LinearGradient
-        colors={isDarkMode && timeOfDay !== 'night' ? TIME_OF_DAY_CONFIG.night.backgroundColors : timeConfig.backgroundColors}
+        colors={
+          isDarkMode && timeOfDay !== 'night'
+            ? TIME_OF_DAY_CONFIG.night.backgroundColors
+            : timeConfig.backgroundColors
+        }
         style={styles.backgroundGradient}
         start={{ x: 0.5, y: 0 }}
         end={{ x: 0.5, y: 1 }}
       >
         {/* Time-based overlay for ambient lighting effect */}
-        <View style={[styles.timeOverlay, { backgroundColor: timeConfig.overlayColor }]} />
-        
+        <View
+          style={[
+            styles.timeOverlay,
+            { backgroundColor: timeConfig.overlayColor },
+          ]}
+        />
+
         {/* Celestial body (sun/moon) */}
-        <Animated.View style={[styles.celestialContainer, celestialAnimatedStyle]}>
+        <Animated.View
+          style={[styles.celestialContainer, celestialAnimatedStyle]}
+        >
           {timeOfDay === 'night' ? (
             <View style={styles.moon}>
               <View style={styles.moonCrater1} />
@@ -438,30 +481,52 @@ const GardenOverviewScreen = ({ navigation }) => {
               <View style={styles.moonCrater3} />
             </View>
           ) : (
-            <View style={[
-              styles.sun,
-              timeOfDay === 'evening' && styles.sunEvening,
-              timeOfDay === 'morning' && styles.sunMorning,
-            ]}>
+            <View
+              style={[
+                styles.sun,
+                timeOfDay === 'evening' && styles.sunEvening,
+                timeOfDay === 'morning' && styles.sunMorning,
+              ]}
+            >
               {timeOfDay === 'afternoon' && (
                 <>
-                  <View style={[styles.sunRay, { transform: [{ rotate: '0deg' }] }]} />
-                  <View style={[styles.sunRay, { transform: [{ rotate: '45deg' }] }]} />
-                  <View style={[styles.sunRay, { transform: [{ rotate: '90deg' }] }]} />
-                  <View style={[styles.sunRay, { transform: [{ rotate: '135deg' }] }]} />
+                  <View
+                    style={[styles.sunRay, { transform: [{ rotate: '0deg' }] }]}
+                  />
+                  <View
+                    style={[
+                      styles.sunRay,
+                      { transform: [{ rotate: '45deg' }] },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.sunRay,
+                      { transform: [{ rotate: '90deg' }] },
+                    ]}
+                  />
+                  <View
+                    style={[
+                      styles.sunRay,
+                      { transform: [{ rotate: '135deg' }] },
+                    ]}
+                  />
                 </>
               )}
             </View>
           )}
         </Animated.View>
-        
+
         {/* Overview Header */}
-        <Animated.View style={[styles.headerWrapper, othersAnimatedStyle]} pointerEvents={selectedPlotIndex !== null ? 'none' : 'auto'}>
+        <Animated.View
+          style={[styles.headerWrapper, othersAnimatedStyle]}
+          pointerEvents={selectedPlotIndex !== null ? 'none' : 'auto'}
+        >
           <View style={[styles.header, { paddingTop: insets.top + 8 }]}>
             <View style={styles.headerPill}>
               <Text style={styles.headerTitleLeft}>My Garden</Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.headerButtonPill}
               onPress={() => setShowTimeline(true)}
             >
@@ -470,316 +535,517 @@ const GardenOverviewScreen = ({ navigation }) => {
           </View>
         </Animated.View>
 
-      {/* Garden Area - Zooms as a whole with gesture support */}
-      <GestureDetector gesture={combinedGesture}>
-        <Animated.View style={[styles.gardenArea, gardenAnimatedStyle]}>
-        {/* Flowers on shared ground */}
-        <View style={styles.flowersContainer}>
-          {plantedPlots.map((plot, index) => {
-            const currentStage = getCurrentStage(plot);
-            const plotIndex = gardenData.plots.findIndex(p => p.id === plot.id);
-            const flowerScale = currentStage?.scale || 1;
-            
-            const flowerPositions = [
-              { left: 135, top: -90 },
-              { left: 40, top: -35 },
-              { left: 135, top: -25 },
-              { left: 230, top: -35 },
-              { left: 135, top: 25 },
-            ];
-            
-            const position = flowerPositions[plotIndex] || { left: 135, top: -25 };
-            const isSelected = selectedPlotIndex === plotIndex;
-            const flowerOpacity = selectedPlotIndex !== null && !isSelected ? 0.3 : 1;
-            
-            // Calculate actual size based on scale (avoids blurry scaling)
-            const baseSize = 70;
-            const actualSize = baseSize * flowerScale;
-            const verticalOffset = (baseSize - actualSize) * 0;
-            
-            return (
-              <TouchableOpacity
-                key={plot.id}
-                style={[styles.flowerItem, { left: position.left, top: position.top + verticalOffset, opacity: flowerOpacity }]}
-                onPress={() => navigateToPlot(plotIndex, { x: position.left, y: position.top })}
-                disabled={selectedPlotIndex !== null}
-              >
-                <Image
-                  source={isWilted ? currentStage?.wiltedImage : currentStage?.image}
-                  style={{ width: actualSize, height: actualSize }}
-                  resizeMode="contain"
-                />
-              </TouchableOpacity>
-            );
-          })}
-          
-          {/* Empty plot indicators - hide others when one is selected, show selected one */}
-          {emptyPlots.map((plot) => {
-            const plotIndex = gardenData.plots.findIndex(p => p.id === plot.id);
-            const isSelected = selectedPlotIndex === plotIndex;
-            
-            // Hide if another plot is selected (not this one)
-            if (selectedPlotIndex !== null && !isSelected) return null;
-            
-            const flowerPositions = [
-              { left: 135, top: -80 },
-              { left: 40, top: -25 },
-              { left: 135, top: -15 },
-              { left: 230, top: -25 },
-              { left: 135, top: 35 },
-            ];
-            
-            const position = flowerPositions[plotIndex] || { left: 135, top: -15 };
-            
-            return (
-              <TouchableOpacity
-                key={plot.id}
-                style={[styles.emptySpotIndicator, { left: position.left + 15, top: position.top + 35 }]}
-                onPress={() => navigateToPlot(plotIndex, { x: position.left, y: position.top })}
-                disabled={selectedPlotIndex !== null}
-              >
-                <View style={[styles.emptySpotCircle, { backgroundColor: colors.surface, borderColor: isDarkMode ? 'rgba(139, 195, 74, 0.3)' : '#E8F5E9' }]}>
-                  <FontAwesomeIcon icon={faSeedling} size={16} color="#8BC34A" />
-                </View>
-              </TouchableOpacity>
-            );
-          })}
-          
-          {/* Locked plot indicators */}
-          {lockedPlots.map((plot) => {
-            const plotIndex = gardenData.plots.findIndex(p => p.id === plot.id);
-            
-            const flowerPositions = [
-              { left: 135, top: -80 },
-              { left: 40, top: -25 },
-              { left: 135, top: -15 },
-              { left: 230, top: -25 },
-              { left: 135, top: 35 },
-            ];
-            
-            const position = flowerPositions[plotIndex] || { left: 135, top: -15 };
-            
-            return (
-              <View key={plot.id} style={[styles.lockedSpot, { left: position.left, top: position.top }]}>
-                <FontAwesomeIcon icon={faLock} size={14} color={isDarkMode ? 'rgba(255, 255, 255, 0.3)' : '#D0D0D0'} />
-              </View>
-            );
-          })}
-        </View>
+        {/* Garden Area - Zooms as a whole with gesture support */}
+        <GestureDetector gesture={combinedGesture}>
+          <Animated.View style={[styles.gardenArea, gardenAnimatedStyle]}>
+            {/* Flowers on shared ground */}
+            <View style={styles.flowersContainer}>
+              {plantedPlots.map((plot, index) => {
+                const currentStage = getCurrentStage(plot);
+                const plotIndex = gardenData.plots.findIndex(
+                  p => p.id === plot.id,
+                );
+                const flowerScale = currentStage?.scale || 1;
 
-        {/* Ground Patch */}
-        <Image
-          source={require('../../assets/images/plot.png')}
-          style={styles.groundPatch}
-          resizeMode="contain"
-        />
-        </Animated.View>
-      </GestureDetector>
+                const flowerPositions = [
+                  { left: 135, top: -90 },
+                  { left: 40, top: -35 },
+                  { left: 135, top: -25 },
+                  { left: 230, top: -35 },
+                  { left: 135, top: 25 },
+                ];
 
-      {/* Energy Section - matching individual flower page exactly */}
-      <Animated.View style={othersAnimatedStyle}>
-        <View style={styles.energySection}>
-          <View style={styles.energyHeader}>
-            <View style={styles.energyLabelRow}>
-              <FontAwesomeIcon icon={faBolt} size={14} color="#FFC107" />
-              <Text style={[styles.energyLabel, { color: timeOfDay === 'night' ? '#B0B0B0' : '#636E72' }]}>Energy</Text>
+                const position = flowerPositions[plotIndex] || {
+                  left: 135,
+                  top: -25,
+                };
+                const isSelected = selectedPlotIndex === plotIndex;
+                const flowerOpacity =
+                  selectedPlotIndex !== null && !isSelected ? 0.3 : 1;
+
+                // Calculate actual size based on scale (avoids blurry scaling)
+                const baseSize = 70;
+                const actualSize = baseSize * flowerScale;
+                const verticalOffset = (baseSize - actualSize) * 0;
+
+                return (
+                  <TouchableOpacity
+                    key={plot.id}
+                    style={[
+                      styles.flowerItem,
+                      {
+                        left: position.left,
+                        top: position.top + verticalOffset,
+                        opacity: flowerOpacity,
+                      },
+                    ]}
+                    onPress={() =>
+                      navigateToPlot(plotIndex, {
+                        x: position.left,
+                        y: position.top,
+                      })
+                    }
+                    disabled={selectedPlotIndex !== null}
+                  >
+                    <Image
+                      source={
+                        isWilted
+                          ? currentStage?.wiltedImage
+                          : currentStage?.image
+                      }
+                      style={{ width: actualSize, height: actualSize }}
+                      resizeMode="contain"
+                    />
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Empty plot indicators - hide others when one is selected, show selected one */}
+              {emptyPlots.map(plot => {
+                const plotIndex = gardenData.plots.findIndex(
+                  p => p.id === plot.id,
+                );
+                const isSelected = selectedPlotIndex === plotIndex;
+
+                // Hide if another plot is selected (not this one)
+                if (selectedPlotIndex !== null && !isSelected) return null;
+
+                const flowerPositions = [
+                  { left: 135, top: -80 },
+                  { left: 40, top: -25 },
+                  { left: 135, top: -15 },
+                  { left: 230, top: -25 },
+                  { left: 135, top: 35 },
+                ];
+
+                const position = flowerPositions[plotIndex] || {
+                  left: 135,
+                  top: -15,
+                };
+
+                return (
+                  <TouchableOpacity
+                    key={plot.id}
+                    style={[
+                      styles.emptySpotIndicator,
+                      { left: position.left + 15, top: position.top + 35 },
+                    ]}
+                    onPress={() =>
+                      navigateToPlot(plotIndex, {
+                        x: position.left,
+                        y: position.top,
+                      })
+                    }
+                    disabled={selectedPlotIndex !== null}
+                  >
+                    <View
+                      style={[
+                        styles.emptySpotCircle,
+                        {
+                          backgroundColor: colors.surface,
+                          borderColor: isDarkMode
+                            ? 'rgba(139, 195, 74, 0.3)'
+                            : '#E8F5E9',
+                        },
+                      ]}
+                    >
+                      <FontAwesomeIcon
+                        icon={faSeedling}
+                        size={16}
+                        color="#8BC34A"
+                      />
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              {/* Locked plot indicators */}
+              {lockedPlots.map(plot => {
+                const plotIndex = gardenData.plots.findIndex(
+                  p => p.id === plot.id,
+                );
+
+                const flowerPositions = [
+                  { left: 135, top: -80 },
+                  { left: 40, top: -25 },
+                  { left: 135, top: -15 },
+                  { left: 230, top: -25 },
+                  { left: 135, top: 35 },
+                ];
+
+                const position = flowerPositions[plotIndex] || {
+                  left: 135,
+                  top: -15,
+                };
+
+                return (
+                  <View
+                    key={plot.id}
+                    style={[
+                      styles.lockedSpot,
+                      { left: position.left, top: position.top },
+                    ]}
+                  >
+                    <FontAwesomeIcon
+                      icon={faLock}
+                      size={14}
+                      color={
+                        isDarkMode ? 'rgba(255, 255, 255, 0.3)' : '#D0D0D0'
+                      }
+                    />
+                  </View>
+                );
+              })}
             </View>
-            <Text style={[styles.energyPercent, { color: timeConfig.textColor }]}>{Math.round(gardenData.energy * 100)}%</Text>
+
+            {/* Ground Patch */}
+            <Image
+              source={require('../../assets/images/plot.png')}
+              style={styles.groundPatch}
+              resizeMode="contain"
+            />
+          </Animated.View>
+        </GestureDetector>
+
+        {/* Energy Section - matching individual flower page exactly */}
+        <Animated.View style={othersAnimatedStyle}>
+          <View style={styles.energySection}>
+            <View style={styles.energyHeader}>
+              <View style={styles.energyLabelRow}>
+                <FontAwesomeIcon icon={faBolt} size={14} color="#FFC107" />
+                <Text
+                  style={[styles.energyLabel, { color: colors.textSecondary }]}
+                >
+                  Energy
+                </Text>
+              </View>
+              <Text
+                style={[styles.energyPercent, { color: colors.textSecondary }]}
+              >
+                {Math.round(gardenData.energy * 100)}%
+              </Text>
+            </View>
+            <View style={styles.energyBarBackground}>
+              <View
+                style={[
+                  styles.energyBarFill,
+                  { width: `${gardenData.energy * 100}%` },
+                ]}
+              >
+                <LinearGradient
+                  colors={['#FFAAA5', '#FFD3B6', '#A8E6CF']}
+                  start={{ x: 0, y: 0.5 }}
+                  end={{ x: 1, y: 0.5 }}
+                  style={styles.energyBarGradient}
+                />
+              </View>
+            </View>
+            <Text style={[styles.energyHint, { color: colors.textMuted }]}>
+              Complete eye rests to restore energy
+            </Text>
           </View>
-          <View style={styles.energyBarBackground}>
-            <View style={[styles.energyBarFill, { width: `${gardenData.energy * 100}%` }]}>
-              <LinearGradient
-                colors={['#FFAAA5', '#FFD3B6', '#A8E6CF']}
-                start={{ x: 0, y: 0.5 }}
-                end={{ x: 1, y: 0.5 }}
-                style={styles.energyBarGradient}
+        </Animated.View>
+
+        {/* Detail View UI - Appears when zoomed */}
+        {selectedPlotIndex !== null && (
+          <Animated.View
+            style={[styles.detailOverlay, detailAnimatedStyle]}
+            pointerEvents={selectedPlotIndex !== null ? 'auto' : 'none'}
+          >
+            <View style={[styles.detailHeader, { paddingTop: insets.top + 8 }]}>
+              <TouchableOpacity
+                style={styles.headerButtonPill}
+                onPress={zoomOut}
+              >
+                <FontAwesomeIcon icon={faArrowLeft} size={20} color="#505255" />
+              </TouchableOpacity>
+
+              <View style={styles.headerPill}>
+                <Text style={styles.headerTitleLeft}>
+                  {selectedPlot?.flowerType
+                    ? FLOWER_TYPES[selectedPlot.flowerType]?.name
+                    : 'Empty Plot'}
+                </Text>
+              </View>
+
+              <TouchableOpacity
+                style={styles.headerButtonPill}
+                onPress={() => setShowTimeline(true)}
+              >
+                <FontAwesomeIcon icon={faListUl} size={18} color="#505255" />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.detailContent}>
+              {selectedPlot?.flowerType && selectedStage ? (
+                <>
+                  {/* Growth Progress Bar */}
+                  {(() => {
+                    const stages = getGrowthStages(selectedPlot.flowerType);
+                    const totalStages = stages.length;
+                    const lastStage = stages[totalStages - 1];
+                    const totalRestsNeeded = lastStage.restsNeeded;
+                    const progress = Math.min(
+                      1,
+                      selectedPlot.restsGiven / totalRestsNeeded,
+                    );
+
+                    return (
+                      <View style={styles.progressContainer}>
+                        <View style={styles.progressBarBackground}>
+                          <View
+                            style={[
+                              styles.progressBarFill,
+                              { width: `${progress * 100}%` },
+                            ]}
+                          >
+                            <LinearGradient
+                              colors={['#A8E6CF', '#88D8B0', '#6BCB77']}
+                              start={{ x: 0, y: 0.5 }}
+                              end={{ x: 1, y: 0.5 }}
+                              style={styles.progressBarGradient}
+                            />
+                          </View>
+                          {/* Stage markers */}
+                          {stages.map((stage, index) => {
+                            if (index === 0) return null;
+                            const markerPosition =
+                              (stage.restsNeeded / totalRestsNeeded) * 100;
+                            const isReached =
+                              selectedPlot.restsGiven >= stage.restsNeeded;
+                            return (
+                              <View
+                                key={stage.name}
+                                style={[
+                                  styles.stageMarker,
+                                  { left: `${markerPosition}%` },
+                                  isReached && styles.stageMarkerReached,
+                                ]}
+                              />
+                            );
+                          })}
+                        </View>
+                        <View style={styles.progressLabels}>
+                          <Text style={styles.progressLabel}>
+                            {selectedStage.name}
+                          </Text>
+                          <Text style={styles.progressLabel}>
+                            {Math.min(
+                              selectedPlot.restsGiven,
+                              totalRestsNeeded,
+                            )}
+                            /{totalRestsNeeded}
+                          </Text>
+                        </View>
+                      </View>
+                    );
+                  })()}
+                </>
+              ) : selectedPlot && !selectedPlot.flowerType ? (
+                <View
+                  style={[
+                    styles.emptyPlotCard,
+                    { backgroundColor: colors.surface },
+                  ]}
+                >
+                  <View
+                    style={[
+                      styles.emptyPlotIconCircle,
+                      {
+                        backgroundColor: isDarkMode
+                          ? 'rgba(139, 195, 74, 0.2)'
+                          : '#F1F8E9',
+                      },
+                    ]}
+                  >
+                    <FontAwesomeIcon
+                      icon={faSeedling}
+                      size={32}
+                      color="#8BC34A"
+                    />
+                  </View>
+                  <Text style={[styles.emptyPlotTitle, { color: colors.text }]}>
+                    Ready to Plant
+                  </Text>
+                  <Text
+                    style={[
+                      styles.emptyPlotDescription,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Choose a flower to grow in this plot
+                  </Text>
+                  <TouchableOpacity
+                    style={styles.plantButton}
+                    onPress={() => setShowFlowerSelection(true)}
+                  >
+                    <FontAwesomeIcon
+                      icon={faSeedling}
+                      size={16}
+                      color="#FFFFFF"
+                      style={{ marginRight: 8 }}
+                    />
+                    <Text style={styles.plantButtonText}>Plant Flower</Text>
+                  </TouchableOpacity>
+                </View>
+              ) : null}
+            </View>
+          </Animated.View>
+        )}
+
+        {/* Flower Timeline Modal */}
+        <Modal
+          visible={showTimeline}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowTimeline(false)}
+        >
+          <View
+            style={[
+              styles.modalOverlay,
+              { backgroundColor: colors.modalOverlay },
+            ]}
+          >
+            <View
+              style={[styles.modalContent, { backgroundColor: colors.surface }]}
+            >
+              <FlowerTimeline
+                totalRests={gardenData.totalRests}
+                onClose={() => setShowTimeline(false)}
               />
             </View>
           </View>
-          <Text style={[styles.energyHint, { color: timeOfDay === 'night' ? '#888888' : '#9E9E9E' }]}>
-            Complete eye rests to restore energy
-          </Text>
-        </View>
-      </Animated.View>
+        </Modal>
 
-      {/* Detail View UI - Appears when zoomed */}
-      {selectedPlotIndex !== null && (
-        <Animated.View style={[styles.detailOverlay, detailAnimatedStyle]} pointerEvents={selectedPlotIndex !== null ? 'auto' : 'none'}>
-          <View style={[styles.detailHeader, { paddingTop: insets.top + 8 }]}>
-            <TouchableOpacity 
-              style={styles.headerButtonPill}
-              onPress={zoomOut}
+        {/* Flower Selection Modal */}
+        <Modal
+          visible={showFlowerSelection}
+          transparent={true}
+          animationType="fade"
+          onRequestClose={() => setShowFlowerSelection(false)}
+        >
+          <View
+            style={[
+              styles.modalOverlay,
+              { backgroundColor: colors.modalOverlay },
+            ]}
+          >
+            <View
+              style={[styles.modalContent, { backgroundColor: colors.surface }]}
             >
-              <FontAwesomeIcon icon={faArrowLeft} size={20} color="#505255" />
-            </TouchableOpacity>
-            
-            <View style={styles.headerPill}>
-              <Text style={styles.headerTitleLeft}>
-                {selectedPlot?.flowerType ? FLOWER_TYPES[selectedPlot.flowerType]?.name : 'Empty Plot'}
-              </Text>
+              <FlowerSelection
+                totalRests={gardenData.totalRests}
+                onSelectFlower={handlePlantFlower}
+                onClose={() => setShowFlowerSelection(false)}
+              />
             </View>
-
-            <TouchableOpacity 
-              style={styles.headerButtonPill}
-              onPress={() => setShowTimeline(true)}
-            >
-              <FontAwesomeIcon icon={faListUl} size={18} color="#505255" />
-            </TouchableOpacity>
           </View>
+        </Modal>
 
-          <View style={styles.detailContent}>
-            {selectedPlot?.flowerType && selectedStage ? (
-              <>
-                {/* Growth Progress Bar */}
-                {(() => {
-                  const stages = getGrowthStages(selectedPlot.flowerType);
-                  const totalStages = stages.length;
-                  const lastStage = stages[totalStages - 1];
-                  const totalRestsNeeded = lastStage.restsNeeded;
-                  const progress = Math.min(1, selectedPlot.restsGiven / totalRestsNeeded);
-                  
-                  return (
-                    <View style={styles.progressContainer}>
-                      <View style={styles.progressBarBackground}>
-                        <View style={[styles.progressBarFill, { width: `${progress * 100}%` }]}>
-                          <LinearGradient
-                            colors={['#A8E6CF', '#88D8B0', '#6BCB77']}
-                            start={{ x: 0, y: 0.5 }}
-                            end={{ x: 1, y: 0.5 }}
-                            style={styles.progressBarGradient}
-                          />
-                        </View>
-                        {/* Stage markers */}
-                        {stages.map((stage, index) => {
-                          if (index === 0) return null;
-                          const markerPosition = (stage.restsNeeded / totalRestsNeeded) * 100;
-                          const isReached = selectedPlot.restsGiven >= stage.restsNeeded;
-                          return (
-                            <View 
-                              key={stage.name}
-                              style={[
-                                styles.stageMarker,
-                                { left: `${markerPosition}%` },
-                                isReached && styles.stageMarkerReached,
-                              ]}
-                            />
-                          );
-                        })}
-                      </View>
-                      <View style={styles.progressLabels}>
-                        <Text style={styles.progressLabel}>{selectedStage.name}</Text>
-                        <Text style={styles.progressLabel}>{Math.min(selectedPlot.restsGiven, totalRestsNeeded)}/{totalRestsNeeded}</Text>
-                      </View>
-                    </View>
-                  );
-                })()}
-              </>
-            ) : selectedPlot && !selectedPlot.flowerType ? (
-              <View style={[styles.emptyPlotCard, { backgroundColor: colors.surface }]}>
-                <View style={[styles.emptyPlotIconCircle, { backgroundColor: isDarkMode ? 'rgba(139, 195, 74, 0.2)' : '#F1F8E9' }]}>
-                  <FontAwesomeIcon icon={faSeedling} size={32} color="#8BC34A" />
-                </View>
-                <Text style={[styles.emptyPlotTitle, { color: colors.text }]}>Ready to Plant</Text>
-                <Text style={[styles.emptyPlotDescription, { color: colors.textSecondary }]}>
-                  Choose a flower to grow in this plot
+        {/* Flower Unlocked Modal */}
+        <Modal
+          animationType="fade"
+          transparent={true}
+          visible={unlockedFlower !== null}
+          onRequestClose={() => setUnlockedFlower(null)}
+        >
+          <View
+            style={[
+              styles.modalOverlay,
+              { backgroundColor: colors.modalOverlay },
+            ]}
+          >
+            <View
+              style={[
+                styles.unlockModalContent,
+                { backgroundColor: colors.surface },
+              ]}
+            >
+              <View
+                style={[
+                  styles.unlockModalHeader,
+                  { borderBottomColor: colors.divider },
+                ]}
+              >
+                <Text style={[styles.unlockModalTitle, { color: colors.text }]}>
+                  New Flower Unlocked!
                 </Text>
-                <TouchableOpacity 
-                  style={styles.plantButton}
-                  onPress={() => setShowFlowerSelection(true)}
+                <TouchableOpacity
+                  onPress={() => setUnlockedFlower(null)}
+                  style={[
+                    styles.unlockModalCloseButton,
+                    { backgroundColor: colors.inputBackground },
+                  ]}
                 >
-                  <FontAwesomeIcon icon={faSeedling} size={16} color="#FFFFFF" style={{ marginRight: 8 }} />
-                  <Text style={styles.plantButtonText}>Plant Flower</Text>
+                  <FontAwesomeIcon
+                    icon={faTimes}
+                    size={22}
+                    color={colors.textSecondary}
+                  />
                 </TouchableOpacity>
               </View>
-            ) : null}
-          </View>
-        </Animated.View>
-      )}
 
-      {/* Flower Timeline Modal */}
-      <Modal
-        visible={showTimeline}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowTimeline(false)}
-      >
-        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <FlowerTimeline 
-              totalRests={gardenData.totalRests}
-              onClose={() => setShowTimeline(false)}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Flower Selection Modal */}
-      <Modal
-        visible={showFlowerSelection}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setShowFlowerSelection(false)}
-      >
-        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
-          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
-            <FlowerSelection 
-              totalRests={gardenData.totalRests}
-              onSelectFlower={handlePlantFlower}
-              onClose={() => setShowFlowerSelection(false)}
-            />
-          </View>
-        </View>
-      </Modal>
-
-      {/* Flower Unlocked Modal */}
-      <Modal
-        animationType="fade"
-        transparent={true}
-        visible={unlockedFlower !== null}
-        onRequestClose={() => setUnlockedFlower(null)}
-      >
-        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
-          <View style={[styles.unlockModalContent, { backgroundColor: colors.surface }]}>
-            <View style={[styles.unlockModalHeader, { borderBottomColor: colors.divider }]}>
-              <Text style={[styles.unlockModalTitle, { color: colors.text }]}>New Flower Unlocked!</Text>
-              <TouchableOpacity
-                onPress={() => setUnlockedFlower(null)}
-                style={[styles.unlockModalCloseButton, { backgroundColor: colors.inputBackground }]}
-              >
-                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
-              </TouchableOpacity>
-            </View>
-            
-            {unlockedFlower && (
-              <View style={styles.unlockModalBody}>
-                <View style={[styles.unlockFlowerCircle, { borderColor: unlockedFlower.color }]}>
-                  <Image
-                    source={unlockedFlower.growthStages[unlockedFlower.growthStages.length - 1].image}
-                    style={styles.unlockFlowerImage}
-                    resizeMode="contain"
-                  />
+              {unlockedFlower && (
+                <View style={styles.unlockModalBody}>
+                  <View
+                    style={[
+                      styles.unlockFlowerCircle,
+                      { borderColor: unlockedFlower.color },
+                    ]}
+                  >
+                    <Image
+                      source={
+                        unlockedFlower.growthStages[
+                          unlockedFlower.growthStages.length - 1
+                        ].image
+                      }
+                      style={styles.unlockFlowerImage}
+                      resizeMode="contain"
+                    />
+                  </View>
+                  <Text
+                    style={[styles.unlockFlowerName, { color: colors.text }]}
+                  >
+                    {unlockedFlower.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.unlockFlowerRarity,
+                      { color: unlockedFlower.color },
+                    ]}
+                  >
+                    {unlockedFlower.rarity}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.unlockFlowerDescription,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {unlockedFlower.description}
+                  </Text>
                 </View>
-                <Text style={[styles.unlockFlowerName, { color: colors.text }]}>{unlockedFlower.name}</Text>
-                <Text style={[styles.unlockFlowerRarity, { color: unlockedFlower.color }]}>
-                  {unlockedFlower.rarity}
-                </Text>
-                <Text style={[styles.unlockFlowerDescription, { color: colors.textSecondary }]}>
-                  {unlockedFlower.description}
-                </Text>
+              )}
+
+              <View style={styles.unlockModalButtons}>
+                <TouchableOpacity
+                  style={[
+                    styles.unlockModalPrimaryButton,
+                    { backgroundColor: unlockedFlower?.color || '#4CAF50' },
+                  ]}
+                  onPress={() => setUnlockedFlower(null)}
+                >
+                  <Text style={[
+                    styles.unlockModalPrimaryButtonText,
+                    { color: getContrastTextColor(unlockedFlower?.color || '#4CAF50') },
+                  ]}>
+                    Awesome!
+                  </Text>
+                </TouchableOpacity>
               </View>
-            )}
-            
-            <View style={styles.unlockModalButtons}>
-              <TouchableOpacity 
-                style={[styles.unlockModalPrimaryButton, { backgroundColor: unlockedFlower?.color || '#4CAF50' }]}
-                onPress={() => setUnlockedFlower(null)}
-              >
-                <Text style={styles.unlockModalPrimaryButtonText}>Awesome!</Text>
-              </TouchableOpacity>
             </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
       </LinearGradient>
 
       {/* First-time Tutorial Modal */}
@@ -789,11 +1055,23 @@ const GardenOverviewScreen = ({ navigation }) => {
         animationType="fade"
         onRequestClose={dismissTutorial}
       >
-        <View style={[styles.tutorialOverlay, { backgroundColor: colors.modalOverlay }]}>
-          <View style={[styles.tutorialModal, { backgroundColor: colors.surface }]}>
-            <Text style={[styles.tutorialTitle, { color: colors.text }]}>Your Garden</Text>
-            <Text style={[styles.tutorialText, { color: colors.textSecondary }]}>
-              Grow and nurture your own flower garden. Complete rest sessions to earn energy and watch your flowers bloom!
+        <View
+          style={[
+            styles.tutorialOverlay,
+            { backgroundColor: colors.modalOverlay },
+          ]}
+        >
+          <View
+            style={[styles.tutorialModal, { backgroundColor: colors.surface }]}
+          >
+            <Text style={[styles.tutorialTitle, { color: colors.text }]}>
+              Your Garden
+            </Text>
+            <Text
+              style={[styles.tutorialText, { color: colors.textSecondary }]}
+            >
+              Grow and nurture your own flower garden. Complete rest sessions to
+              earn energy and watch your flowers bloom!
             </Text>
             <View style={styles.tutorialStep}>
               <FontAwesomeIcon icon={faHandPointer} size={16} color="#4ECDC4" />
@@ -819,7 +1097,7 @@ const GardenOverviewScreen = ({ navigation }) => {
                 Unlock new flower types as you complete more rests
               </Text>
             </View>
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.tutorialButton, { backgroundColor: '#4CAF50' }]}
               onPress={dismissTutorial}
             >

@@ -9,7 +9,7 @@ const createSunflowerGrowthStages = () => [
   },
   { 
     name: 'Sprout', 
-    restsNeeded: 3, 
+    restsNeeded: 2, 
     scale: 0.65, 
     description: 'Starting to grow',
     image: require('../../assets/images/sunflower/sprout.png'),
@@ -17,7 +17,7 @@ const createSunflowerGrowthStages = () => [
   },
   { 
     name: 'Young', 
-    restsNeeded: 7, 
+    restsNeeded: 4, 
     scale: 0.8, 
     description: 'Growing strong',
     image: require('../../assets/images/sunflower/young.png'),
@@ -25,7 +25,7 @@ const createSunflowerGrowthStages = () => [
   },
   { 
     name: 'Blooming', 
-    restsNeeded: 15, 
+    restsNeeded: 8, 
     scale: 0.9, 
     description: 'Almost there!',
     image: require('../../assets/images/sunflower/blooming.png'),
@@ -33,7 +33,7 @@ const createSunflowerGrowthStages = () => [
   },
   { 
     name: 'Full Bloom', 
-    restsNeeded: 25, 
+    restsNeeded: 14, 
     scale: 1.0, 
     description: 'Beautiful!',
     image: require('../../assets/images/sunflower/full_bloom.png'),
@@ -52,7 +52,7 @@ const createPoppyGrowthStages = () => [
   },
   { 
     name: 'Sprout', 
-    restsNeeded: 3, 
+    restsNeeded: 2, 
     scale: 0.65, 
     description: 'Starting to grow',
     image: require('../../assets/images/poppy/sprout.png'),
@@ -60,7 +60,7 @@ const createPoppyGrowthStages = () => [
   },
   { 
     name: 'Young', 
-    restsNeeded: 7, 
+    restsNeeded: 4, 
     scale: 0.8, 
     description: 'Growing strong',
     image: require('../../assets/images/poppy/young.png'),
@@ -68,7 +68,7 @@ const createPoppyGrowthStages = () => [
   },
   { 
     name: 'Blooming', 
-    restsNeeded: 15, 
+    restsNeeded: 8, 
     scale: 0.9, 
     description: 'Almost there!',
     image: require('../../assets/images/poppy/blooming.png'),
@@ -76,7 +76,7 @@ const createPoppyGrowthStages = () => [
   },
   { 
     name: 'Full Bloom', 
-    restsNeeded: 25, 
+    restsNeeded: 14, 
     scale: 1.0, 
     description: 'Beautiful!',
     image: require('../../assets/images/poppy/full_bloom.png'),
@@ -95,7 +95,7 @@ const createDaisyGrowthStages = () => [
   },
   { 
     name: 'Sprout', 
-    restsNeeded: 3, 
+    restsNeeded: 2, 
     scale: 0.65, 
     description: 'Starting to grow',
     image: require('../../assets/images/daisy/sprout.png'),
@@ -103,7 +103,7 @@ const createDaisyGrowthStages = () => [
   },
   { 
     name: 'Young', 
-    restsNeeded: 7, 
+    restsNeeded: 4, 
     scale: 0.8, 
     description: 'Growing strong',
     image: require('../../assets/images/daisy/young.png'),
@@ -111,7 +111,7 @@ const createDaisyGrowthStages = () => [
   },
   { 
     name: 'Blooming', 
-    restsNeeded: 15, 
+    restsNeeded: 8, 
     scale: 0.9, 
     description: 'Almost there!',
     image: require('../../assets/images/daisy/blooming.png'),
@@ -119,7 +119,7 @@ const createDaisyGrowthStages = () => [
   },
   { 
     name: 'Full Bloom', 
-    restsNeeded: 25, 
+    restsNeeded: 14, 
     scale: 1.0, 
     description: 'Beautiful!',
     image: require('../../assets/images/daisy/full_bloom.png'),
@@ -138,7 +138,7 @@ const createTulipGrowthStages = () => [
   },
   { 
     name: 'Sprout', 
-    restsNeeded: 3, 
+    restsNeeded: 2, 
     scale: 0.65, 
     description: 'Starting to grow',
     image: require('../../assets/images/tulip/sprout.png'),
@@ -146,7 +146,7 @@ const createTulipGrowthStages = () => [
   },
   { 
     name: 'Young', 
-    restsNeeded: 7, 
+    restsNeeded: 4, 
     scale: 0.8, 
     description: 'Growing strong',
     image: require('../../assets/images/tulip/young.png'),
@@ -154,7 +154,7 @@ const createTulipGrowthStages = () => [
   },
   { 
     name: 'Blooming', 
-    restsNeeded: 15, 
+    restsNeeded: 8, 
     scale: 0.9, 
     description: 'Almost there!',
     image: require('../../assets/images/tulip/blooming.png'),
@@ -162,7 +162,7 @@ const createTulipGrowthStages = () => [
   },
   { 
     name: 'Full Bloom', 
-    restsNeeded: 25, 
+    restsNeeded: 14, 
     scale: 1.0, 
     description: 'Beautiful!',
     image: require('../../assets/images/tulip/full_bloom.png'),
@@ -181,7 +181,7 @@ const createRoseGrowthStages = () => [
   },
   { 
     name: 'Sprout', 
-    restsNeeded: 3, 
+    restsNeeded: 2, 
     scale: 0.65, 
     description: 'Starting to grow',
     image: require('../../assets/images/rose/sprout.png'),
@@ -189,7 +189,7 @@ const createRoseGrowthStages = () => [
   },
   { 
     name: 'Young', 
-    restsNeeded: 7, 
+    restsNeeded: 4, 
     scale: 0.8, 
     description: 'Growing strong',
     image: require('../../assets/images/rose/young.png'),
@@ -197,7 +197,7 @@ const createRoseGrowthStages = () => [
   },
   { 
     name: 'Blooming', 
-    restsNeeded: 15, 
+    restsNeeded: 8, 
     scale: 0.9, 
     description: 'Almost there!',
     image: require('../../assets/images/rose/blooming.png'),
@@ -205,7 +205,7 @@ const createRoseGrowthStages = () => [
   },
   { 
     name: 'Full Bloom', 
-    restsNeeded: 25, 
+    restsNeeded: 14, 
     scale: 1.0, 
     description: 'Beautiful!',
     image: require('../../assets/images/rose/full_bloom.png'),
@@ -224,7 +224,7 @@ const createLavenderGrowthStages = () => [
   },
   { 
     name: 'Sprout', 
-    restsNeeded: 3, 
+    restsNeeded: 2, 
     scale: 0.65, 
     description: 'Starting to grow',
     image: require('../../assets/images/lavender/sprout.png'),
@@ -232,7 +232,7 @@ const createLavenderGrowthStages = () => [
   },
   { 
     name: 'Young', 
-    restsNeeded: 7, 
+    restsNeeded: 4, 
     scale: 0.8, 
     description: 'Growing strong',
     image: require('../../assets/images/lavender/young.png'),
@@ -240,7 +240,7 @@ const createLavenderGrowthStages = () => [
   },
   { 
     name: 'Blooming', 
-    restsNeeded: 15, 
+    restsNeeded: 8, 
     scale: 0.9, 
     description: 'Almost there!',
     image: require('../../assets/images/lavender/blooming.png'),
@@ -248,7 +248,7 @@ const createLavenderGrowthStages = () => [
   },
   { 
     name: 'Full Bloom', 
-    restsNeeded: 25, 
+    restsNeeded: 14, 
     scale: 1.0, 
     description: 'Beautiful!',
     image: require('../../assets/images/lavender/full_bloom.png'),

@@ -13,7 +13,7 @@ extension Foundation.Bundle {
 struct TimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimerAttributes.self) { context in
-            // Lock screen/banner UI - clean white/transparent style
+            // Lock screen/banner UI - adapts to light/dark mode
             let isCompleted = context.state.endTime <= Date()
             let totalDuration = TimeInterval(context.attributes.totalDuration)
 
@@ -28,20 +28,20 @@ struct TimerLiveActivity: Widget {
                 VStack(alignment: .leading, spacing: 4) {
                     Text("Eye Rest")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
-                        .foregroundColor(Color(red: 0.18, green: 0.20, blue: 0.22))
+                        .foregroundColor(.primary)
 
                     if context.state.isPaused {
                         Text("Paused")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(red: 0.45, green: 0.50, blue: 0.55))
+                            .foregroundColor(.secondary)
                     } else if isCompleted {
                         Text("Rest complete")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(red: 0.45, green: 0.50, blue: 0.55))
+                            .foregroundColor(.secondary)
                     } else {
                         Text("Rest & Recharge")
                             .font(.system(size: 13, weight: .medium))
-                            .foregroundColor(Color(red: 0.45, green: 0.50, blue: 0.55))
+                            .foregroundColor(.secondary)
                     }
                 }
 
@@ -52,11 +52,11 @@ struct TimerLiveActivity: Widget {
                     // Progress circle - ProgressView has its own background
                     if !isCompleted {
                         ProgressView(timerInterval: Date()...context.state.endTime, countsDown: true, label: {}, currentValueLabel: {})
-                            .progressViewStyle(CircularProgressViewStyle(tint: Color(red: 0.30, green: 0.73, blue: 0.42)))
+                            .progressViewStyle(CircularProgressViewStyle(tint: Color.green))
                             .frame(width: 60, height: 60)
                     } else {
                         Circle()
-                            .stroke(Color(red: 0.30, green: 0.73, blue: 0.42), lineWidth: 4)
+                            .stroke(Color.green, lineWidth: 4)
                             .frame(width: 60, height: 60)
                     }
                     
@@ -67,17 +67,17 @@ struct TimerLiveActivity: Widget {
                         let secs = seconds % 60
                         Text(String(format: "%02d:%02d", mins, secs))
                             .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundColor(Color(red: 0.18, green: 0.20, blue: 0.22))
+                            .foregroundColor(.primary)
                             .monospacedDigit()
                             .frame(width: 50)
                     } else if isCompleted {
                         Image(systemName: "checkmark")
                             .font(.system(size: 20, weight: .bold))
-                            .foregroundColor(Color(red: 0.30, green: 0.73, blue: 0.42))
+                            .foregroundColor(.green)
                     } else {
                         Text(timerInterval: Date()...context.state.endTime, countsDown: true)
                             .font(.system(size: 12, weight: .bold, design: .rounded))
-                            .foregroundColor(Color(red: 0.18, green: 0.20, blue: 0.22))
+                            .foregroundColor(.primary)
                             .monospacedDigit()
                             .multilineTextAlignment(.center)
                             .frame(width: 50)
@@ -88,15 +88,15 @@ struct TimerLiveActivity: Widget {
             .padding(.vertical, 16)
             .background(
                 RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(Color.white.opacity(0.92))
+                    .fill(Color(uiColor: .systemBackground).opacity(0.92))
                     .overlay(
                         RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .stroke(Color.gray.opacity(0.2), lineWidth: 1)
+                            .stroke(Color(uiColor: .separator).opacity(0.3), lineWidth: 1)
                     )
                     .shadow(color: Color.black.opacity(0.12), radius: 16, x: 0, y: 6)
             )
             .activityBackgroundTint(Color.clear)
-            .activitySystemActionForegroundColor(Color(red: 0.30, green: 0.36, blue: 0.42))
+            .activitySystemActionForegroundColor(.primary)
             
         } dynamicIsland: { context in
             DynamicIsland {
