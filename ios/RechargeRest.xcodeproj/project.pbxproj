@@ -122,14 +122,14 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		4C92A60C2F2508150012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		4C92A60C2F2508150012B22F /* Exceptions for "TimerWidgetExtension" folder in "TimerWidgetExtensionExtension" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
 			);
 			target = 4CA77DE62F24FB3A004AC2A1 /* TimerWidgetExtensionExtension */;
 		};
-		4C92A6182F250E070012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
+		4C92A6182F250E070012B22F /* Exceptions for "TimerWidgetExtension" folder in "RechargeRest" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				TimerAttributes.swift,
@@ -139,7 +139,19 @@
 /* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		4CA77DEC2F24FB3A004AC2A1 /* TimerWidgetExtension */ = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (4C92A6182F250E070012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, 4C92A60C2F2508150012B22F /* PBXFileSystemSynchronizedBuildFileExceptionSet */, ); explicitFileTypes = {}; explicitFolders = (); path = TimerWidgetExtension; sourceTree = "<group>"; };
+		4CA77DEC2F24FB3A004AC2A1 /* TimerWidgetExtension */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				4C92A6182F250E070012B22F /* Exceptions for "TimerWidgetExtension" folder in "RechargeRest" target */,
+				4C92A60C2F2508150012B22F /* Exceptions for "TimerWidgetExtension" folder in "TimerWidgetExtensionExtension" target */,
+			);
+			explicitFileTypes = {
+			};
+			explicitFolders = (
+			);
+			path = TimerWidgetExtension;
+			sourceTree = "<group>";
+		};
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -443,13 +455,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -464,13 +472,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-RechargeRest/Pods-RechargeRest-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;

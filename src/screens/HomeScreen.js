@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+ import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, StyleSheet, ScrollView, TouchableOpacity, AppState, Modal, Image } from 'react-native';
 import { Text, Surface, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
@@ -26,6 +26,7 @@ import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
+import { faTrophy } from '@fortawesome/free-solid-svg-icons/faTrophy';
 import { ToastEvent } from '../components/RewardToast';
 import { PendingUnlocksEvent, WakeupLogEvent } from '../utils/EventEmitters';
 import { FONTS } from '../styles/fonts';
@@ -102,6 +103,7 @@ const HomeScreen = () => {
   const [activeTab, setActiveTab] = useState('activity');
   const [showRestOverdueModal, setShowRestOverdueModal] = useState(false);
   const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
+  const [reminderHistory, setReminderHistory] = useState([]);
   const isInitialized = useRef(false);
   const weekScrollRef = useRef(null);
   const daySelectorScrollRef = useRef(null);
@@ -277,8 +279,10 @@ const HomeScreen = () => {
       const storedStats = await StorageService.getItem('stats');
       const storedHistory = await StorageService.getItem('restHistory') || [];
       const storedWakeupHours = await StorageService.getItem('wakeupHours') || {};
+      const storedReminderHistory = await StorageService.getItem('reminderHistory') || [];
       
       setRestHistory(storedHistory);
+      setReminderHistory(storedReminderHistory);
       
       // Check for pending daily goal celebration (from timer completion)
       const pendingCelebration = await StorageService.getItem('pendingDailyGoalCelebration');
@@ -687,6 +691,9 @@ const HomeScreen = () => {
           formattedTime: reminderDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         });
       }
+    } else {
+      // User completed a rest, cancel the follow-up reminder
+      NotificationService.cancelFollowUpReminder();
     }
   };
 
@@ -909,82 +916,141 @@ const HomeScreen = () => {
     }
   };
 
-  // Generate timeline hours based on wakeup time
+  // Generate timeline slots (half-hour intervals) based on wakeup time
   const generateTimelineHours = (date) => {
     const dateKey = date.toLocaleDateString();
     const wakeupHour = wakeupHours[dateKey] || 6; // Default to 6 if no wakeup logged
-    const hours = [];
-    // Show from wakeup hour to 23 (end of day)
+    const slots = [];
+    // Show from wakeup hour to 23:30 (end of day)
     for (let i = wakeupHour; i <= 23; i++) {
-      hours.push(i);
+      slots.push({ hour: i, minute: 0 }); // On the hour
+      slots.push({ hour: i, minute: 30 }); // Half past
     }
-    return hours;
+    return slots;
   };
 
-  // Check if there's a rest at a specific hour
-  const getRestAtHour = (hour, rests) => {
+  // Check if there's a rest at a specific time slot (within 15 min)
+  const getRestAtSlot = (slot, rests) => {
     return rests.find(rest => {
       const restDate = new Date(rest.timestamp);
-      return restDate.getHours() === hour;
+      const restHour = restDate.getHours();
+      const restMinute = restDate.getMinutes();
+      
+      // Check if rest is within 15 minutes of this slot
+      if (restHour === slot.hour) {
+        const minuteDiff = Math.abs(restMinute - slot.minute);
+        return minuteDiff <= 15;
+      }
+      return false;
     });
   };
 
   // Check hours since last rest (for determining if missed)
-  const getHoursSinceLastRest = (hour, hours, rests, wakeupHour) => {
-    // Look backwards from current hour to find last rest
-    for (let i = hour - 1; i >= wakeupHour; i--) {
-      if (getRestAtHour(i, rests)) {
-        return hour - i;
+  const getHoursSinceLastRest = (slot, slots, rests, wakeupHour) => {
+    const currentSlotIndex = slots.findIndex(s => s.hour === slot.hour && s.minute === slot.minute);
+    
+    // Look backwards from current slot to find last rest
+    for (let i = currentSlotIndex - 1; i >= 0; i--) {
+      if (getRestAtSlot(slots[i], rests)) {
+        const hoursDiff = (slot.hour + slot.minute / 60) - (slots[i].hour + slots[i].minute / 60);
+        return hoursDiff;
       }
     }
     // No rest found, count from wakeup
-    return hour - wakeupHour;
+    return (slot.hour + slot.minute / 60) - wakeupHour;
   };
 
   // Timeline component - actual line with diamond markers
   const DayTimeline = ({ date, rests }) => {
-    const hours = generateTimelineHours(date);
+    const slots = generateTimelineHours(date);
     const now = new Date();
     const isCurrentDay = isSameDay(date, now);
     const currentHour = now.getHours();
+    const currentMinute = now.getMinutes();
     const dateKey = date.toLocaleDateString();
     const wakeupHour = wakeupHours[dateKey] || 6;
     
-    // Calculate all reminder hours for this day (actual + predictive)
-    const reminderHoursOnTimeline = (() => {
+    // Calculate all reminder slots for this day (actual + predictive)
+    const reminderSlotsOnTimeline = (() => {
       if (!nextReminderTime) return [];
       const reminderDate = new Date(nextReminderTime.timestamp);
       if (!isSameDay(reminderDate, date)) return [];
       
-      const reminderHoursList = [];
-      const intervalHours = restInterval / 60;
-      // Round to nearest hour (e.g., 17:30+ -> 18:00, 17:29 -> 17:00)
-      const firstReminderHour = reminderDate.getMinutes() >= 30 
-        ? reminderDate.getHours() + 1 
-        : reminderDate.getHours();
+      const reminderSlotsList = [];
+      const intervalMinutes = restInterval;
+      const firstReminderHour = reminderDate.getHours();
+      const firstReminderMinute = reminderDate.getMinutes();
+      
+      // Round to nearest half hour
+      const roundedMinute = firstReminderMinute >= 45 ? 0 : (firstReminderMinute >= 15 ? 30 : 0);
+      const roundedHour = firstReminderMinute >= 45 ? firstReminderHour + 1 : firstReminderHour;
       
       // Add the actual next reminder (rounded, but not after 21:00)
-      if (firstReminderHour < 21) {
-        reminderHoursList.push(firstReminderHour);
+      if (roundedHour < 21 || (roundedHour === 21 && roundedMinute === 0)) {
+        reminderSlotsList.push({ hour: roundedHour, minute: roundedMinute });
       }
       
       // Add predictive reminders based on interval (but not after 21:00)
-      let nextHour = firstReminderHour + intervalHours;
-      while (nextHour < 21 && nextHour <= Math.max(...hours)) {
-        reminderHoursList.push(Math.floor(nextHour));
-        nextHour += intervalHours;
+      let nextTimeMinutes = roundedHour * 60 + roundedMinute + intervalMinutes;
+      while (nextTimeMinutes < 21 * 60) {
+        const nextHour = Math.floor(nextTimeMinutes / 60);
+        const nextMinute = nextTimeMinutes % 60;
+        const roundedNextMinute = nextMinute >= 45 ? 0 : (nextMinute >= 15 ? 30 : 0);
+        const roundedNextHour = nextMinute >= 45 ? nextHour + 1 : nextHour;
+        
+        if (roundedNextHour <= 23) {
+          reminderSlotsList.push({ hour: roundedNextHour, minute: roundedNextMinute });
+        }
+        nextTimeMinutes += intervalMinutes;
       }
       
-      return reminderHoursList;
+      return reminderSlotsList;
     })();
     
-    // Build segments between hours
-    const getSegmentStatus = (fromHour, toHour) => {
-      const isPast = isCurrentDay ? toHour <= currentHour : true;
+    // Check if a reminder at a specific slot was missed (no rest within 30 min of reminder)
+    const isReminderMissed = (slot) => {
+      // Find all reminders from history for this date and time slot (within 15 min)
+      const remindersAtSlot = reminderHistory.filter(reminder => {
+        const reminderDate = new Date(reminder.timestamp);
+        if (!isSameDay(reminderDate, date)) return false;
+        
+        const reminderHour = reminderDate.getHours();
+        const reminderMinute = reminderDate.getMinutes();
+        
+        // Check if reminder is within 15 minutes of this slot
+        if (reminderHour === slot.hour) {
+          const minuteDiff = Math.abs(reminderMinute - slot.minute);
+          return minuteDiff <= 15;
+        }
+        return false;
+      });
+      
+      if (remindersAtSlot.length === 0) return false;
+      
+      // Check if any reminder at this slot is in the past
+      const anyPastReminder = remindersAtSlot.some(reminder => reminder.timestamp < now.getTime());
+      if (!anyPastReminder) return false;
+      
+      // Check if there was a rest within 30 minutes of any reminder
+      const hasRestNearReminder = remindersAtSlot.some(reminder => {
+        return rests.some(rest => {
+          const timeDiff = Math.abs(rest.timestamp - reminder.timestamp);
+          return timeDiff <= 30 * 60 * 1000; // 30 minutes in milliseconds
+        });
+      });
+      
+      return !hasRestNearReminder;
+    };
+    
+    // Build segments between slots
+    const getSegmentStatus = (fromSlot, toSlot) => {
+      const toTime = toSlot.hour + toSlot.minute / 60;
+      const currentTime = currentHour + currentMinute / 60;
+      const isPast = isCurrentDay ? toTime <= currentTime : true;
       if (!isPast) return 'future';
       
       // Check if there was a rest in this segment or recently before
-      const hoursSinceRest = getHoursSinceLastRest(toHour, hours, rests, wakeupHour);
+      const hoursSinceRest = getHoursSinceLastRest(toSlot, slots, rests, wakeupHour);
       if (hoursSinceRest >= 2) return 'warning';
       return 'normal';
     };
@@ -993,46 +1059,55 @@ const HomeScreen = () => {
       <View style={styles.timelineContainer}>
         {/* Timeline line with segments */}
         <View style={styles.timelineLineContainer}>
-          {hours.map((hour, index) => {
-            const rest = getRestAtHour(hour, rests);
-            const isPast = isCurrentDay ? hour <= currentHour : true;
-            const isCurrent = isCurrentDay && hour === currentHour;
-            const isLast = index === hours.length - 1;
-            const isReminderHour = reminderHoursOnTimeline.includes(hour);
-            const isWakeupHour = index === 0; // First hour is always wakeup hour
+          {slots.map((slot, index) => {
+            const rest = getRestAtSlot(slot, rests);
+            const slotTime = slot.hour + slot.minute / 60;
+            const currentTime = currentHour + currentMinute / 60;
+            const isPast = isCurrentDay ? slotTime <= currentTime : true;
+            const isCurrent = isCurrentDay && Math.abs(slotTime - currentTime) < 0.5;
+            const isLast = index === slots.length - 1;
+            const isReminderSlot = reminderSlotsOnTimeline.some(r => r.hour === slot.hour && r.minute === slot.minute);
+            const isMissedReminder = isReminderMissed(slot);
+            const isWakeupSlot = index === 0; // First slot is always wakeup slot
             
-            // Segment after this hour (except for last hour)
-            const segmentStatus = !isLast ? getSegmentStatus(hour, hours[index + 1]) : null;
+            // Segment after this slot (except for last slot)
+            const segmentStatus = !isLast ? getSegmentStatus(slot, slots[index + 1]) : null;
             
             return (
-              <View key={hour} style={styles.timelineSegment}>
+              <View key={`${slot.hour}-${slot.minute}`} style={styles.timelineSegment}>
                 {/* Hour marker point */}
                 <View style={styles.timelineMarkerContainer}>
-                  {isWakeupHour ? (
-                    // Sun icon for wakeup hour
-                    <View style={[styles.timelineWakeupMarker, { backgroundColor: isDarkMode ? 'rgba(255, 179, 71, 0.2)' : '#FFF3E0' }]}>
-                      <FontAwesomeIcon icon={faSun} size={16} color="#FFB347" />
-                    </View>
-                  ) : rest ? (
-                    // Diamond marker for rest
+                  {rest ? (
+                    // Diamond marker for rest (highest priority)
                     <View style={[
                       styles.timelineDiamond,
                       isCurrent && styles.timelineDiamondCurrent,
                     ]}>
                       <View style={[styles.timelineDiamondInner, { backgroundColor: colors.surface }]} />
                     </View>
-                  ) : isReminderHour ? (
-                    // Clock icon for scheduled reminder
+                  ) : isMissedReminder ? (
+                    // Red clock icon for missed reminder (second priority)
+                    <View style={[styles.timelineReminderMarker, { backgroundColor: 'rgba(239, 68, 68, 0.15)' }]}>
+                      <FontAwesomeIcon icon={faClock} size={16} color="#EF4444" />
+                    </View>
+                  ) : isReminderSlot ? (
+                    // Clock icon for scheduled reminder (third priority)
                     <View style={[styles.timelineReminderMarker, { backgroundColor: colors.inputBackground }]}>
                       <FontAwesomeIcon icon={faClock} size={16} color={colors.textSecondary} />
                     </View>
+                  ) : isWakeupSlot ? (
+                    // Sun icon for wakeup slot (fourth priority)
+                    <View style={[styles.timelineWakeupMarker, { backgroundColor: isDarkMode ? 'rgba(255, 179, 71, 0.2)' : '#FFF3E0' }]}>
+                      <FontAwesomeIcon icon={faSun} size={16} color="#FFB347" />
+                    </View>
                   ) : (
-                    // Small dot for non-rest hours
+                    // Small dot for non-rest slots (lowest priority)
                     <View style={[
                       styles.timelineSmallDot,
                       { backgroundColor: colors.textMuted },
                       !isPast && [styles.timelineSmallDotFuture, { backgroundColor: isDarkMode ? 'rgba(255, 255, 255, 0.15)' : colors.inputBackground }],
                       isCurrent && styles.timelineSmallDotCurrent,
+                      slot.minute === 30 && { width: 4, height: 4, opacity: 0.4 },
                     ]} />
                   )}
                 </View>
@@ -1050,17 +1125,17 @@ const HomeScreen = () => {
           })}
         </View>
         
-        {/* Hour labels below */}
+        {/* Time labels below */}
         <View style={styles.timelineLabelsRow}>
-          {hours.map((hour, index) => (
-            <View key={hour} style={styles.timelineLabelSlot}>
+          {slots.map((slot, index) => (
+            <View key={`${slot.hour}-${slot.minute}`} style={styles.timelineLabelSlot}>
               <Text style={[
                 styles.timelineHour,
                 { color: colors.textSecondary },
                 index === 0 && styles.timelineHourFirst,
-                index === hours.length - 1 && styles.timelineHourLast,
+                index === slots.length - 1 && styles.timelineHourLast,
               ]}>
-                {hour.toString().padStart(2, '0')}
+                {slot.minute === 0 ? slot.hour.toString().padStart(2, '0') : ''}
               </Text>
             </View>
           ))}
@@ -1386,6 +1461,10 @@ const HomeScreen = () => {
             <View style={styles.flatLegendItem}>
               <FontAwesomeIcon icon={faClock} size={12} color={colors.textSecondary} />
               <Text style={[styles.flatLegendText, { color: colors.textSecondary }]}>Reminder</Text>
+            </View>
+            <View style={styles.flatLegendItem}>
+              <FontAwesomeIcon icon={faClock} size={12} color="#EF4444" />
+              <Text style={[styles.flatLegendText, { color: colors.textSecondary }]}>Missed</Text>
             </View>
           </View>
         </View>
@@ -1935,52 +2014,79 @@ const HomeScreen = () => {
       >
         <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
           <View style={[styles.dailyGoalModalContent, { backgroundColor: colors.surface }]}>
+            {/* Decorative top accent */}
+            <View style={styles.dailyGoalAccent}>
+              <View style={[styles.dailyGoalAccentBar, { backgroundColor: '#10B981' }]} />
+              <View style={[styles.dailyGoalAccentBar, { backgroundColor: '#34D399' }]} />
+              <View style={[styles.dailyGoalAccentBar, { backgroundColor: '#6EE7B7' }]} />
+            </View>
+            
+            {/* Trophy icon with glow effect */}
+            <View style={styles.dailyGoalIconWrapper}>
+              <View style={[styles.dailyGoalIconGlow, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.15)' }]} />
+              <View style={[styles.dailyGoalIconCircle, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.25)' : '#D1FAE5' }]}>
+                <FontAwesomeIcon icon={faTrophy} size={32} color="#10B981" />
+              </View>
+            </View>
+            
             <View style={styles.dailyGoalCelebration}>
-              <Text style={[styles.dailyGoalTitle, { color: colors.text }]}>Daily Goal Reached!</Text>
+              <Text style={[styles.dailyGoalTitle, { color: colors.text }]}>Goal Achieved!</Text>
               <Text style={[styles.dailyGoalSubtitle, { color: colors.textSecondary }]}>
                 You completed {dailyGoal} rests today
               </Text>
             </View>
             
-            <View style={[styles.dailyGoalStreakCard, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.15)' : '#FEF2F2' }]}>
+            {/* Streak display */}
+            <View style={[styles.dailyGoalStreakCard, { backgroundColor: isDarkMode ? 'rgba(251, 146, 60, 0.12)' : '#FFF7ED' }]}>
               <View style={styles.dailyGoalStreakRow}>
-                <FontAwesomeIcon icon={faFire} size={32} color="#EF4444" />
+                <View style={[styles.dailyGoalFireBadge, { backgroundColor: isDarkMode ? 'rgba(251, 146, 60, 0.2)' : '#FFEDD5' }]}>
+                  <FontAwesomeIcon icon={faFire} size={20} color="#F97316" />
+                </View>
                 <View style={styles.dailyGoalStreakInfo}>
-                  <Text style={[styles.dailyGoalStreakNumber, { color: colors.text }]}>
-                    {streakData.currentStreak + 1}
-                  </Text>
-                  <Text style={[styles.dailyGoalStreakLabel, { color: colors.textSecondary }]}>
-                    day streak
+                  <View style={styles.dailyGoalStreakNumberRow}>
+                    <Text style={[styles.dailyGoalStreakNumber, { color: colors.text }]}>
+                      {streakData.currentStreak}
+                    </Text>
+                    <Text style={[styles.dailyGoalStreakUnit, { color: colors.textSecondary }]}>
+                      {streakData.currentStreak === 1 ? 'day' : 'days'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.dailyGoalStreakLabel, { color: colors.textMuted }]}>
+                    Current streak
                   </Text>
                 </View>
+                {streakData.currentStreak > streakData.longestStreak && (
+                  <View style={styles.dailyGoalNewRecordBadge}>
+                    <Text style={styles.dailyGoalNewRecordText}>NEW BEST</Text>
+                  </View>
+                )}
               </View>
-              {streakData.currentStreak + 1 > streakData.longestStreak && (
-                <View style={[styles.dailyGoalNewRecord, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.3)' : '#FEF3C7' }]}>
-                  <Text style={[styles.dailyGoalNewRecordText, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>
-                    🏆 New Record!
-                  </Text>
-                </View>
-              )}
             </View>
             
+            {/* Week progress */}
             <View style={styles.dailyGoalWeekPreview}>
-              <Text style={[styles.dailyGoalWeekTitle, { color: colors.textSecondary }]}>This Week</Text>
+              <View style={styles.dailyGoalWeekHeader}>
+                <Text style={[styles.dailyGoalWeekTitle, { color: colors.textSecondary }]}>This Week</Text>
+              </View>
               <View style={styles.dailyGoalWeekDays}>
                 {getLast7Days().map((date, index) => {
                   const status = getStreakStatusForDate(date);
-                  // For today, show as completed since we just reached the goal
                   const isToday = status.isToday;
                   const goalMet = isToday ? true : status.goalMet;
+                  const dayLabel = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][date.getDay()];
                   return (
-                    <View key={index} style={[
-                      styles.dailyGoalDayCircle,
-                      { backgroundColor: colors.inputBackground },
-                      goalMet && styles.dailyGoalDayCircleDone,
-                      isToday && styles.dailyGoalDayCircleToday,
-                    ]}>
-                      {goalMet && (
-                        <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
-                      )}
+                    <View key={index} style={styles.dailyGoalDayItem}>
+                      <Text style={[styles.dailyGoalDayLabel, { color: colors.textMuted }]}>{dayLabel}</Text>
+                      <View style={[
+                        styles.dailyGoalDayCircle,
+                        { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F3F4F6' },
+                        goalMet && styles.dailyGoalDayCircleDone,
+                        isToday && !goalMet && styles.dailyGoalDayCircleToday,
+                      ]}>
+                        {goalMet && (
+                          <FontAwesomeIcon icon={faCheck} size={11} color="#FFFFFF" />
+                        )}
+                      </View>
                     </View>
                   );
                 })}
@@ -1990,8 +2096,9 @@ const HomeScreen = () => {
             <TouchableOpacity
               style={styles.dailyGoalButton}
               onPress={() => setShowDailyGoalModal(false)}
+              activeOpacity={0.85}
             >
-              <Text style={styles.dailyGoalButtonText}>Awesome!</Text>
+              <Text style={styles.dailyGoalButtonText}>Continue</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -3287,103 +3394,167 @@ const styles = StyleSheet.create({
   },
   // Daily Goal Celebration Modal Styles
   dailyGoalModalContent: {
-    width: '85%',
-    borderRadius: 24,
-    padding: 24,
+    width: '88%',
+    maxWidth: 340,
+    borderRadius: 28,
+    paddingTop: 0,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
     alignItems: 'center',
+    overflow: 'hidden',
+  },
+  dailyGoalAccent: {
+    flexDirection: 'row',
+    width: '100%',
+    height: 6,
+    marginBottom: 24,
+  },
+  dailyGoalAccentBar: {
+    flex: 1,
+  },
+  dailyGoalIconWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyGoalIconGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  dailyGoalIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   dailyGoalCelebration: {
     alignItems: 'center',
     marginBottom: 20,
   },
-  dailyGoalEmoji: {
-    fontSize: 48,
-    marginBottom: 12,
-  },
   dailyGoalTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
+    fontSize: 22,
+    fontWeight: '700',
     marginBottom: 6,
     textAlign: 'center',
+    letterSpacing: -0.3,
   },
   dailyGoalSubtitle: {
     fontSize: 15,
     textAlign: 'center',
+    lineHeight: 20,
   },
   dailyGoalStreakCard: {
     width: '100%',
     borderRadius: 16,
-    padding: 16,
+    padding: 14,
     marginBottom: 16,
   },
   dailyGoalStreakRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
     gap: 12,
   },
+  dailyGoalFireBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   dailyGoalStreakInfo: {
-    alignItems: 'flex-start',
+    flex: 1,
+  },
+  dailyGoalStreakNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
   },
   dailyGoalStreakNumber: {
-    fontSize: 36,
-    fontWeight: 'bold',
-    lineHeight: 40,
+    fontSize: 28,
+    fontWeight: '700',
+    lineHeight: 32,
   },
-  dailyGoalStreakLabel: {
-    fontSize: 14,
+  dailyGoalStreakUnit: {
+    fontSize: 16,
     fontWeight: '500',
   },
-  dailyGoalNewRecord: {
-    marginTop: 12,
-    paddingVertical: 6,
-    paddingHorizontal: 12,
-    borderRadius: 8,
-    alignSelf: 'center',
+  dailyGoalStreakLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  dailyGoalNewRecordBadge: {
+    backgroundColor: '#F97316',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
   },
   dailyGoalNewRecordText: {
-    fontSize: 14,
-    fontWeight: '600',
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
   },
   dailyGoalWeekPreview: {
     width: '100%',
-    alignItems: 'center',
     marginBottom: 20,
+  },
+  dailyGoalWeekHeader: {
+    marginBottom: 12,
   },
   dailyGoalWeekTitle: {
     fontSize: 13,
-    fontWeight: '500',
-    marginBottom: 10,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
   },
   dailyGoalWeekDays: {
     flexDirection: 'row',
-    gap: 8,
+    justifyContent: 'space-between',
+  },
+  dailyGoalDayItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  dailyGoalDayLabel: {
+    fontSize: 11,
+    fontWeight: '600',
   },
   dailyGoalDayCircle: {
     width: 32,
     height: 32,
-    borderRadius: 16,
+    borderRadius: 10,
     justifyContent: 'center',
     alignItems: 'center',
   },
   dailyGoalDayCircleDone: {
-    backgroundColor: '#4CAF50',
+    backgroundColor: '#10B981',
   },
   dailyGoalDayCircleToday: {
     borderWidth: 2,
-    borderColor: '#4CAF50',
+    borderColor: '#10B981',
   },
   dailyGoalButton: {
     width: '100%',
-    backgroundColor: '#4CAF50',
-    paddingVertical: 14,
-    borderRadius: 12,
+    backgroundColor: '#10B981',
+    paddingVertical: 15,
+    borderRadius: 14,
     alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
   },
   dailyGoalButtonText: {
     color: '#FFFFFF',
     fontSize: 16,
     fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
 

@@ -18,6 +18,9 @@ import { faChevronUp } from '@fortawesome/free-solid-svg-icons/faChevronUp';
 import { faChevronDown } from '@fortawesome/free-solid-svg-icons/faChevronDown';
 import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight';
 import { faCalendarPlus } from '@fortawesome/free-solid-svg-icons/faCalendarPlus';
+import { faTrophy } from '@fortawesome/free-solid-svg-icons/faTrophy';
+import { faFire } from '@fortawesome/free-solid-svg-icons/faFire';
+import { faCheck } from '@fortawesome/free-solid-svg-icons/faCheck';
 import Svg, { Circle } from 'react-native-svg';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
@@ -79,6 +82,10 @@ const TimerScreen = () => {
   const [durationMinutes, setDurationMinutes] = useState(20);
   const [settingsExpanded, setSettingsExpanded] = useState(false);
   const [bonusRest, setBonusRestState] = useState(false);
+  const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
+  const [dailyGoal, setDailyGoal] = useState(4);
+  const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
+  const [restHistory, setRestHistory] = useState([]);
   const bonusRestRef = useRef(false);
   const setBonusRest = (value) => {
     console.log('setBonusRest called with:', value);
@@ -108,6 +115,81 @@ const TimerScreen = () => {
   useEffect(() => {
     isActiveRef.current = isActive;
   }, [isActive]);
+
+  // Helper functions for daily goal modal
+  const isSameDay = (date1, date2) => {
+    return date1.toLocaleDateString() === date2.toLocaleDateString();
+  };
+
+  const getLast7Days = () => {
+    const days = [];
+    for (let i = 6; i >= 0; i--) {
+      const date = new Date();
+      date.setDate(date.getDate() - i);
+      days.push(date);
+    }
+    return days;
+  };
+
+  const getRestsForDate = (date, history) => {
+    const dateString = date.toLocaleDateString();
+    return history.filter(rest => rest.date === dateString);
+  };
+
+  const getStreakStatusForDate = (date, history, goal) => {
+    const rests = getRestsForDate(date, history);
+    const restCount = rests.length;
+    return {
+      count: restCount,
+      goalMet: restCount >= goal,
+      isToday: isSameDay(date, new Date())
+    };
+  };
+
+  const calculateStreakData = (history, goal) => {
+    const today = new Date();
+    const dailyRestCounts = {};
+    
+    history.forEach(rest => {
+      const dateKey = rest.date;
+      dailyRestCounts[dateKey] = (dailyRestCounts[dateKey] || 0) + 1;
+    });
+    
+    let currentStreak = 0;
+    let checkDate = new Date(today);
+    
+    while (true) {
+      const dateKey = checkDate.toLocaleDateString();
+      const restsOnDay = dailyRestCounts[dateKey] || 0;
+      
+      if (restsOnDay >= goal) {
+        currentStreak++;
+        checkDate.setDate(checkDate.getDate() - 1);
+      } else {
+        if (isSameDay(checkDate, today)) {
+          checkDate.setDate(checkDate.getDate() - 1);
+          continue;
+        }
+        break;
+      }
+    }
+    
+    let longestStreak = currentStreak;
+    let tempStreak = 0;
+    const sortedDates = Object.keys(dailyRestCounts).sort((a, b) => new Date(a) - new Date(b));
+    
+    for (let i = 0; i < sortedDates.length; i++) {
+      const dateKey = sortedDates[i];
+      if (dailyRestCounts[dateKey] >= goal) {
+        tempStreak++;
+        longestStreak = Math.max(longestStreak, tempStreak);
+      } else {
+        tempStreak = 0;
+      }
+    }
+    
+    return { currentStreak, longestStreak };
+  };
 
   const requestNotificationPermission = async () => {
     if (Platform.OS === 'android' && Platform.Version >= 33) {
@@ -171,15 +253,16 @@ const TimerScreen = () => {
       const refreshSettings = async () => {
         // Check if timer completed while we were away
         await checkForCompletedTimer();
+
+        const settings = await NotificationService.getSettings();
+        setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
         
         // Only update duration if timer is not active
         if (!isActiveRef.current) {
-          const settings = await NotificationService.getSettings();
           const durationMinutes = settings.restDuration || 20;
           const durationSeconds = durationMinutes * 60;
           setTime(durationSeconds);
           setTotalTime(durationSeconds);
-          setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
         }
         // Always refresh completed rests count and garden data
         await loadCompletedRests();
@@ -226,6 +309,7 @@ const TimerScreen = () => {
     const durationSeconds = loadedDurationMinutes * 60;
     setDurationMinutes(loadedDurationMinutes);
     setTotalTime(durationSeconds);
+    setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
     
     // Check for active timer state
     const timerState = await NotificationService.getTimerState();
@@ -323,12 +407,16 @@ const TimerScreen = () => {
       
       // Check if daily goal was just reached
       const settings = await StorageService.getItem('settings') || {};
-      const dailyGoal = settings.dailyGoal || 4;
+      const goal = settings.dailyGoal || 4;
       const todayRestsAfterAdd = filteredHistory.filter(r => r.date === todayKey).length;
       
-      if (todayRestsBeforeAdd < dailyGoal && todayRestsAfterAdd >= dailyGoal) {
-        // Store flag for HomeScreen to show celebration
-        await StorageService.setItem('pendingDailyGoalCelebration', true);
+      if (todayRestsBeforeAdd < goal && todayRestsAfterAdd >= goal) {
+        // Update state and show modal on TimerScreen
+        setDailyGoal(goal);
+        setRestHistory(filteredHistory);
+        const streak = calculateStreakData(filteredHistory, goal);
+        setStreakData(streak);
+        setShowDailyGoalModal(true);
       }
     } catch (error) {
       console.log('Error saving rest history:', error);
@@ -858,8 +946,7 @@ const TimerScreen = () => {
               </TouchableOpacity>
 
               {settingsExpanded && (
-                <>
-                  <View style={{ height: 12 }} />
+                <View style={styles.settingsContent}>
                   <View style={styles.settingRow}>
                     <View style={styles.settingLeft}>
                       <FontAwesomeIcon
@@ -968,7 +1055,7 @@ const TimerScreen = () => {
                       thumbColor="#FFFFFF"
                     />
                   </View>
-                </>
+                </View>
               )}
             </View>
 
@@ -990,6 +1077,105 @@ const TimerScreen = () => {
 
         <View style={styles.bottomPadding} />
       </ScrollView>
+
+      {/* Daily Goal Celebration Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={showDailyGoalModal}
+        onRequestClose={() => setShowDailyGoalModal(false)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: 'rgba(0,0,0,0.5)' }]}>
+          <View style={[styles.dailyGoalModalContent, { backgroundColor: colors.surface }]}>
+            {/* Decorative top accent */}
+            <View style={styles.dailyGoalAccent}>
+              <View style={[styles.dailyGoalAccentBar, { backgroundColor: '#10B981' }]} />
+              <View style={[styles.dailyGoalAccentBar, { backgroundColor: '#34D399' }]} />
+              <View style={[styles.dailyGoalAccentBar, { backgroundColor: '#6EE7B7' }]} />
+            </View>
+            
+            {/* Trophy icon with glow effect */}
+            <View style={styles.dailyGoalIconWrapper}>
+              <View style={[styles.dailyGoalIconGlow, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.15)' }]} />
+              <View style={[styles.dailyGoalIconCircle, { backgroundColor: isDarkMode ? 'rgba(16, 185, 129, 0.25)' : '#D1FAE5' }]}>
+                <FontAwesomeIcon icon={faTrophy} size={32} color="#10B981" />
+              </View>
+            </View>
+            
+            <View style={styles.dailyGoalCelebration}>
+              <Text style={[styles.dailyGoalTitle, { color: colors.text }]}>Goal Achieved!</Text>
+              <Text style={[styles.dailyGoalSubtitle, { color: colors.textSecondary }]}>
+                You completed {dailyGoal} rests today
+              </Text>
+            </View>
+            
+            {/* Streak display */}
+            <View style={[styles.dailyGoalStreakCard, { backgroundColor: isDarkMode ? 'rgba(251, 146, 60, 0.12)' : '#FFF7ED' }]}>
+              <View style={styles.dailyGoalStreakRow}>
+                <View style={[styles.dailyGoalFireBadge, { backgroundColor: isDarkMode ? 'rgba(251, 146, 60, 0.2)' : '#FFEDD5' }]}>
+                  <FontAwesomeIcon icon={faFire} size={20} color="#F97316" />
+                </View>
+                <View style={styles.dailyGoalStreakInfo}>
+                  <View style={styles.dailyGoalStreakNumberRow}>
+                    <Text style={[styles.dailyGoalStreakNumber, { color: colors.text }]}>
+                      {streakData.currentStreak}
+                    </Text>
+                    <Text style={[styles.dailyGoalStreakUnit, { color: colors.textSecondary }]}>
+                      {streakData.currentStreak === 1 ? 'day' : 'days'}
+                    </Text>
+                  </View>
+                  <Text style={[styles.dailyGoalStreakLabel, { color: colors.textMuted }]}>
+                    Current streak
+                  </Text>
+                </View>
+                {streakData.currentStreak > streakData.longestStreak && (
+                  <View style={styles.dailyGoalNewRecordBadge}>
+                    <Text style={styles.dailyGoalNewRecordText}>NEW BEST</Text>
+                  </View>
+                )}
+              </View>
+            </View>
+            
+            {/* Week progress */}
+            <View style={styles.dailyGoalWeekPreview}>
+              <View style={styles.dailyGoalWeekHeader}>
+                <Text style={[styles.dailyGoalWeekTitle, { color: colors.textSecondary }]}>This Week</Text>
+              </View>
+              <View style={styles.dailyGoalWeekDays}>
+                {getLast7Days().map((date, index) => {
+                  const status = getStreakStatusForDate(date, restHistory, dailyGoal);
+                  const isToday = status.isToday;
+                  const goalMet = isToday ? true : status.goalMet;
+                  const dayLabel = ['S', 'M', 'T', 'W', 'T', 'F', 'S'][date.getDay()];
+                  return (
+                    <View key={index} style={styles.dailyGoalDayItem}>
+                      <Text style={[styles.dailyGoalDayLabel, { color: colors.textMuted }]}>{dayLabel}</Text>
+                      <View style={[
+                        styles.dailyGoalDayCircle,
+                        { backgroundColor: isDarkMode ? 'rgba(255,255,255,0.08)' : '#F3F4F6' },
+                        goalMet && styles.dailyGoalDayCircleDone,
+                        isToday && !goalMet && styles.dailyGoalDayCircleToday,
+                      ]}>
+                        {goalMet && (
+                          <FontAwesomeIcon icon={faCheck} size={11} color="#FFFFFF" />
+                        )}
+                      </View>
+                    </View>
+                  );
+                })}
+              </View>
+            </View>
+            
+            <TouchableOpacity
+              style={styles.dailyGoalButton}
+              onPress={() => setShowDailyGoalModal(false)}
+              activeOpacity={0.85}
+            >
+              <Text style={styles.dailyGoalButtonText}>Continue</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </>
   );
 };
@@ -1229,15 +1415,20 @@ const styles = StyleSheet.create({
   },
   settingsCard: {
     borderRadius: 20,
-    padding: 20,
     marginBottom: 20,
     borderWidth: 1,
     elevation: 2,
+    overflow: 'hidden',
   },
   settingsHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
+    padding: 20,
+  },
+  settingsContent: {
+    paddingHorizontal: 20,
+    paddingBottom: 20,
   },
   settingsTitle: {
     fontSize: 18,
@@ -1269,6 +1460,175 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     marginVertical: 12,
+  },
+  // Daily Goal Celebration Modal Styles
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dailyGoalModalContent: {
+    width: '88%',
+    maxWidth: 340,
+    borderRadius: 28,
+    paddingTop: 0,
+    paddingHorizontal: 24,
+    paddingBottom: 24,
+    alignItems: 'center',
+    overflow: 'hidden',
+  },
+  dailyGoalAccent: {
+    flexDirection: 'row',
+    width: '100%',
+    height: 6,
+    marginBottom: 24,
+  },
+  dailyGoalAccentBar: {
+    flex: 1,
+  },
+  dailyGoalIconWrapper: {
+    position: 'relative',
+    marginBottom: 16,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyGoalIconGlow: {
+    position: 'absolute',
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+  },
+  dailyGoalIconCircle: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyGoalCelebration: {
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  dailyGoalTitle: {
+    fontSize: 22,
+    fontWeight: '700',
+    marginBottom: 6,
+    textAlign: 'center',
+    letterSpacing: -0.3,
+  },
+  dailyGoalSubtitle: {
+    fontSize: 15,
+    textAlign: 'center',
+    lineHeight: 20,
+  },
+  dailyGoalStreakCard: {
+    width: '100%',
+    borderRadius: 16,
+    padding: 14,
+    marginBottom: 16,
+  },
+  dailyGoalStreakRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  dailyGoalFireBadge: {
+    width: 44,
+    height: 44,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  dailyGoalStreakInfo: {
+    flex: 1,
+  },
+  dailyGoalStreakNumberRow: {
+    flexDirection: 'row',
+    alignItems: 'baseline',
+    gap: 4,
+  },
+  dailyGoalStreakNumber: {
+    fontSize: 28,
+    fontWeight: '700',
+    lineHeight: 32,
+  },
+  dailyGoalStreakUnit: {
+    fontSize: 16,
+    fontWeight: '500',
+  },
+  dailyGoalStreakLabel: {
+    fontSize: 13,
+    fontWeight: '500',
+    marginTop: 1,
+  },
+  dailyGoalNewRecordBadge: {
+    backgroundColor: '#F97316',
+    paddingVertical: 4,
+    paddingHorizontal: 8,
+    borderRadius: 6,
+  },
+  dailyGoalNewRecordText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#FFFFFF',
+    letterSpacing: 0.5,
+  },
+  dailyGoalWeekPreview: {
+    width: '100%',
+    marginBottom: 20,
+  },
+  dailyGoalWeekHeader: {
+    marginBottom: 12,
+  },
+  dailyGoalWeekTitle: {
+    fontSize: 13,
+    fontWeight: '600',
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+  },
+  dailyGoalWeekDays: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+  },
+  dailyGoalDayItem: {
+    alignItems: 'center',
+    gap: 6,
+  },
+  dailyGoalDayLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+  },
+  dailyGoalDayCircle: {
+    width: 32,
+    height: 32,
+    borderRadius: 10,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  dailyGoalDayCircleDone: {
+    backgroundColor: '#10B981',
+  },
+  dailyGoalDayCircleToday: {
+    borderWidth: 2,
+    borderColor: '#10B981',
+  },
+  dailyGoalButton: {
+    width: '100%',
+    backgroundColor: '#10B981',
+    paddingVertical: 15,
+    borderRadius: 14,
+    alignItems: 'center',
+    shadowColor: '#10B981',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dailyGoalButtonText: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: 0.2,
   },
 });
 

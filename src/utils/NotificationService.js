@@ -216,6 +216,43 @@ class NotificationService {
     console.log('Reminder cancelled');
   };
 
+  scheduleFollowUpReminder = async (mainReminderTime) => {
+    const settings = await this.getSettings();
+    
+    if (!settings.notificationsEnabled) {
+      return null;
+    }
+    
+    const followUpTime = new Date(mainReminderTime.getTime() + 30 * 60 * 1000);
+    
+    if (followUpTime.getHours() >= 21) {
+      console.log('Follow-up reminder would be after 21:00, not scheduling');
+      return null;
+    }
+    
+    PushNotification.localNotificationSchedule({
+      channelId: 'eye-rest-reminders',
+      id: '2',
+      title: 'Eye Rest Reminder 👁️',
+      message: `Don't forget your eye rest! Close your eyes for ${settings.restDuration} minutes`,
+      date: followUpTime,
+      allowWhileIdle: true,
+      vibrate: settings.vibrationEnabled,
+      playSound: true,
+      soundName: 'default',
+      userInfo: { screen: 'Timer' },
+      data: { screen: 'Timer' },
+    });
+    
+    console.log('Follow-up reminder scheduled for:', followUpTime.toLocaleTimeString());
+    return followUpTime;
+  };
+
+  cancelFollowUpReminder = () => {
+    PushNotification.cancelLocalNotification('2');
+    console.log('Follow-up reminder cancelled');
+  };
+
   // Schedule a test wakeup notification 1 minute from now
   scheduleTestWakeupNotification = async () => {
     PushNotification.cancelLocalNotification('wakeup-test');
@@ -275,6 +312,9 @@ class NotificationService {
     // Cancel any existing ongoing notification
     PushNotification.cancelLocalNotification('999');
     
+    // Cancel follow-up reminder since user is starting a rest
+    this.cancelFollowUpReminder();
+    
     const settings = await this.getSettings();
     
     // For bonus rest, keep the existing reminder schedule
@@ -302,12 +342,24 @@ class NotificationService {
         data: { screen: 'Timer' },
       });
       
-      await StorageService.setItem('nextReminderTime', {
+      await this.scheduleFollowUpReminder(nextReminderTime);
+      
+      const reminderData = {
         id: 'next-reminder',
         timestamp: nextReminderTime.getTime(),
         formattedTime: nextReminderTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
         date: nextReminderTime.toLocaleDateString(),
-      });
+      };
+      
+      await StorageService.setItem('nextReminderTime', reminderData);
+      
+      // Store in reminder history for tracking missed reminders
+      const reminderHistory = await StorageService.getItem('reminderHistory') || [];
+      reminderHistory.push(reminderData);
+      // Keep only last 7 days
+      const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+      const filteredHistory = reminderHistory.filter(r => r.timestamp > sevenDaysAgo);
+      await StorageService.setItem('reminderHistory', filteredHistory);
       
       console.log('Next reminder pre-scheduled for:', nextReminderTime.toLocaleTimeString());
     } else {
@@ -374,7 +426,11 @@ class NotificationService {
     // Only cancel pre-scheduled reminder if not keeping it (e.g., when user cancels timer)
     if (!keepReminder) {
       PushNotification.cancelLocalNotification('1');
+      this.cancelFollowUpReminder();
       await StorageService.removeItem('nextReminderTime');
+    } else {
+      // If keeping the reminder, cancel the follow-up since user completed a rest
+      this.cancelFollowUpReminder();
     }
     
     console.log('Timer notification stopped, keepReminder:', keepReminder);
@@ -396,6 +452,7 @@ class NotificationService {
     PushNotification.cancelLocalNotification('998');
     PushNotification.cancelLocalNotification('999');
     PushNotification.cancelLocalNotification('1'); // Cancel pre-scheduled reminder
+    this.cancelFollowUpReminder();
     
     // Clear the stored next reminder time since we cancelled it
     await StorageService.removeItem('nextReminderTime');
@@ -503,6 +560,7 @@ class NotificationService {
   scheduleNextReminder = async (baseTime = null) => {
     // Cancel existing reminder notifications (but not timer notifications)
     PushNotification.cancelLocalNotification('1');
+    this.cancelFollowUpReminder();
     
     const settings = await this.getSettings();
     
@@ -551,7 +609,17 @@ class NotificationService {
       data: { screen: 'Timer' },
     });
     
+    await this.scheduleFollowUpReminder(reminderTime);
+    
     await StorageService.setItem('nextReminderTime', nextReminder);
+    
+    // Store in reminder history for tracking missed reminders
+    const reminderHistory = await StorageService.getItem('reminderHistory') || [];
+    reminderHistory.push(nextReminder);
+    // Keep only last 7 days
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const filteredHistory = reminderHistory.filter(r => r.timestamp > sevenDaysAgo);
+    await StorageService.setItem('reminderHistory', filteredHistory);
     
     console.log('Next reminder scheduled for:', nextReminder.formattedTime, 'in', intervalMinutes, 'minutes');
     
@@ -562,6 +630,7 @@ class NotificationService {
   scheduleCustomReminder = async (timestamp) => {
     // Cancel existing reminder notifications
     PushNotification.cancelLocalNotification('1');
+    this.cancelFollowUpReminder();
     
     const settings = await this.getSettings();
     const reminderTime = new Date(timestamp);
@@ -587,7 +656,17 @@ class NotificationService {
       data: { screen: 'Timer' },
     });
     
+    await this.scheduleFollowUpReminder(reminderTime);
+    
     await StorageService.setItem('nextReminderTime', nextReminder);
+    
+    // Store in reminder history for tracking missed reminders
+    const reminderHistory = await StorageService.getItem('reminderHistory') || [];
+    reminderHistory.push(nextReminder);
+    // Keep only last 7 days
+    const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+    const filteredHistory = reminderHistory.filter(r => r.timestamp > sevenDaysAgo);
+    await StorageService.setItem('reminderHistory', filteredHistory);
     
     console.log('Custom reminder scheduled for:', nextReminder.formattedTime);
     

@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { SafeAreaView, StatusBar, StyleSheet, View, AppState, Animated } from 'react-native';
+import { SafeAreaView, StatusBar, StyleSheet, View, AppState, Animated, TouchableOpacity, Platform } from 'react-native';
 import { NavigationContainer, DefaultTheme as NavigationDefaultTheme, DarkTheme as NavigationDarkTheme } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
@@ -59,6 +59,155 @@ export const PlantColorEvent = {
   },
 };
 
+// Custom Tab Bar Component with raised center button
+function CustomTabBar({ state, descriptors, navigation, pendingUnlocks, tabBarBg, inactiveColor, isRestMode }) {
+  if (isRestMode) return null;
+  
+  return (
+    <View style={tabBarStyles.container}>
+      <View style={[tabBarStyles.tabBar, { backgroundColor: tabBarBg }]}>
+        {state.routes.map((route, index) => {
+          const { options } = descriptors[route.key];
+          const isFocused = state.index === index;
+          const isCenter = route.name === 'Timer';
+          
+          const onPress = () => {
+            const event = navigation.emit({
+              type: 'tabPress',
+              target: route.key,
+              canPreventDefault: true,
+            });
+            
+            if (!isFocused && !event.defaultPrevented) {
+              navigation.navigate(route.name);
+            }
+          };
+          
+          const color = isFocused ? '#FF6B6B' : inactiveColor;
+          
+          // Center Timer button - raised and prominent
+          if (isCenter) {
+            return (
+              <TouchableOpacity
+                key={route.key}
+                onPress={onPress}
+                activeOpacity={0.8}
+                style={tabBarStyles.centerButtonWrapper}
+              >
+                <View style={[
+                  tabBarStyles.centerButton,
+                  isFocused && tabBarStyles.centerButtonActive
+                ]}>
+                  <FontAwesomeIcon icon={faStopwatch} size={28} color="#FFFFFF" />
+                </View>
+              </TouchableOpacity>
+            );
+          }
+          
+          // Regular tab buttons
+          return (
+            <TouchableOpacity
+              key={route.key}
+              onPress={onPress}
+              activeOpacity={0.7}
+              style={tabBarStyles.tabButton}
+            >
+              {route.name === 'Home' && (
+                <FontAwesomeIcon icon={faFire} size={30} color={color} />
+              )}
+              {route.name === 'Garden' && (
+                <View>
+                  <FontAwesomeIcon icon={faSun} size={30} color={color} />
+                  {pendingUnlocks > 0 && (
+                    <View style={tabBarStyles.badge}>
+                      <Animated.Text style={tabBarStyles.badgeText}>
+                        {pendingUnlocks}
+                      </Animated.Text>
+                    </View>
+                  )}
+                </View>
+              )}
+            </TouchableOpacity>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
+const tabBarStyles = StyleSheet.create({
+  container: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    alignItems: 'center',
+  },
+  tabBar: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    height: 85,
+    width: '100%',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    paddingHorizontal: 20,
+    paddingBottom: Platform.OS === 'ios' ? 24 : 14,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 20,
+  },
+  tabButton: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingTop: 28,
+    paddingBottom: 10,
+  },
+  centerButtonWrapper: {
+    flex: 1,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: -30,
+  },
+  centerButton: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    backgroundColor: '#FF6B6B',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#FF6B6B',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.4,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  centerButtonActive: {
+    backgroundColor: '#FF5252',
+    transform: [{ scale: 1.05 }],
+  },
+  badge: {
+    position: 'absolute',
+    top: -4,
+    right: -8,
+    backgroundColor: '#FF6B6B',
+    borderRadius: 10,
+    minWidth: 18,
+    height: 18,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 4,
+  },
+  badgeText: {
+    color: '#FFFFFF',
+    fontSize: 11,
+    fontWeight: 'bold',
+  },
+});
+
 // Tab Navigator Component
 function TabNavigator({ plantColor, isRestMode, pendingUnlocks, isDarkMode, colors: propColors }) {
   // Use rest mode styling when timer is active, otherwise use theme colors
@@ -70,62 +219,21 @@ function TabNavigator({ plantColor, isRestMode, pendingUnlocks, isDarkMode, colo
   
   return (
     <Tab.Navigator
+      tabBar={(props) => (
+        <CustomTabBar
+          {...props}
+          pendingUnlocks={pendingUnlocks}
+          tabBarBg={tabBarBg}
+          inactiveColor={inactiveColor}
+          isRestMode={isRestMode}
+        />
+      )}
       screenOptions={({ route }) => ({
-        tabBarIcon: ({ focused, color, size }) => {
-          if (route.name === 'Home') {
-            return <FontAwesomeIcon icon={faFire} size={32} color={color} />;
-          } else if (route.name === 'Timer') {
-            return <FontAwesomeIcon icon={faStopwatch} size={32} color={color} />;
-          } else if (route.name === 'Garden') {
-            return (
-              <View>
-                <FontAwesomeIcon icon={faSun} size={32} color={color} />
-                {pendingUnlocks > 0 && (
-                  <View style={{
-                    position: 'absolute',
-                    top: -4,
-                    right: -8,
-                    backgroundColor: '#FF6B6B',
-                    borderRadius: 10,
-                    minWidth: 18,
-                    height: 18,
-                    justifyContent: 'center',
-                    alignItems: 'center',
-                    paddingHorizontal: 4,
-                  }}>
-                    <Animated.Text style={{
-                      color: '#FFFFFF',
-                      fontSize: 11,
-                      fontWeight: 'bold',
-                    }}>{pendingUnlocks}</Animated.Text>
-                  </View>
-                )}
-              </View>
-            );
-          }
-        },
-        tabBarShowLabel: false,
-        tabBarActiveTintColor: '#FF6B6B',
-        tabBarInactiveTintColor: inactiveColor,
         headerShown: false,
         tabBarHideOnKeyboard: true,
         lazy: false,
         unmountOnBlur: false,
         sceneStyle: { backgroundColor: bgColor },
-        tabBarStyle: isRestMode ? { display: 'none' } : {
-          backgroundColor: tabBarBg,
-          borderTopWidth: 0,
-          elevation: 20,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: -4 },
-          shadowOpacity: 0.1,
-          shadowRadius: 12,
-          height: 80,
-          paddingBottom: 28,
-          paddingTop: 16,
-          borderTopLeftRadius: 30,
-          borderTopRightRadius: 30,
-        },
       })}
     >
       <Tab.Screen name="Home" component={HomeScreen} />
