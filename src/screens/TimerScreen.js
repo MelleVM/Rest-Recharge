@@ -83,10 +83,12 @@ const TimerScreen = () => {
   const [settingsExpanded, setSettingsExpanded] = useState(false);
   const [bonusRest, setBonusRestState] = useState(false);
   const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
+  const [isStopwatchMode, setIsStopwatchMode] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(4);
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
   const [restHistory, setRestHistory] = useState([]);
   const bonusRestRef = useRef(false);
+  const isStopwatchModeRef = useRef(false);
   const setBonusRest = (value) => {
     console.log('setBonusRest called with:', value);
     setBonusRestState(value);
@@ -115,6 +117,24 @@ const TimerScreen = () => {
   useEffect(() => {
     isActiveRef.current = isActive;
   }, [isActive]);
+
+  useEffect(() => {
+    isStopwatchModeRef.current = isStopwatchMode;
+  }, [isStopwatchMode]);
+
+  // Reset time display when switching modes (only when timer is not active)
+  useEffect(() => {
+    if (!isActive) {
+      if (isStopwatchMode) {
+        setTime(0);
+      } else {
+        // Reset to configured duration
+        const durationSeconds = durationMinutes * 60;
+        setTime(durationSeconds);
+        setTotalTime(durationSeconds);
+      }
+    }
+  }, [isStopwatchMode, isActive, durationMinutes]);
 
   // Helper functions for daily goal modal
   const isSameDay = (date1, date2) => {
@@ -229,7 +249,8 @@ const TimerScreen = () => {
         const alreadyHandled = await checkForCompletedTimer();
         
         // If timer is still active and wasn't already handled, verify it hasn't completed
-        if (!alreadyHandled && isActiveRef.current && endTimeRef.current) {
+        // Skip this check for stopwatch mode (stopwatch doesn't have an end time)
+        if (!alreadyHandled && isActiveRef.current && endTimeRef.current && !isStopwatchModeRef.current) {
           const now = Date.now();
           const remaining = Math.max(0, Math.floor((endTimeRef.current - now) / 1000));
           if (remaining <= 0) {
@@ -251,18 +272,24 @@ const TimerScreen = () => {
   useFocusEffect(
     useCallback(() => {
       const refreshSettings = async () => {
-        // Check if timer completed while we were away
-        await checkForCompletedTimer();
+        // Check if timer completed while we were away (skip for stopwatch)
+        if (!isStopwatchModeRef.current) {
+          await checkForCompletedTimer();
+        }
 
         const settings = await NotificationService.getSettings();
         setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
         
         // Only update duration if timer is not active
         if (!isActiveRef.current) {
-          const durationMinutes = settings.restDuration || 20;
-          const durationSeconds = durationMinutes * 60;
-          setTime(durationSeconds);
-          setTotalTime(durationSeconds);
+          if (isStopwatchModeRef.current) {
+            setTime(0);
+          } else {
+            const durationMinutes = settings.restDuration || 20;
+            const durationSeconds = durationMinutes * 60;
+            setTime(durationSeconds);
+            setTotalTime(durationSeconds);
+          }
         }
         // Always refresh completed rests count and garden data
         await loadCompletedRests();
@@ -311,6 +338,26 @@ const TimerScreen = () => {
     setTotalTime(durationSeconds);
     setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
     
+    // Check for active stopwatch state first
+    const stopwatchState = await StorageService.getItem('stopwatchState');
+    if (stopwatchState && stopwatchState.isActive) {
+      console.log('Recovering stopwatch state:', stopwatchState);
+      setIsStopwatchMode(true);
+      endTimeRef.current = stopwatchState.startTime;
+      const now = Date.now();
+      const elapsed = Math.floor((now - stopwatchState.startTime) / 1000);
+      setTime(elapsed);
+      setIsActive(true);
+      
+      // Restore bonus rest state
+      if (stopwatchState.isBonusRest) {
+        setBonusRest(true);
+      }
+      
+      startStopwatchLoop();
+      return;
+    }
+    
     // Check for active timer state
     const timerState = await NotificationService.getTimerState();
     
@@ -351,22 +398,36 @@ const TimerScreen = () => {
   useEffect(() => {
     const handleAppStateChange = async (nextAppState) => {
       console.log('App state changed:', appState.current, '->', nextAppState);
+      console.log('isStopwatchModeRef.current:', isStopwatchModeRef.current);
+      console.log('isActiveRef.current:', isActiveRef.current);
+      console.log('endTimeRef.current:', endTimeRef.current);
       
       if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
         console.log('App has come to the foreground!');
         
         if (isInitialized.current) {
-          // Check if timer completed
-          const completed = await checkForCompletedTimer();
-          
-          if (!completed && endTimeRef.current) {
-            // Timer still running, update time and restart loop
+          if (isStopwatchModeRef.current && isActiveRef.current && endTimeRef.current) {
+            // Stopwatch mode - calculate elapsed time and restart
+            console.log('✅ Resuming stopwatch from background');
             const now = Date.now();
-            const remaining = Math.floor((endTimeRef.current - now) / 1000);
+            const elapsed = Math.floor((now - endTimeRef.current) / 1000);
+            console.log('Elapsed time:', elapsed, 'seconds');
+            setTime(elapsed);
+            setIsActive(true); // Ensure active state is set
+            startStopwatchLoop();
+          } else if (!isStopwatchModeRef.current) {
+            // Timer mode - check if timer completed
+            const completed = await checkForCompletedTimer();
             
-            if (remaining > 0) {
-              setTime(remaining);
-              startTimerLoop();
+            if (!completed && endTimeRef.current) {
+              // Timer still running, update time and restart loop
+              const now = Date.now();
+              const remaining = Math.floor((endTimeRef.current - now) / 1000);
+              
+              if (remaining > 0) {
+                setTime(remaining);
+                startTimerLoop();
+              }
             }
           }
           
@@ -389,32 +450,35 @@ const TimerScreen = () => {
   }, []);
 
   // Save rest to history
-  const saveRestToHistory = async (timestamp) => {
+  const saveRestToHistory = async (timestamp, customDuration = null) => {
     try {
       const history = await StorageService.getItem('restHistory') || [];
       const todayKey = new Date(timestamp).toLocaleDateString();
       const todayRestsBeforeAdd = history.filter(r => r.date === todayKey).length;
       
+      // Get the actual duration that was completed
+      const settings = await StorageService.getItem('settings') || {};
+      const restDuration = customDuration || settings.restDuration || 20;
+      const goal = settings.dailyGoal || 4;
+      
+      console.log('📝 saveRestToHistory called - customDuration:', customDuration, 'final duration:', restDuration);
+      
       history.push({
         timestamp,
         date: todayKey,
         time: new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        duration: restDuration, // Store duration in minutes
       });
-      // Keep only last 30 days of history
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const filteredHistory = history.filter(h => h.timestamp > thirtyDaysAgo);
-      await StorageService.setItem('restHistory', filteredHistory);
+      await StorageService.setItem('restHistory', history);
       
       // Check if daily goal was just reached
-      const settings = await StorageService.getItem('settings') || {};
-      const goal = settings.dailyGoal || 4;
-      const todayRestsAfterAdd = filteredHistory.filter(r => r.date === todayKey).length;
+      const todayRestsAfterAdd = history.filter(r => r.date === todayKey).length;
       
       if (todayRestsBeforeAdd < goal && todayRestsAfterAdd >= goal) {
         // Update state and show modal on TimerScreen
         setDailyGoal(goal);
-        setRestHistory(filteredHistory);
-        const streak = calculateStreakData(filteredHistory, goal);
+        setRestHistory(history);
+        const streak = calculateStreakData(history, goal);
         setStreakData(streak);
         setShowDailyGoalModal(true);
       }
@@ -473,8 +537,15 @@ const TimerScreen = () => {
       lastEnergyUpdate: Date.now(),
     });
     
+    // Calculate rested time
+    const restedMins = Math.floor(startDurationRef.current / 60);
+    const restedSecs = startDurationRef.current % 60;
+    const restedTime = restedSecs > 0 
+      ? `${restedMins}m ${restedSecs}s`
+      : `${restedMins} minute${restedMins !== 1 ? 's' : ''}`;
+    
     // Show toast notification
-    ToastEvent.show('energy', 25, 'Rest completed!');
+    ToastEvent.show('success', 0, `Timer finished! 🎉\nRested for ${restedTime}`);
     
     // Clear timer state and stop notification (keep the pre-scheduled reminder)
     await NotificationService.clearTimerState();
@@ -578,33 +649,108 @@ const TimerScreen = () => {
     animationFrameRef.current = requestAnimationFrame(tick);
   };
 
+  // Stopwatch loop - counts up from 0
+  const startStopwatchLoop = () => {
+    stopTimer();
+    const startTime = endTimeRef.current;
+    let lastSecond = -1;
+    
+    const tick = () => {
+      if (!endTimeRef.current) return;
+      
+      const now = Date.now();
+      const elapsedMs = now - startTime;
+      const elapsed = Math.floor(elapsedMs / 1000);
+      
+      // Update time display when second changes
+      if (elapsed !== lastSecond) {
+        lastSecond = elapsed;
+        setTime(elapsed);
+        
+        // Update Live Activity every 5 seconds
+        if (elapsed % 5 === 0 && elapsed > 0) {
+          NotificationService.updateStopwatchNotification(elapsed);
+        }
+      }
+      
+      animationFrameRef.current = requestAnimationFrame(tick);
+    };
+    
+    animationFrameRef.current = requestAnimationFrame(tick);
+  };
+
   const start = async () => {
     if (!isActive) {
-      const newEndTime = Date.now() + time * 1000;
-      endTimeRef.current = newEndTime;
-      startDurationRef.current = time; // Store the starting duration
-      setIsActive(true);
-      RestModeEvent.emit(true);
-      
-      // Use ref to get current value (avoid stale closure)
-      const isBonusRest = bonusRestRef.current;
-      console.log('Starting timer, bonusRestRef.current:', isBonusRest, 'bonusRest state:', bonusRest);
-      await NotificationService.startTimerNotification(newEndTime, false, isBonusRest);
-      startTimerLoop();
+      if (isStopwatchMode) {
+        // Stopwatch mode: count up from 0
+        const startTime = Date.now();
+        endTimeRef.current = startTime; // Store start time
+        startDurationRef.current = 0;
+        setTime(0);
+        setIsActive(true);
+        RestModeEvent.emit(true);
+        
+        const isBonusRest = bonusRestRef.current;
+        
+        // Save stopwatch state for recovery
+        await StorageService.setItem('stopwatchState', {
+          isActive: true,
+          startTime: startTime,
+          isStopwatch: true,
+          isBonusRest: isBonusRest
+        });
+        
+        // Cancel follow-up reminder and schedule next one (unless bonus rest)
+        NotificationService.cancelFollowUpReminder();
+        if (!isBonusRest) {
+          // Schedule next reminder from now to prevent it going off during rest
+          // Will be rescheduled again when stopwatch finishes
+          await NotificationService.scheduleNextReminder();
+        }
+        
+        // Start Live Activity for stopwatch mode
+        await NotificationService.startStopwatchNotification();
+        startStopwatchLoop();
+      } else {
+        // Timer mode: count down
+        const newEndTime = Date.now() + time * 1000;
+        endTimeRef.current = newEndTime;
+        startDurationRef.current = time; // Store the starting duration
+        setIsActive(true);
+        RestModeEvent.emit(true);
+        
+        const isBonusRest = bonusRestRef.current;
+        console.log('Starting timer, bonusRestRef.current:', isBonusRest, 'bonusRest state:', bonusRest);
+        await NotificationService.startTimerNotification(newEndTime, false, isBonusRest);
+        startTimerLoop();
+      }
     }
   };
 
   const cancel = async () => {
-    // Calculate completed percentage before stopping (use refs for accuracy)
-    let completedPercent = 0;
     const now = Date.now();
-    const duration = startDurationRef.current;
+    let completedPercent = 0;
+    let elapsedMinutes = 0;
     
-    if (endTimeRef.current && duration > 0) {
-      const remainingMs = Math.max(0, endTimeRef.current - now);
-      const remainingSecs = remainingMs / 1000;
-      const elapsedSecs = duration - remainingSecs;
-      completedPercent = Math.round((elapsedSecs / duration) * 100);
+    if (isStopwatchMode) {
+      // Stopwatch mode - calculate elapsed time
+      if (endTimeRef.current) {
+        const elapsedMs = now - endTimeRef.current;
+        const elapsedSecs = Math.floor(elapsedMs / 1000);
+        elapsedMinutes = Math.max(1, Math.ceil(elapsedSecs / 60)); // Round up, minimum 1 minute
+        completedPercent = 100; // Stopwatch is always "complete" when finished
+        console.log('Stopwatch finished - elapsed:', elapsedSecs, 'seconds =', elapsedMinutes, 'minutes');
+      }
+    } else {
+      // Timer mode - calculate completion percentage
+      const duration = startDurationRef.current;
+      
+      if (endTimeRef.current && duration > 0) {
+        const remainingMs = Math.max(0, endTimeRef.current - now);
+        const remainingSecs = remainingMs / 1000;
+        const elapsedSecs = duration - remainingSecs;
+        completedPercent = Math.round((elapsedSecs / duration) * 100);
+      }
     }
     
     stopTimer();
@@ -632,11 +778,42 @@ const TimerScreen = () => {
     await StorageService.setItem('gardenData', updatedGardenData);
     setGardenData(updatedGardenData);
     
-    // Show toast notification with energy earned
-    if (energyEarned > 0) {
-      ToastEvent.show('energy', energyEarned, `+${energyEarned}% energy earned`);
+    // Calculate rested time for display
+    let restedTime = '';
+    if (isStopwatchMode) {
+      restedTime = elapsedMinutes >= 1 
+        ? `${elapsedMinutes} minute${elapsedMinutes !== 1 ? 's' : ''}`
+        : `${Math.floor(elapsedSecs)} second${Math.floor(elapsedSecs) !== 1 ? 's' : ''}`;
     } else {
-      ToastEvent.show('energy', 0, 'Timer cancelled');
+      const duration = startDurationRef.current;
+      const elapsedSecs = Math.round((completedPercent / 100) * duration);
+      const elapsedMins = Math.floor(elapsedSecs / 60);
+      const remainingSecs = elapsedSecs % 60;
+      
+      if (elapsedMins >= 1) {
+        restedTime = remainingSecs > 0 
+          ? `${elapsedMins}m ${remainingSecs}s`
+          : `${elapsedMins} minute${elapsedMins !== 1 ? 's' : ''}`;
+      } else {
+        restedTime = `${elapsedSecs} second${elapsedSecs !== 1 ? 's' : ''}`;
+      }
+    }
+    
+    // Save rest to history for stopwatch mode or completed timer
+    if (isStopwatchMode && elapsedMinutes > 0) {
+      // Save stopwatch rest with actual elapsed duration
+      const completionTime = Date.now();
+      console.log('💾 Saving stopwatch rest with duration:', elapsedMinutes, 'minutes');
+      await saveRestToHistory(completionTime, elapsedMinutes);
+      console.log('✅ Stopwatch rest saved');
+      
+      // Show completion toast
+      ToastEvent.show('success', 0, `Stopwatch finished\nRested for ${restedTime}`);
+    } else if (completedPercent > 0) {
+      // Show toast notification for timer mode
+      ToastEvent.show('success', 0, `Rest cancelled\nRested for ${restedTime}`);
+    } else {
+      ToastEvent.show('info', 0, 'Rest cancelled');
     }
     
     // Stop timer and clear state
@@ -644,6 +821,9 @@ const TimerScreen = () => {
     const isBonusRest = bonusRestRef.current;
     await NotificationService.stopTimerNotification(isBonusRest);
     await NotificationService.clearTimerState();
+    
+    // Clear stopwatch state
+    await StorageService.removeItem('stopwatchState');
     
     // Schedule next reminder from now (only for regular rest, not bonus rest)
     if (!isBonusRest) {
@@ -703,8 +883,15 @@ const TimerScreen = () => {
       lastEnergyUpdate: Date.now(),
     });
     
+    // Calculate rested time
+    const restedMins = Math.floor(startDurationRef.current / 60);
+    const restedSecs = startDurationRef.current % 60;
+    const restedTime = restedSecs > 0 
+      ? `${restedMins}m ${restedSecs}s`
+      : `${restedMins} minute${restedMins !== 1 ? 's' : ''}`;
+    
     // Show toast notification
-    ToastEvent.show('energy', 25, 'Rest completed!');
+    ToastEvent.show('success', 0, `Timer finished! 🎉\nRested for ${restedTime}`);
     
     // Show a new motivational quote
     getNewQuote();
@@ -739,7 +926,12 @@ const TimerScreen = () => {
   };
 
   // Use smoothProgress when timer is active for fluid animation, otherwise calculate from time
-  const progress = isActive ? smoothProgress : (totalTime > 0 ? (totalTime - time) / totalTime : 0);
+  // For stopwatch mode when not active, show empty circle (0 progress)
+  const progress = isActive 
+    ? smoothProgress 
+    : isStopwatchMode 
+      ? 0 
+      : (totalTime > 0 ? (totalTime - time) / totalTime : 0);
   const strokeDashoffset = CIRCUMFERENCE * (1 - progress);
 
   // Get plant color for gems display
@@ -821,17 +1013,17 @@ const TimerScreen = () => {
         {!isActive && (
           <View style={styles.header}>
             <Text style={[styles.title, { color: colors.text }]}>
-              Rest & Recharge
+              Timer
             </Text>
             <TouchableOpacity
-              style={styles.settingsButton}
+              style={[styles.settingsButton, { backgroundColor: colors.inputBackground }]}
               onPress={() => navigation.navigate('Settings')}
               activeOpacity={0.7}
             >
               <FontAwesomeIcon
                 icon={faGear}
-                size={28}
-                color={colors.textMuted}
+                size={20}
+                color={colors.textSecondary}
               />
             </TouchableOpacity>
           </View>
@@ -881,8 +1073,8 @@ const TimerScreen = () => {
                 <Text
                   style={[styles.timerLabel, { color: colors.textSecondary }]}
                 >
-                  {time === 0
-                    ? 'Click to collect your reward 💎'
+                  {time === 0 && !isStopwatchMode
+                    ? 'Tap to complete your rest 💎'
                     : 'Start when ready'}
                 </Text>
               )}
@@ -904,11 +1096,18 @@ const TimerScreen = () => {
         <View style={styles.controlsContainer}>
           {isActive ? (
             <TouchableOpacity
-              style={[styles.controlButton, styles.restModeCancelButton]}
+              style={[
+                styles.controlButton,
+                isStopwatchMode ? styles.restModeFinishButton : styles.restModeCancelButton
+              ]}
               onPress={cancel}
             >
-              <FontAwesomeIcon icon={faTimes} size={24} color="#FFFFFF" />
-              <Text style={styles.buttonText}>Cancel</Text>
+              <FontAwesomeIcon 
+                icon={isStopwatchMode ? faCheck : faTimes} 
+                size={24} 
+                color="#FFFFFF" 
+              />
+              <Text style={styles.buttonText}>{isStopwatchMode ? 'Finish' : 'Cancel'}</Text>
             </TouchableOpacity>
           ) : (
             <TouchableOpacity style={styles.controlButton} onPress={start}>
@@ -956,8 +1155,61 @@ const TimerScreen = () => {
                       />
                       <View style={styles.settingTextContainer}>
                         <Text style={[styles.settingLabel, { color: colors.text }]}>
-                          Duration
+                          Mode
                         </Text>
+                        <Text
+                          style={[
+                            styles.settingDescription,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {isStopwatchMode ? 'Count up' : 'Count down'}
+                        </Text>
+                      </View>
+                    </View>
+                    <View style={styles.modeToggleRow}>
+                      <TouchableOpacity
+                        style={[
+                          styles.modeButton,
+                          !isStopwatchMode && styles.modeButtonActive,
+                          { backgroundColor: !isStopwatchMode ? '#4ECDC4' : colors.inputBackground }
+                        ]}
+                        onPress={() => setIsStopwatchMode(false)}
+                      >
+                        <Text style={[styles.modeButtonText, { color: !isStopwatchMode ? '#FFF' : colors.textMuted }]}>
+                          Timer
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={[
+                          styles.modeButton,
+                          isStopwatchMode && styles.modeButtonActive,
+                          { backgroundColor: isStopwatchMode ? '#4ECDC4' : colors.inputBackground }
+                        ]}
+                        onPress={() => setIsStopwatchMode(true)}
+                      >
+                        <Text style={[styles.modeButtonText, { color: isStopwatchMode ? '#FFF' : colors.textMuted }]}>
+                          Stopwatch
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+
+                  {!isStopwatchMode && (
+                    <>
+                      <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
+                      
+                      <View style={styles.settingRow}>
+                        <View style={styles.settingLeft}>
+                          <FontAwesomeIcon
+                            icon={faClock}
+                            size={20}
+                            color="#4ECDC4"
+                          />
+                          <View style={styles.settingTextContainer}>
+                            <Text style={[styles.settingLabel, { color: colors.text }]}>
+                              Duration
+                            </Text>
                         <Text
                           style={[
                             styles.settingDescription,
@@ -986,44 +1238,8 @@ const TimerScreen = () => {
                       </TouchableOpacity>
                     </View>
                   </View>
-
-                  <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
-
-                  <View style={styles.settingRow}>
-                    <View style={styles.settingLeft}>
-                      <FontAwesomeIcon
-                        icon={alarmSoundEnabled ? faVolumeHigh : faMobile}
-                        size={20}
-                        color="#4ECDC4"
-                      />
-                      <View style={styles.settingTextContainer}>
-                        <Text style={[styles.settingLabel, { color: colors.text }]}>
-                          Alarm Type
-                        </Text>
-                        <Text
-                          style={[
-                            styles.settingDescription,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {alarmSoundEnabled
-                            ? 'Sound + Vibration'
-                            : 'Vibration Only'}
-                        </Text>
-                      </View>
-                    </View>
-                    <Switch
-                      value={alarmSoundEnabled}
-                      onValueChange={async value => {
-                        setAlarmSoundEnabled(value);
-                        const settings = await NotificationService.getSettings();
-                        settings.alarmSoundEnabled = value;
-                        await StorageService.setItem('settings', settings);
-                      }}
-                      trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
-                      thumbColor="#FFFFFF"
-                    />
-                  </View>
+                    </>
+                  )}
 
                   <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
 
@@ -1055,6 +1271,79 @@ const TimerScreen = () => {
                       thumbColor="#FFFFFF"
                     />
                   </View>
+
+                  {!isStopwatchMode && (
+                    <>
+                      <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
+
+                      <View style={styles.settingRow}>
+                        <View style={styles.settingLeft}>
+                          <FontAwesomeIcon
+                            icon={alarmSoundEnabled ? faVolumeHigh : faMobile}
+                            size={20}
+                            color="#4ECDC4"
+                          />
+                          <View style={styles.settingTextContainer}>
+                            <Text style={[styles.settingLabel, { color: colors.text }]}>
+                              Alarm Type
+                            </Text>
+                            <Text
+                              style={[
+                                styles.settingDescription,
+                                { color: colors.textSecondary },
+                              ]}
+                            >
+                              {alarmSoundEnabled
+                                ? 'Sound + Vibration'
+                                : 'Vibration Only'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Switch
+                          value={alarmSoundEnabled}
+                          onValueChange={async value => {
+                            setAlarmSoundEnabled(value);
+                            const settings = await NotificationService.getSettings();
+                            settings.alarmSoundEnabled = value;
+                            await StorageService.setItem('settings', settings);
+                          }}
+                          trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
+                          thumbColor="#FFFFFF"
+                        />
+                      </View>
+
+                      <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
+
+                      <View style={styles.settingRow}>
+                        <View style={styles.settingLeft}>
+                          <FontAwesomeIcon
+                            icon={faCalendarPlus}
+                            size={20}
+                            color="#4ECDC4"
+                          />
+                          <View style={styles.settingTextContainer}>
+                            <Text style={[styles.settingLabel, { color: colors.text }]}>
+                              Bonus Rest
+                            </Text>
+                            <Text
+                              style={[
+                                styles.settingDescription,
+                                { color: colors.textSecondary },
+                              ]}
+                            >
+                              Keep current reminder schedule
+                            </Text>
+                          </View>
+                        </View>
+                        <Switch
+                          value={bonusRest}
+                          onValueChange={setBonusRest}
+                          trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
+                          thumbColor="#FFFFFF"
+                        />
+                      </View>
+                    </>
+                  )}
                 </View>
               )}
             </View>
@@ -1214,7 +1503,11 @@ const styles = StyleSheet.create({
     borderRadius: 20,
   },
   settingsButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   gemText: {
     fontSize: 18,
@@ -1281,6 +1574,9 @@ const styles = StyleSheet.create({
   restModeCancelButton: {
     backgroundColor: 'rgba(255, 107, 107, 0.8)',
   },
+  restModeFinishButton: {
+    backgroundColor: 'rgba(16, 185, 129, 0.9)', // Green color
+  },
   timerLabel: {
     fontSize: 18,
     color: '#636E72',
@@ -1289,6 +1585,22 @@ const styles = StyleSheet.create({
   settingDivider: {
     height: 1,
     marginVertical: 12,
+  },
+  modeToggleRow: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  modeButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 12,
+  },
+  modeButtonActive: {
+    // Active state handled by backgroundColor in component
+  },
+  modeButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
   },
   durationPickerRow: {
     flexDirection: 'row',

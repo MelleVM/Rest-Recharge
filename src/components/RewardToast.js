@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, StyleSheet, Animated, Dimensions } from 'react-native';
+import { View, StyleSheet, Animated, Dimensions, Platform } from 'react-native';
 import { Text } from 'react-native-paper';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
@@ -7,6 +7,7 @@ import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 import { useAppTheme } from '../context/ThemeContext';
 
 const { width } = Dimensions.get('window');
+const NOTCH_OFFSET = Platform.OS === 'ios' ? 50 : 20; // Extra offset for iOS notch/Dynamic Island
 
 // Event emitter for showing toasts
 export const ToastEvent = {
@@ -42,7 +43,7 @@ const RewardToast = () => {
       // Animate in
       Animated.parallel([
         Animated.timing(slideAnim, {
-          toValue: 20,
+          toValue: NOTCH_OFFSET,
           duration: 300,
           useNativeDriver: true,
         }),
@@ -95,10 +96,23 @@ const RewardToast = () => {
           <FontAwesomeIcon icon={faBolt} size={24} color="#FFC107" style={styles.icon} />
         )}
         <View style={styles.textContainer}>
-          <Text style={[styles.amount, type === 'energy' && styles.amountEnergy, isDarkMode && styles.amountDark]}>
-            +{amount}{type === 'energy' ? '%' : ''}
-          </Text>
-          <Text style={[styles.message, isDarkMode && styles.messageDark]}>{message}</Text>
+          {(type === 'gems' || type === 'energy') && (
+            <Text style={[styles.amount, type === 'energy' && styles.amountEnergy, isDarkMode && styles.amountDark]}>
+              +{amount}{type === 'energy' ? '%' : ''}
+            </Text>
+          )}
+          {(type === 'success' || type === 'info') && message.includes('\n') ? (
+            <>
+              <Text style={[styles.title, isDarkMode && styles.titleDark]}>
+                {message.split('\n')[0]}
+              </Text>
+              <Text style={[styles.subtitle, isDarkMode && styles.subtitleDark]}>
+                {message.split('\n')[1]}
+              </Text>
+            </>
+          ) : (
+            <Text style={[styles.message, isDarkMode && styles.messageDark]}>{message}</Text>
+          )}
         </View>
       </View>
     </Animated.View>
@@ -144,11 +158,27 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#FFFFFF',
   },
+  title: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#FFFFFF',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: 'rgba(255, 255, 255, 0.85)',
+  },
   amountDark: {
     color: '#2D3436',
   },
   messageDark: {
     color: '#2D3436',
+  },
+  titleDark: {
+    color: '#2D3436',
+  },
+  subtitleDark: {
+    color: 'rgba(45, 52, 54, 0.75)',
   },
 });
 

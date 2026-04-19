@@ -1,5 +1,5 @@
  import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, StyleSheet, ScrollView, TouchableOpacity, AppState, Modal, Image } from 'react-native';
+import { View, StyleSheet, ScrollView, TouchableOpacity, AppState, Modal, Image, TextInput } from 'react-native';
 import { Text, Surface, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import NotificationService from '../utils/NotificationService';
@@ -16,48 +16,15 @@ import { faPlus } from '@fortawesome/free-solid-svg-icons/faPlus';
 import { faPencil } from '@fortawesome/free-solid-svg-icons/faPencil';
 import { faTimes } from '@fortawesome/free-solid-svg-icons/faTimes';
 import { faTrash } from '@fortawesome/free-solid-svg-icons/faTrash';
-import { faSeedling } from '@fortawesome/free-solid-svg-icons/faSeedling';
-import { faLeaf } from '@fortawesome/free-solid-svg-icons/faLeaf';
-import { faTree } from '@fortawesome/free-solid-svg-icons/faTree';
-import { faCircle } from '@fortawesome/free-solid-svg-icons/faCircle';
-import { faGem } from '@fortawesome/free-solid-svg-icons/faGem';
-import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 import { faSun } from '@fortawesome/free-solid-svg-icons/faSun';
 import { faGear } from '@fortawesome/free-solid-svg-icons/faGear';
 import { faClock } from '@fortawesome/free-solid-svg-icons/faClock';
 import { faStopwatch } from '@fortawesome/free-solid-svg-icons/faStopwatch';
 import { faTrophy } from '@fortawesome/free-solid-svg-icons/faTrophy';
-import { ToastEvent } from '../components/RewardToast';
-import { PendingUnlocksEvent, WakeupLogEvent } from '../utils/EventEmitters';
+import { WakeupLogEvent } from '../utils/EventEmitters';
 import { FONTS } from '../styles/fonts';
-import { FLOWER_TYPES, getFlowersInUnlockOrder } from '../config/flowerConfig';
 import RestProgressGraph from '../components/RestProgressGraph';
 import { useAppTheme } from '../context/ThemeContext';
-
-// Plant types with colors
-const PLANT_TYPES = {
-  classic: { name: 'Classic Tree', color: '#4CAF50' },
-  rose: { name: 'Rose', color: '#E91E63' },
-  sunflower: { name: 'Sunflower', color: '#FFC107' },
-  bonsai: { name: 'Bonsai', color: '#795548' },
-  cherry: { name: 'Cherry Blossom', color: '#F48FB1' },
-  succulent: { name: 'Succulent', color: '#66BB6A' },
-};
-
-// Get icon based on stage and plant type
-const getStageIcon = (stage, plantId = 'classic') => {
-  // Sunflower uses sun icon at later stages
-  if (plantId === 'sunflower') {
-    if (stage === 0) return faCircle;
-    if (stage <= 2) return faSeedling;
-    return faSun;
-  }
-  // Default progression
-  if (stage === 0) return faCircle;
-  if (stage <= 2) return faSeedling;
-  if (stage === 3) return faLeaf;
-  return faTree;
-};
 
 const HomeScreen = () => {
   const navigation = useNavigation();
@@ -71,14 +38,6 @@ const HomeScreen = () => {
     totalRests: 0,
     streakDays: 0,
   });
-  const [gardenData, setGardenData] = useState({
-    points: 0,
-    currentPlant: 'sprout',
-    plantHealth: 100,
-    plantsGrown: 0,
-    unlockedPlants: ['sprout'],
-    selectedPlantType: 'classic',
-  });
   const [lastWakeupInfo, setLastWakeupInfo] = useState(null);
   const [restHistory, setRestHistory] = useState([]);
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -87,6 +46,8 @@ const HomeScreen = () => {
   const [editingRest, setEditingRest] = useState(null);
   const [selectedHour, setSelectedHour] = useState(new Date().getHours());
   const [selectedMinute, setSelectedMinute] = useState(Math.floor(new Date().getMinutes() / 5) * 5);
+  const [selectedDuration, setSelectedDuration] = useState(20);
+  const [showCustomDuration, setShowCustomDuration] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminderModalKey, setReminderModalKey] = useState(0);
@@ -100,7 +61,6 @@ const HomeScreen = () => {
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
   const [dailyGoal, setDailyGoal] = useState(4);
   const [restInterval, setRestInterval] = useState(120);
-  const [activeTab, setActiveTab] = useState('activity');
   const [showRestOverdueModal, setShowRestOverdueModal] = useState(false);
   const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
   const [reminderHistory, setReminderHistory] = useState([]);
@@ -348,12 +308,6 @@ const HomeScreen = () => {
         setStats(storedStats);
       }
       
-      // Load garden data
-      const storedGardenData = await StorageService.getItem('gardenData');
-      if (storedGardenData) {
-        setGardenData(storedGardenData);
-      }
-      
       // Load daily goal and rest interval from settings
       const settings = await StorageService.getItem('settings');
       const storedDailyGoal = settings?.dailyGoal ?? 4;
@@ -496,11 +450,21 @@ const HomeScreen = () => {
   };
 
   // Open modal to add a new rest
-  const openAddRestModal = () => {
+  const openAddRestModal = async () => {
     const now = new Date();
     const defaultHour = isSameDay(selectedDate, now) ? now.getHours() : 12;
     setSelectedHour(defaultHour);
     setEditingRest(null);
+    
+    // Set duration from settings
+    const settings = await StorageService.getItem('settings') || {};
+    const defaultDuration = settings.restDuration || 20;
+    setSelectedDuration(defaultDuration);
+    
+    // Check if duration is a preset value
+    const presetDurations = [1, 5, 10, 15, 20, 30, 45, 60];
+    setShowCustomDuration(!presetDurations.includes(defaultDuration));
+    
     setShowRestModal(true);
   };
 
@@ -557,6 +521,14 @@ const HomeScreen = () => {
     const restDate = new Date(rest.timestamp);
     setSelectedHour(restDate.getHours());
     setSelectedMinute(Math.floor(restDate.getMinutes() / 5) * 5);
+    
+    const duration = rest.duration || 20;
+    setSelectedDuration(duration);
+    
+    // Check if duration is a preset value
+    const presetDurations = [1, 5, 10, 15, 20, 30, 45, 60];
+    setShowCustomDuration(!presetDurations.includes(duration));
+    
     setEditingRest(rest);
     setShowRestModal(true);
   };
@@ -582,6 +554,7 @@ const HomeScreen = () => {
         timestamp: restDate.getTime(),
         date: selectedDate.toLocaleDateString(),
         time: restDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        duration: selectedDuration,
       };
 
       const isToday = isSameDay(selectedDate, new Date());
@@ -604,45 +577,20 @@ const HomeScreen = () => {
         const updatedStats = { ...stats, ...storedStats, totalRests: newTotalRests };
         await StorageService.setItem('stats', updatedStats);
         setStats(updatedStats);
-        
-        // Check for newly unlocked flowers and store as pending
-        const flowers = getFlowersInUnlockOrder();
-        const newlyUnlocked = flowers.find(
-          flower => flower.unlockAtRests > previousTotalRests && flower.unlockAtRests <= newTotalRests
-        );
-        
-        // Only award energy if rest is on current day and not too close to previous rest
-        if (isToday && !tooClose) {
-          await awardPointsForRest();
-        }
-        
-        // Store pending unlock for GardenOverviewScreen to show
-        if (newlyUnlocked) {
-          const pendingUnlocks = await StorageService.getItem('pendingFlowerUnlocks') || [];
-          if (!pendingUnlocks.includes(newlyUnlocked.id)) {
-            pendingUnlocks.push(newlyUnlocked.id);
-            await StorageService.setItem('pendingFlowerUnlocks', pendingUnlocks);
-            PendingUnlocksEvent.emit(pendingUnlocks.length);
-          }
-        }
       }
 
-      // Filter to keep only last 30 days
-      const thirtyDaysAgo = Date.now() - (30 * 24 * 60 * 60 * 1000);
-      const filteredHistory = updatedHistory.filter(h => h.timestamp > thirtyDaysAgo);
-      
-      await StorageService.setItem('restHistory', filteredHistory);
-      setRestHistory(filteredHistory);
+      await StorageService.setItem('restHistory', updatedHistory);
+      setRestHistory(updatedHistory);
       
       // Recalculate streak
-      const calculatedStreak = calculateStreakData(filteredHistory);
+      const calculatedStreak = calculateStreakData(updatedHistory);
       setStreakData(calculatedStreak);
       
       // Check if daily goal was just reached (for new rests on today only)
       if (!editingRest && isToday) {
         const todayKey = new Date().toLocaleDateString();
         const todayRestsBeforeAdd = restHistory.filter(r => r.date === todayKey).length;
-        const todayRestsAfterAdd = filteredHistory.filter(r => r.date === todayKey).length;
+        const todayRestsAfterAdd = updatedHistory.filter(r => r.date === todayKey).length;
         
         // Show celebration if we just hit the daily goal
         if (todayRestsBeforeAdd < dailyGoal && todayRestsAfterAdd >= dailyGoal) {
@@ -801,82 +749,6 @@ const HomeScreen = () => {
     } catch (error) {
       // Error deleting rest
     }
-  };
-
-  // Plant growth stages and points
-  const PLANT_STAGES = ['seed', 'sprout', 'seedling', 'growing', 'mature', 'blooming'];
-  const POINTS_PER_REST = 10;
-  const POINTS_TO_GROW = 50; // Points needed to advance to next stage
-  
-  // Award energy to sunflower garden and grow all planted flowers
-  const awardPointsForRest = async () => {
-    // Update sunflower garden energy and grow all planted flowers
-    const sunflowerGarden = await StorageService.getItem('sunflowerGarden') || { energy: 0.5, plots: [] };
-    const energyGained = 0.25; // 25% energy per rest
-    const newEnergy = Math.min(1.0, (sunflowerGarden.energy || 0.5) + energyGained);
-    
-    // Increment restsGiven for ALL planted flowers
-    const updatedPlots = (sunflowerGarden.plots || []).map(plot => {
-      if (plot.flowerType && plot.isUnlocked) {
-        return {
-          ...plot,
-          restsGiven: (plot.restsGiven || 0) + 1,
-        };
-      }
-      return plot;
-    });
-    
-    await StorageService.setItem('sunflowerGarden', {
-      ...sunflowerGarden,
-      plots: updatedPlots,
-      energy: newEnergy,
-      lastEnergyUpdate: Date.now(),
-    });
-    
-    // Show toast notification for energy gained
-    ToastEvent.show('energy', Math.round(energyGained * 100), 'Rest completed!');
-  };
-
-  // Get plant icon based on growth stage
-  const getPlantIcon = (stage) => {
-    switch (stage) {
-      case 'seed': return faSeedling;
-      case 'sprout': return faSeedling;
-      case 'seedling': return faLeaf;
-      case 'growing': return faLeaf;
-      case 'mature': return faTree;
-      case 'blooming': return faTree;
-      default: return faSeedling;
-    }
-  };
-
-  // Get plant color based on growth stage
-  const getPlantColor = (stage) => {
-    switch (stage) {
-      case 'seed': return '#8B4513';
-      case 'sprout': return '#90EE90';
-      case 'seedling': return '#32CD32';
-      case 'growing': return '#228B22';
-      case 'mature': return '#006400';
-      case 'blooming': return '#FF69B4';
-      default: return '#90EE90';
-    }
-  };
-
-  // Get plant size based on growth stage
-  const getPlantSize = (stage) => {
-    const sizes = { seed: 24, sprout: 32, seedling: 40, growing: 48, mature: 56, blooming: 64 };
-    return sizes[stage] || 32;
-  };
-
-  // Calculate progress to next stage
-  const getGrowthProgress = () => {
-    const currentStageIndex = PLANT_STAGES.indexOf(gardenData.currentPlant);
-    const pointsForCurrentStage = currentStageIndex * POINTS_TO_GROW;
-    const pointsForNextStage = (currentStageIndex + 1) * POINTS_TO_GROW;
-    const progressPoints = gardenData.points - pointsForCurrentStage;
-    const neededPoints = pointsForNextStage - pointsForCurrentStage;
-    return Math.min(1, Math.max(0, progressPoints / neededPoints));
   };
 
   // Generate hours for the hour picker (all 24 hours)
@@ -1235,10 +1107,6 @@ const HomeScreen = () => {
   const selectedDateRests = getRestsForDate(selectedDate);
   const isSelectedToday = isSameDay(selectedDate, new Date());
 
-  // Get plant theme color for gems display
-  const plantTheme = PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
-  const plantColor = plantTheme.color;
-
   return (
     <>
       {/* First-time Tutorial Modal */}
@@ -1267,13 +1135,13 @@ const HomeScreen = () => {
               </Text>
             </View>
             <View style={styles.tutorialStep}>
-              <FontAwesomeIcon icon={faBolt} size={16} color="#FFC107" />
+              <FontAwesomeIcon icon={faFire} size={16} color="#F97316" />
               <Text style={[styles.tutorialStepText, { color: colors.text }]}>
-                Earn energy and grow your sunflower
+                Build streaks and track your progress
               </Text>
             </View>
             <TouchableOpacity 
-              style={[styles.tutorialButton, { backgroundColor: plantColor }]}
+              style={[styles.tutorialButton, { backgroundColor: '#10B981' }]}
               onPress={dismissTutorial}
             >
               <Text style={styles.tutorialButtonText}>Got It!</Text>
@@ -1285,29 +1153,19 @@ const HomeScreen = () => {
       <ScrollView style={[styles.container, { backgroundColor: colors.background }]} showsVerticalScrollIndicator={false}>
         {/* Minimal Header */}
         <View style={styles.minimalHeader}>
-          <Text style={[styles.minimalHeaderTitle, { color: colors.text }]}>Rest & Recharge</Text>
+          <Text style={[styles.minimalHeaderTitle, { color: colors.text }]}>Home</Text>
           <TouchableOpacity 
-            style={styles.settingsIconButton}
+            style={[styles.settingsIconButton, { backgroundColor: colors.inputBackground }]}
             onPress={() => navigation.navigate('Settings')}
             activeOpacity={0.7}
           >
-            <FontAwesomeIcon icon={faGear} size={28} color={colors.textMuted} />
+            <FontAwesomeIcon icon={faGear} size={20} color={colors.textSecondary} />
           </TouchableOpacity>
         </View>
 
       {/* Content */}
       <View style={styles.contentContainer}>
-        {/* Status Section - Flat Design */}
-        {(() => {
-          const plantType = PLANT_TYPES[gardenData.selectedPlantType] || PLANT_TYPES.classic;
-          const plantProgress = gardenData.plantProgress?.[gardenData.selectedPlantType] || { stage: 0, points: 0 };
-          const isFullyGrown = plantProgress.stage >= 5;
-          const stageProgressPercent = isFullyGrown ? 100 : (plantProgress.points / 30) * 100;
-          return (
-            <>
-
-
-              {/* Quick Actions Grid */}
+        {/* Quick Actions Grid */}
               <View style={styles.flatActionsGrid}>
                 <TouchableOpacity
                   onPress={!wakeupTime ? () => {
@@ -1353,46 +1211,7 @@ const HomeScreen = () => {
                   <Text style={[styles.flatActionValue, { color: colors.text }]}>{getRestsForDate(new Date()).length}</Text>
                 </View>
               </View>
-            </>
-          );
-        })()}
 
-        {/* Flat Tab Navigation */}
-        <View style={[styles.flatTabContainer, { borderBottomColor: colors.inputBackground }]}>
-          <TouchableOpacity
-            style={[styles.flatTab, activeTab === 'activity' && [styles.flatTabActive, { borderBottomColor: colors.text }]]}
-            onPress={() => setActiveTab('activity')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.flatTabText, { color: colors.textMuted }, activeTab === 'activity' && [styles.flatTabTextActive, { color: colors.text }]]}>
-              Activity
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.flatTab, activeTab === 'streak' && [styles.flatTabActive, { borderBottomColor: colors.text }]]}
-            onPress={() => setActiveTab('streak')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.flatTabText, { color: colors.textMuted }, activeTab === 'streak' && [styles.flatTabTextActive, { color: colors.text }]]}>
-              Streak
-            </Text>
-          </TouchableOpacity>
-          
-          <TouchableOpacity
-            style={[styles.flatTab, activeTab === 'progress' && [styles.flatTabActive, { borderBottomColor: colors.text }]]}
-            onPress={() => setActiveTab('progress')}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.flatTabText, { color: colors.textMuted }, activeTab === 'progress' && [styles.flatTabTextActive, { color: colors.text }]]}>
-              Progress
-            </Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Activity Tab Content */}
-        {activeTab === 'activity' && (
-          <>
         {/* Day Selector - Scrollable */}
         <ScrollView 
           ref={daySelectorScrollRef}
@@ -1497,7 +1316,12 @@ const HomeScreen = () => {
                     activeOpacity={0.7}
                   >
                     <View style={styles.flatRestDot} />
-                    <Text style={[styles.flatRestTime, { color: colors.text }]}>{rest.time}</Text>
+                    <View style={styles.flatRestInfo}>
+                      <Text style={[styles.flatRestTime, { color: colors.text }]}>{rest.time}</Text>
+                      <Text style={[styles.flatRestDuration, { color: colors.textSecondary }]}>
+                        {rest.duration} min
+                      </Text>
+                    </View>
                     <FontAwesomeIcon icon={faPencil} size={12} color={colors.textMuted} />
                   </TouchableOpacity>
                 ))}
@@ -1599,10 +1423,77 @@ const HomeScreen = () => {
                   </ScrollView>
                 </View>
               </View>
-              <Text style={styles.modalNote}>
-                Logging rest for {formatDateHeader(selectedDate)} at{' '}
-                {selectedHour.toString().padStart(2, '0')}:{selectedMinute.toString().padStart(2, '0')}
-              </Text>
+              
+              {/* Duration Picker */}
+              <View style={styles.durationSection}>
+                <Text style={[styles.modalLabel, { color: colors.text }]}>Duration (minutes)</Text>
+                <View style={styles.durationPicker}>
+                  {[1, 5, 10, 15, 20, 30, 45, 60].map((duration) => (
+                    <TouchableOpacity
+                      key={duration}
+                      style={[
+                        styles.durationButton,
+                        { backgroundColor: colors.inputBackground },
+                        selectedDuration === duration && !showCustomDuration && styles.durationButtonSelected,
+                      ]}
+                      onPress={() => {
+                        setSelectedDuration(duration);
+                        setShowCustomDuration(false);
+                      }}
+                    >
+                      <Text
+                        style={[
+                          styles.durationButtonText,
+                          { color: colors.text },
+                          selectedDuration === duration && !showCustomDuration && styles.durationButtonTextSelected,
+                        ]}
+                      >
+                        {duration}m
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                  <TouchableOpacity
+                    style={[
+                      styles.durationButton,
+                      { backgroundColor: colors.inputBackground },
+                      showCustomDuration && styles.durationButtonSelected,
+                    ]}
+                    onPress={() => setShowCustomDuration(!showCustomDuration)}
+                  >
+                    <Text
+                      style={[
+                        styles.durationButtonText,
+                        { color: colors.text },
+                        showCustomDuration && styles.durationButtonTextSelected,
+                      ]}
+                    >
+                      Custom
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {showCustomDuration && (
+                  <View style={styles.customDurationRow}>
+                    <Text style={[styles.customDurationLabel, { color: colors.textSecondary }]}>Enter:</Text>
+                    <TextInput
+                      style={[styles.customDurationInput, { 
+                        backgroundColor: colors.inputBackground,
+                        color: colors.text,
+                        borderColor: colors.divider,
+                      }]}
+                      value={selectedDuration.toString()}
+                      onChangeText={(text) => {
+                        const num = parseInt(text) || 1;
+                        setSelectedDuration(Math.max(1, Math.min(999, num)));
+                      }}
+                      keyboardType="number-pad"
+                      maxLength={3}
+                      selectTextOnFocus
+                      autoFocus
+                    />
+                    <Text style={[styles.customDurationLabel, { color: colors.textSecondary }]}>min</Text>
+                  </View>
+                )}
+              </View>
             </View>
 
             <View style={[styles.modalFooter, { borderTopColor: colors.inputBackground }]}>
@@ -1632,63 +1523,17 @@ const HomeScreen = () => {
         </View>
       </Modal>
 
-          </>
-        )}
-
-        {/* Streak Tab Content */}
-        {activeTab === 'streak' && (
-          <>
-            {/* Streak Stats Row */}
-            <View style={styles.flatStreakStats}>
-              <View style={styles.flatStreakMain}>
-                <FontAwesomeIcon icon={faFire} size={28} color="#EF4444" />
-                <Text style={[styles.flatStreakNumber, { color: colors.text }]}>{streakData.currentStreak}</Text>
-                <Text style={[styles.flatStreakLabel, { color: colors.textSecondary }]}>day streak</Text>
-              </View>
-              <View style={[styles.flatStreakBest, { backgroundColor: isDarkMode ? 'rgba(217, 119, 6, 0.2)' : '#FEF3C7' }]}>
-                <Text style={[styles.flatStreakBestLabel, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>Best</Text>
-                <Text style={[styles.flatStreakBestNum, { color: isDarkMode ? '#FCD34D' : '#D97706' }]}>{streakData.longestStreak}</Text>
-              </View>
-            </View>
-
-            {/* Week Progress - Flat */}
-            <View style={[styles.flatCard, { backgroundColor: colors.surface, borderColor: colors.inputBackground }]}>
-              <Text style={[styles.flatCardTitle, { color: colors.text }]}>This Week</Text>
-              <View style={styles.flatStreakWeek}>
-                {getLast7Days().map((date, index) => {
-                  const status = getStreakStatusForDate(date);
-                  const dayLabel = date.toLocaleDateString([], { weekday: 'short' }).substring(0, 2);
-                  return (
-                    <View key={index} style={styles.flatStreakDay}>
-                      <View style={[
-                        styles.flatStreakCircle,
-                        { backgroundColor: colors.inputBackground },
-                        status.goalMet && styles.flatStreakCircleDone,
-                        status.isToday && [styles.flatStreakCircleToday, { borderColor: colors.text }],
-                        !status.goalMet && status.count > 0 && styles.flatStreakCirclePartial,
-                      ]}>
-                        {status.goalMet ? (
-                          <FontAwesomeIcon icon={faCheck} size={14} color="#FFFFFF" />
-                        ) : status.count > 0 ? (
-                          <Text style={styles.flatStreakCount}>{status.count}</Text>
-                        ) : null}
-                      </View>
-                      <Text style={[styles.flatStreakDayLabel, { color: colors.textSecondary }, status.isToday && [styles.flatStreakDayLabelToday, { color: colors.text }]]}>
-                        {dayLabel}
-                      </Text>
-                    </View>
-                  );
-                })}
-              </View>
-              <Text style={[styles.flatStreakGoal, { color: colors.textMuted }]}>Complete {dailyGoal} rests per day to maintain streak</Text>
-            </View>
-          </>
-        )}
-
-        {/* Progress Tab Content */}
-        {activeTab === 'progress' && (
-          <RestProgressGraph restHistory={restHistory} dailyGoal={dailyGoal} />
-        )}
+        {/* Encouragement message */}
+        <View style={styles.encouragementSection}>
+          <Text style={[styles.encouragementText, { color: colors.textMuted }]}>
+            {(() => {
+              const todayRests = getRestsForDate(new Date()).length;
+              if (todayRests === 0) return "Take your first rest of the day 🌱";
+              if (todayRests < dailyGoal) return `${dailyGoal - todayRests} more to reach your goal ✨`;
+              return "You're taking great care of yourself 💚";
+            })()}
+          </Text>
+        </View>
 
         <View style={styles.bottomPadding} />
       </View>
@@ -2183,7 +2028,11 @@ const styles = StyleSheet.create({
     fontFamily: FONTS.regular,
   },
   settingsIconButton: {
-    padding: 8,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 
   // Flat Plant Row
@@ -2458,10 +2307,19 @@ const styles = StyleSheet.create({
     borderRadius: 5,
     backgroundColor: '#10B981',
   },
+  flatRestInfo: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   flatRestTime: {
     fontSize: 17,
     fontWeight: '500',
-    flex: 1,
+  },
+  flatRestDuration: {
+    fontSize: 14,
+    fontWeight: '400',
   },
   flatEmptyState: {
     paddingVertical: 28,
@@ -2986,6 +2844,53 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     fontStyle: 'italic',
   },
+  durationSection: {
+    marginTop: 20,
+  },
+  durationPicker: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginTop: 12,
+  },
+  durationButton: {
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    minWidth: 60,
+    alignItems: 'center',
+  },
+  durationButtonSelected: {
+    backgroundColor: '#10B981',
+  },
+  durationButtonText: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  durationButtonTextSelected: {
+    color: '#FFFFFF',
+    fontWeight: '600',
+  },
+  customDurationRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 16,
+    gap: 8,
+  },
+  customDurationLabel: {
+    fontSize: 15,
+    fontWeight: '500',
+  },
+  customDurationInput: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
   modalFooter: {
     flexDirection: 'column',
     padding: 20,
@@ -3083,6 +2988,15 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 100,
+  },
+  encouragementSection: {
+    alignItems: 'center',
+    paddingVertical: 16,
+  },
+  encouragementText: {
+    fontSize: 15,
+    fontWeight: '500',
+    textAlign: 'center',
   },
   tutorialOverlay: {
     flex: 1,

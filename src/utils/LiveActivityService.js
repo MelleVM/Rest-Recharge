@@ -61,6 +61,39 @@ class LiveActivityService {
     }
   }
 
+  async startStopwatch() {
+    console.log('startStopwatch called');
+    
+    if (!this.isAvailable) {
+      console.log('Live Activities not available');
+      return null;
+    }
+
+    try {
+      console.log('Calling LiveActivityModule.startStopwatch...');
+      const result = await LiveActivityModule.startStopwatch();
+      console.log('Stopwatch Live Activity started successfully:', result);
+      return result;
+    } catch (error) {
+      console.error('Error starting Stopwatch Live Activity:', error);
+      return null;
+    }
+  }
+
+  async updateStopwatch(elapsedSeconds) {
+    if (!this.isAvailable) {
+      return null;
+    }
+
+    try {
+      const result = await LiveActivityModule.updateStopwatch(elapsedSeconds);
+      return result;
+    } catch (error) {
+      console.log('Error updating Stopwatch Live Activity:', error);
+      return null;
+    }
+  }
+
   async stopTimer() {
     if (!this.isAvailable) {
       return null;

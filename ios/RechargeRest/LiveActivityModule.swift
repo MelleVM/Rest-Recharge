@@ -28,13 +28,16 @@ class LiveActivityModule: NSObject {
             
             let attributes = TimerAttributes(
                 startTime: startTime,
-                totalDuration: duration
+                totalDuration: duration,
+                isStopwatch: false
             )
             
             let contentState = TimerAttributes.ContentState(
                 endTime: endTime,
                 isPaused: false,
-                remainingSeconds: duration
+                remainingSeconds: duration,
+                isStopwatch: false,
+                elapsedSeconds: 0
             )
             
             do {
@@ -42,6 +45,66 @@ class LiveActivityModule: NSObject {
                 
                 if #available(iOS 16.2, *) {
                     let activityContent = ActivityContent(state: contentState, staleDate: endTime)
+                    activity = try Activity<TimerAttributes>.request(
+                        attributes: attributes,
+                        content: activityContent,
+                        pushType: nil
+                    )
+                } else {
+                    activity = try Activity<TimerAttributes>.request(
+                        attributes: attributes,
+                        contentState: contentState,
+                        pushType: nil
+                    )
+                }
+                
+                self.currentActivity = activity
+                
+                resolver([
+                    "activityId": activity.id,
+                    "success": true
+                ])
+            } catch {
+                rejecter("ERROR", "Failed to start Live Activity: \(error.localizedDescription)", error)
+            }
+        } else {
+            rejecter("UNSUPPORTED", "Live Activities require iOS 16.1 or later", nil)
+        }
+    }
+    
+    @objc
+    func startStopwatch(_ resolver: @escaping RCTPromiseResolveBlock,
+                        rejecter: @escaping RCTPromiseRejectBlock) {
+        
+        // Check if Live Activities are supported
+        if #available(iOS 16.1, *) {
+            guard ActivityAuthorizationInfo().areActivitiesEnabled else {
+                rejecter("UNAVAILABLE", "Live Activities are not enabled", nil)
+                return
+            }
+            
+            let startTime = Date()
+            
+            let attributes = TimerAttributes(
+                startTime: startTime,
+                totalDuration: 0,
+                isStopwatch: true
+            )
+            
+            let contentState = TimerAttributes.ContentState(
+                endTime: startTime, // Not used for stopwatch
+                isPaused: false,
+                remainingSeconds: 0,
+                isStopwatch: true,
+                elapsedSeconds: 0
+            )
+            
+            do {
+                let activity: Activity<TimerAttributes>
+                
+                if #available(iOS 16.2, *) {
+                    // No staleDate for stopwatch since it doesn't end automatically
+                    let activityContent = ActivityContent(state: contentState, staleDate: nil)
                     activity = try Activity<TimerAttributes>.request(
                         attributes: attributes,
                         content: activityContent,
@@ -101,13 +164,53 @@ class LiveActivityModule: NSObject {
             let contentState = TimerAttributes.ContentState(
                 endTime: endTime,
                 isPaused: isPaused,
-                remainingSeconds: remainingSeconds
+                remainingSeconds: remainingSeconds,
+                isStopwatch: false,
+                elapsedSeconds: 0
             )
             
             Task {
                 if #available(iOS 16.2, *) {
                     let staleDate = isPaused ? nil : endTime
                     let activityContent = ActivityContent(state: contentState, staleDate: staleDate)
+                    await activity.update(activityContent)
+                } else {
+                    await activity.update(using: contentState)
+                }
+                resolver(["success": true])
+            }
+        } else {
+            rejecter("UNSUPPORTED", "Live Activities require iOS 16.1 or later", nil)
+        }
+    }
+    
+    @objc
+    func updateStopwatch(_ elapsedSeconds: Int,
+                         resolver: @escaping RCTPromiseResolveBlock,
+                         rejecter: @escaping RCTPromiseRejectBlock) {
+        
+        if #available(iOS 16.1, *) {
+            // Try to recover activity if reference is lost (e.g. app restart)
+            if self.currentActivity == nil {
+                self.currentActivity = Activity<TimerAttributes>.activities.first
+            }
+            
+            guard let activity = self.currentActivity else {
+                rejecter("NO_ACTIVITY", "No active Live Activity found", nil)
+                return
+            }
+            
+            let contentState = TimerAttributes.ContentState(
+                endTime: Date(), // Not used for stopwatch
+                isPaused: false,
+                remainingSeconds: 0,
+                isStopwatch: true,
+                elapsedSeconds: elapsedSeconds
+            )
+            
+            Task {
+                if #available(iOS 16.2, *) {
+                    let activityContent = ActivityContent(state: contentState, staleDate: nil)
                     await activity.update(activityContent)
                 } else {
                     await activity.update(using: contentState)

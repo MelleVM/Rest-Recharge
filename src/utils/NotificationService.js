@@ -408,6 +408,17 @@ class NotificationService {
     await LiveActivityService.updateTimer(remainingSeconds, false);
   };
 
+  updateStopwatchNotification = async (elapsedSeconds) => {
+    // Update Live Activity for stopwatch mode
+    console.log('Updating stopwatch Live Activity:', elapsedSeconds);
+    await LiveActivityService.updateStopwatch(elapsedSeconds);
+  };
+
+  startStopwatchNotification = async () => {
+    console.log('Starting stopwatch Live Activity');
+    await LiveActivityService.startStopwatch();
+  };
+
   stopTimerNotification = async (keepReminder = false) => {
     await StorageService.removeItem('timerEndTime');
     

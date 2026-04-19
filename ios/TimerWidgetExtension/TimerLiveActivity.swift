@@ -14,7 +14,8 @@ struct TimerLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: TimerAttributes.self) { context in
             // Lock screen/banner UI - adapts to light/dark mode
-            let isCompleted = context.state.endTime <= Date()
+            let isStopwatch = context.state.isStopwatch
+            let isCompleted = !isStopwatch && context.state.endTime <= Date()
             let totalDuration = TimeInterval(context.attributes.totalDuration)
 
             HStack(spacing: 16) {
@@ -26,7 +27,7 @@ struct TimerLiveActivity: Widget {
                     .cornerRadius(12)
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text("Eye Rest")
+                    Text(isStopwatch ? "Stopwatch" : "Eye Rest")
                         .font(.system(size: 15, weight: .semibold, design: .rounded))
                         .foregroundColor(.primary)
 
@@ -39,7 +40,7 @@ struct TimerLiveActivity: Widget {
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                     } else {
-                        Text("Rest & Recharge")
+                        Text(isStopwatch ? "Counting up" : "Rest & Recharge")
                             .font(.system(size: 13, weight: .medium))
                             .foregroundColor(.secondary)
                     }
@@ -50,7 +51,12 @@ struct TimerLiveActivity: Widget {
                 // Circular progress indicator on the right
                 ZStack {
                     // Progress circle - ProgressView has its own background
-                    if !isCompleted {
+                    if isStopwatch {
+                        // Stopwatch mode - no progress circle, just a ring
+                        Circle()
+                            .stroke(Color.blue, lineWidth: 4)
+                            .frame(width: 60, height: 60)
+                    } else if !isCompleted {
                         ProgressView(timerInterval: Date()...context.state.endTime, countsDown: true, label: {}, currentValueLabel: {})
                             .progressViewStyle(CircularProgressViewStyle(tint: Color.green))
                             .frame(width: 60, height: 60)
@@ -61,7 +67,15 @@ struct TimerLiveActivity: Widget {
                     }
                     
                     // Timer text in center - MM:SS format
-                    if context.state.isPaused {
+                    if isStopwatch {
+                        // Use timerInterval to count up from start time
+                        Text(timerInterval: context.attributes.startTime...Date.distantFuture, countsDown: false)
+                            .font(.system(size: 12, weight: .bold, design: .rounded))
+                            .foregroundColor(.primary)
+                            .monospacedDigit()
+                            .multilineTextAlignment(.center)
+                            .frame(width: 50)
+                    } else if context.state.isPaused {
                         let seconds = max(0, context.state.remainingSeconds)
                         let mins = seconds / 60
                         let secs = seconds % 60
