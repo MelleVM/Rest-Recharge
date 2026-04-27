@@ -4,6 +4,15 @@ import { Text, Surface, useTheme, ActivityIndicator } from 'react-native-paper';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import NotificationService from '../utils/NotificationService';
 import StorageService from '../utils/StorageService';
+import {
+  STREAK_MODES,
+  DEFAULT_DAILY_MINUTES_GOAL,
+  calculateStreakData as calculateStreakFromHistory,
+  getActiveStreakConfig,
+  getDailyTotal,
+  isDayGoalMet,
+  formatDailyTotalLabel,
+} from '../utils/StreakCalculator';
 import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faBell } from '@fortawesome/free-solid-svg-icons/faBell';
 import { faEyeSlash } from '@fortawesome/free-solid-svg-icons/faEyeSlash';
@@ -60,6 +69,8 @@ const HomeScreen = () => {
   const [reminderMinute, setReminderMinute] = useState(0);
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
   const [dailyGoal, setDailyGoal] = useState(4);
+  const [streakMode, setStreakMode] = useState(STREAK_MODES.RESTS);
+  const [dailyMinutesGoal, setDailyMinutesGoal] = useState(DEFAULT_DAILY_MINUTES_GOAL);
   const [restInterval, setRestInterval] = useState(120);
   const [showRestOverdueModal, setShowRestOverdueModal] = useState(false);
   const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
@@ -152,83 +163,25 @@ const HomeScreen = () => {
     return date1.toLocaleDateString() === date2.toLocaleDateString();
   };
 
-  // Calculate streak data based on rest history
-  const calculateStreakData = (history, goal = dailyGoal) => {
-    const DAILY_GOAL = goal;
-    const today = new Date();
-    const dailyRestCounts = {};
-    
-    // Count rests per day
-    history.forEach(rest => {
-      const dateKey = rest.date;
-      dailyRestCounts[dateKey] = (dailyRestCounts[dateKey] || 0) + 1;
-    });
-    
-    // Calculate current streak (consecutive days with 4+ rests, going backwards from today)
-    let currentStreak = 0;
-    let checkDate = new Date(today);
-    
-    // Check if today has the goal met
-    const todayKey = today.toLocaleDateString();
-    const todayRests = dailyRestCounts[todayKey] || 0;
-    
-    // Start checking from yesterday if today's goal isn't met yet
-    if (todayRests < DAILY_GOAL) {
-      checkDate.setDate(checkDate.getDate() - 1);
-    }
-    
-    // Count consecutive days backwards
-    for (let i = 0; i < 365; i++) {
-      const dateKey = checkDate.toLocaleDateString();
-      const restsOnDay = dailyRestCounts[dateKey] || 0;
-      
-      if (restsOnDay >= DAILY_GOAL) {
-        currentStreak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        break;
-      }
-    }
-    
-    // Calculate longest streak ever
-    let longestStreak = 0;
-    let tempStreak = 0;
-    const sortedDates = Object.keys(dailyRestCounts).sort();
-    
-    if (sortedDates.length > 0) {
-      let prevDate = new Date(sortedDates[0]);
-      
-      sortedDates.forEach(dateStr => {
-        const currentDate = new Date(dateStr);
-        const dayDiff = Math.floor((currentDate - prevDate) / (1000 * 60 * 60 * 24));
-        
-        if (dailyRestCounts[dateStr] >= DAILY_GOAL) {
-          if (dayDiff <= 1) {
-            tempStreak++;
-          } else {
-            tempStreak = 1;
-          }
-          longestStreak = Math.max(longestStreak, tempStreak);
-        } else {
-          tempStreak = 0;
-        }
-        
-        prevDate = currentDate;
-      });
-    }
-    
-    return { currentStreak, longestStreak };
+  // Build a settings object describing the active streak/goal config.
+  const streakSettings = {
+    streakMode,
+    dailyGoal,
+    dailyMinutesGoal,
   };
 
-  // Get streak status for a specific date
+  // Calculate streak data based on rest history (delegates to shared util).
+  const calculateStreakData = (history, overrideSettings) =>
+    calculateStreakFromHistory(history, overrideSettings || streakSettings);
+
+  // Get streak status for a specific date (mode-aware).
   const getStreakStatusForDate = (date) => {
-    const rests = getRestsForDate(date);
-    const restCount = rests.length;
-    
+    const value = getDailyTotal(restHistory, date, streakSettings);
+    const { goal } = getActiveStreakConfig(streakSettings);
     return {
-      count: restCount,
-      goalMet: restCount >= dailyGoal,
-      isToday: isSameDay(date, new Date())
+      count: value,
+      goalMet: value >= goal,
+      isToday: isSameDay(date, new Date()),
     };
   };
 
@@ -311,12 +264,20 @@ const HomeScreen = () => {
       // Load daily goal and rest interval from settings
       const settings = await StorageService.getItem('settings');
       const storedDailyGoal = settings?.dailyGoal ?? 4;
+      const storedStreakMode = settings?.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS;
+      const storedDailyMinutesGoal = settings?.dailyMinutesGoal ?? DEFAULT_DAILY_MINUTES_GOAL;
       setDailyGoal(storedDailyGoal);
+      setStreakMode(storedStreakMode);
+      setDailyMinutesGoal(storedDailyMinutesGoal);
       const storedRestInterval = settings?.temporaryInterval || settings?.restInterval || 120;
       setRestInterval(storedRestInterval);
       
-      // Calculate streak data
-      const calculatedStreak = calculateStreakData(storedHistory, storedDailyGoal);
+      // Calculate streak data using stored settings (state may not be applied yet).
+      const calculatedStreak = calculateStreakFromHistory(storedHistory, {
+        streakMode: storedStreakMode,
+        dailyGoal: storedDailyGoal,
+        dailyMinutesGoal: storedDailyMinutesGoal,
+      });
       setStreakData(calculatedStreak);
       
       // Check if this is the first time visiting home (reuse hasSeenTutorial from above)
@@ -588,12 +549,10 @@ const HomeScreen = () => {
       
       // Check if daily goal was just reached (for new rests on today only)
       if (!editingRest && isToday) {
-        const todayKey = new Date().toLocaleDateString();
-        const todayRestsBeforeAdd = restHistory.filter(r => r.date === todayKey).length;
-        const todayRestsAfterAdd = updatedHistory.filter(r => r.date === todayKey).length;
-        
-        // Show celebration if we just hit the daily goal
-        if (todayRestsBeforeAdd < dailyGoal && todayRestsAfterAdd >= dailyGoal) {
+        const todayDate = new Date();
+        const wasMetBefore = isDayGoalMet(restHistory, todayDate, streakSettings);
+        const isMetNow = isDayGoalMet(updatedHistory, todayDate, streakSettings);
+        if (!wasMetBefore && isMetNow) {
           setShowDailyGoalModal(true);
         }
       }
@@ -803,17 +762,14 @@ const HomeScreen = () => {
 
   // Check if there's a rest at a specific time slot (within 15 min)
   const getRestAtSlot = (slot, rests) => {
+    const slotTotalMinutes = slot.hour * 60 + slot.minute;
     return rests.find(rest => {
       const restDate = new Date(rest.timestamp);
-      const restHour = restDate.getHours();
-      const restMinute = restDate.getMinutes();
-      
-      // Check if rest is within 15 minutes of this slot
-      if (restHour === slot.hour) {
-        const minuteDiff = Math.abs(restMinute - slot.minute);
-        return minuteDiff <= 15;
-      }
-      return false;
+      const restTotalMinutes = restDate.getHours() * 60 + restDate.getMinutes();
+
+      // Check if rest is within 15 minutes of this slot (across hour boundaries)
+      const minuteDiff = Math.abs(restTotalMinutes - slotTotalMinutes);
+      return minuteDiff <= 15;
     });
   };
 
@@ -889,12 +845,13 @@ const HomeScreen = () => {
         const reminderHour = reminderDate.getHours();
         const reminderMinute = reminderDate.getMinutes();
         
+        // Calculate total minutes from midnight for both
+        const reminderTotalMinutes = reminderHour * 60 + reminderMinute;
+        const slotTotalMinutes = slot.hour * 60 + slot.minute;
+        
         // Check if reminder is within 15 minutes of this slot
-        if (reminderHour === slot.hour) {
-          const minuteDiff = Math.abs(reminderMinute - slot.minute);
-          return minuteDiff <= 15;
-        }
-        return false;
+        const minuteDiff = Math.abs(reminderTotalMinutes - slotTotalMinutes);
+        return minuteDiff <= 15;
       });
       
       if (remindersAtSlot.length === 0) return false;
@@ -1527,9 +1484,16 @@ const HomeScreen = () => {
         <View style={styles.encouragementSection}>
           <Text style={[styles.encouragementText, { color: colors.textMuted }]}>
             {(() => {
-              const todayRests = getRestsForDate(new Date()).length;
-              if (todayRests === 0) return "Take your first rest of the day 🌱";
-              if (todayRests < dailyGoal) return `${dailyGoal - todayRests} more to reach your goal ✨`;
+              const { mode, goal } = getActiveStreakConfig(streakSettings);
+              const todayValue = getDailyTotal(restHistory, new Date(), streakSettings);
+              if (todayValue === 0) return "Take your first rest of the day 🌱";
+              if (todayValue < goal) {
+                const remaining = goal - todayValue;
+                if (mode === STREAK_MODES.MINUTES) {
+                  return `${remaining} more minute${remaining === 1 ? '' : 's'} to reach your goal ✨`;
+                }
+                return `${remaining} more to reach your goal ✨`;
+              }
               return "You're taking great care of yourself 💚";
             })()}
           </Text>
@@ -1877,7 +1841,9 @@ const HomeScreen = () => {
             <View style={styles.dailyGoalCelebration}>
               <Text style={[styles.dailyGoalTitle, { color: colors.text }]}>Goal Achieved!</Text>
               <Text style={[styles.dailyGoalSubtitle, { color: colors.textSecondary }]}>
-                You completed {dailyGoal} rests today
+                {streakMode === STREAK_MODES.MINUTES
+                  ? `You rested ${formatDailyTotalLabel(restHistory, streakSettings)} today`
+                  : `You completed ${dailyGoal} rests today`}
               </Text>
             </View>
             

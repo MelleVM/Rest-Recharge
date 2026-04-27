@@ -19,6 +19,10 @@ class NotificationService {
       wakeupNotificationEnabled: true,
       quietHoursStart: 22, // 10 PM
       quietHoursEnd: 7,    // 7 AM
+      // Streak retention can be based on rest count or total minutes per day.
+      streakMode: 'rests', // 'rests' | 'minutes'
+      dailyGoal: 4,
+      dailyMinutesGoal: 60,
     };
   }
 
@@ -288,9 +292,12 @@ class NotificationService {
     return onboardingData;
   };
 
-  startTimerNotification = async (endTime, isResumingFromPause = false, isBonusRest = false) => {
+  startTimerNotification = async (endTime, isResumingFromPause = false, isBonusRest = false, startDuration = null) => {
     console.log('startTimerNotification called with isBonusRest:', isBonusRest);
     await StorageService.setItem('timerEndTime', endTime);
+    if (startDuration !== null) {
+      await StorageService.setItem('timerStartDuration', startDuration);
+    }
     
     const now = Date.now();
     const remaining = Math.max(0, Math.floor((endTime - now) / 1000));
@@ -472,9 +479,10 @@ class NotificationService {
   getTimerState = async () => {
     const endTime = await StorageService.getItem('timerEndTime');
     const pausedState = await StorageService.getItem('timerPaused');
+    const startDuration = await StorageService.getItem('timerStartDuration');
     
     if (pausedState) {
-      return { isPaused: true, remaining: pausedState.remaining, isActive: true };
+      return { isPaused: true, remaining: pausedState.remaining, isActive: true, startDuration };
     }
     
     if (endTime) {
@@ -482,12 +490,12 @@ class NotificationService {
       const remaining = Math.floor((endTime - now) / 1000);
       
       if (remaining > 0) {
-        return { isActive: true, remaining, endTime };
+        return { isActive: true, remaining, endTime, startDuration };
       } else {
         // Timer has completed - store completion time and return completed state
         const completionTime = endTime; // endTime is when it actually completed
         await StorageService.setItem('lastCompletionTime', completionTime);
-        return { isActive: true, isCompleted: true, remaining: 0, endTime, completionTime };
+        return { isActive: true, isCompleted: true, remaining: 0, endTime, completionTime, startDuration };
       }
     }
     
@@ -497,6 +505,7 @@ class NotificationService {
   clearTimerState = async () => {
     await StorageService.removeItem('timerEndTime');
     await StorageService.removeItem('timerPaused');
+    await StorageService.removeItem('timerStartDuration');
   };
 
   scheduleReminders = async (wakeupTime) => {

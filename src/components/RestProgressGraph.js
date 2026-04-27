@@ -5,6 +5,11 @@ import { FontAwesomeIcon } from '@fortawesome/react-native-fontawesome';
 import { faChevronLeft } from '@fortawesome/free-solid-svg-icons/faChevronLeft';
 import { faChevronRight } from '@fortawesome/free-solid-svg-icons/faChevronRight';
 import { useAppTheme } from '../context/ThemeContext';
+import {
+  STREAK_MODES,
+  DEFAULT_DAILY_MINUTES_GOAL,
+  DEFAULT_REST_DURATION,
+} from '../utils/StreakCalculator';
 
 const SCREEN_WIDTH = Dimensions.get('window').width;
 const CHART_PADDING = 48;
@@ -16,7 +21,28 @@ const PERIODS = [
   { id: 'year', label: 'Year' },
 ];
 
-const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
+const RestProgressGraph = ({
+  restHistory = [],
+  dailyGoal = 4,
+  streakMode = STREAK_MODES.RESTS,
+  dailyMinutesGoal = DEFAULT_DAILY_MINUTES_GOAL,
+}) => {
+  const isMinutesMode = streakMode === STREAK_MODES.MINUTES;
+  // Sums values for a date — counts in rests mode, sums minutes otherwise.
+  const sumForDateString = (dateString) =>
+    restHistory.reduce((acc, r) => {
+      if (r.date !== dateString) return acc;
+      if (isMinutesMode) return acc + (Number(r.duration) || DEFAULT_REST_DURATION);
+      return acc + 1;
+    }, 0);
+  // Same for a date range (timestamp-based, used by month/year views).
+  const sumForRange = (start, end) =>
+    restHistory.reduce((acc, r) => {
+      const ts = r.timestamp;
+      if (ts < start || ts > end) return acc;
+      if (isMinutesMode) return acc + (Number(r.duration) || DEFAULT_REST_DURATION);
+      return acc + 1;
+    }, 0);
   const [selectedPeriod, setSelectedPeriod] = useState('week');
   const [offset, setOffset] = useState(0); // 0 = current period, 1 = previous, etc.
   const appTheme = useAppTheme();
@@ -68,11 +94,11 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
         const date = new Date(weekEnd);
         date.setDate(date.getDate() - i);
         const dateString = date.toLocaleDateString();
-        const count = restHistory.filter(r => r.date === dateString).length;
+        const value = sumForDateString(dateString);
         const isToday = date.toLocaleDateString() === now.toLocaleDateString();
         days.push({
           label: date.toLocaleDateString([], { weekday: 'short' }).substring(0, 2),
-          value: count,
+          value,
           isCurrent: isToday && offset === 0,
         });
       }
@@ -91,16 +117,16 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
         const weekEnd = new Date(monthDate);
         weekEnd.setDate(Math.min((w + 1) * 7, daysInMonth));
         
-        let count = 0;
+        let value = 0;
         for (let d = weekStart.getDate(); d <= weekEnd.getDate(); d++) {
           const checkDate = new Date(monthDate.getFullYear(), monthDate.getMonth(), d);
           const dateString = checkDate.toLocaleDateString();
-          count += restHistory.filter(r => r.date === dateString).length;
+          value += sumForDateString(dateString);
         }
         
         weeks.push({
           label: `W${w + 1}`,
-          value: count,
+          value,
           isCurrent: offset === 0 && w === Math.floor((now.getDate() - 1) / 7),
         });
       }
@@ -112,25 +138,18 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
       
       for (let m = 0; m < 12; m++) {
         const monthStart = new Date(year, m, 1);
-        const monthEnd = new Date(year, m + 1, 0);
-        
-        let count = 0;
-        restHistory.forEach(r => {
-          const restDate = new Date(r.timestamp);
-          if (restDate >= monthStart && restDate <= monthEnd) {
-            count++;
-          }
-        });
-        
+        // include the entire last day
+        const monthEnd = new Date(year, m + 1, 0, 23, 59, 59, 999);
+        const value = sumForRange(monthStart.getTime(), monthEnd.getTime());
         months.push({
           label: monthStart.toLocaleDateString([], { month: 'short' }).substring(0, 1),
-          value: count,
+          value,
           isCurrent: offset === 0 && m === now.getMonth(),
         });
       }
       return months;
     }
-  }, [restHistory, selectedPeriod, offset]);
+  }, [restHistory, selectedPeriod, offset, isMinutesMode]);
 
   // Reset offset when changing period
   const handlePeriodChange = (periodId) => {
@@ -143,12 +162,15 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
   const canGoNext = offset > 0;
 
   const maxValue = Math.max(...chartData.map(d => d.value), 1);
-  const totalRests = chartData.reduce((sum, d) => sum + d.value, 0);
-  const avgRests = (totalRests / chartData.length).toFixed(1);
-  
-  // Calculate goals based on period and daily goal
-  const weeklyGoal = dailyGoal * 7;
-  const monthlyGoal = dailyGoal * 30;
+  const totalValue = chartData.reduce((sum, d) => sum + d.value, 0);
+  const avgValue = (totalValue / chartData.length).toFixed(1);
+
+  // Calculate goals based on period and the active goal (rests or minutes/day).
+  const perDayGoal = isMinutesMode ? dailyMinutesGoal : dailyGoal;
+  const weeklyGoal = perDayGoal * 7;
+  const monthlyGoal = perDayGoal * 30;
+  const unitShort = isMinutesMode ? 'min' : 'rests';
+  const totalLabel = isMinutesMode ? 'Total Minutes' : 'Total Rests';
 
   const barWidth = (CHART_WIDTH - 32) / chartData.length - 8;
   const maxBarHeight = 120;
@@ -199,12 +221,12 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
       {/* Stats Row */}
       <View style={[styles.statsRow, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.1)' : '#FEF2F2' }]}>
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{totalRests}</Text>
-          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>Total Rests</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{totalValue}</Text>
+          <Text style={[styles.statLabel, { color: colors.textSecondary }]}>{totalLabel}</Text>
         </View>
         <View style={[styles.statDivider, { backgroundColor: isDarkMode ? 'rgba(239, 68, 68, 0.3)' : '#FECACA' }]} />
         <View style={styles.statItem}>
-          <Text style={[styles.statValue, { color: colors.text }]}>{avgRests}</Text>
+          <Text style={[styles.statValue, { color: colors.text }]}>{avgValue}</Text>
           <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
             {selectedPeriod === 'week' ? 'Daily Avg' : selectedPeriod === 'month' ? 'Weekly Avg' : 'Monthly Avg'}
           </Text>
@@ -246,7 +268,11 @@ const RestProgressGraph = ({ restHistory = [], dailyGoal = 4 }) => {
       <View style={[styles.goalIndicator, { borderTopColor: isDarkMode ? 'rgba(239, 68, 68, 0.2)' : '#FEE2E2' }]}>
         <View style={styles.goalLine} />
         <Text style={[styles.goalText, { color: colors.textSecondary }]}>
-          {selectedPeriod === 'week' ? `Goal: ${dailyGoal} rests/day` : selectedPeriod === 'month' ? `Goal: ${weeklyGoal} rests/week` : `Goal: ${monthlyGoal} rests/month`}
+          {selectedPeriod === 'week'
+            ? `Goal: ${perDayGoal} ${unitShort}/day`
+            : selectedPeriod === 'month'
+              ? `Goal: ${weeklyGoal} ${unitShort}/week`
+              : `Goal: ${monthlyGoal} ${unitShort}/month`}
         </Text>
       </View>
     </View>

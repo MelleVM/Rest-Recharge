@@ -29,6 +29,7 @@ import { faCircleHalfStroke } from '@fortawesome/free-solid-svg-icons/faCircleHa
 import { faPalette } from '@fortawesome/free-solid-svg-icons/faPalette';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
+import { STREAK_MODES, DEFAULT_DAILY_MINUTES_GOAL } from '../utils/StreakCalculator';
 import { useAppTheme } from '../context/ThemeContext';
 
 console.log('[OnboardingScreen] Module loaded');
@@ -42,10 +43,30 @@ const QUESTIONS = [
     subtitle: 'Select your main purpose for using this app',
     type: 'single',
     options: [
-      { id: 'work', label: 'Work / Office', icon: faBriefcase, color: '#74B9FF' },
-      { id: 'study', label: 'Study / Learning', icon: faGraduationCap, color: '#A29BFE' },
-      { id: 'health', label: 'Health & Recovery', icon: faHeart, color: '#FF6B6B' },
-      { id: 'general', label: 'General Wellness', icon: faSun, color: '#FFE66D' },
+      {
+        id: 'health',
+        label: 'Health & Recovery',
+        icon: faHeart,
+        color: '#FF6B6B',
+      },
+      {
+        id: 'work',
+        label: 'Work / Office',
+        icon: faBriefcase,
+        color: '#74B9FF',
+      },
+      {
+        id: 'study',
+        label: 'Study / Learning',
+        icon: faGraduationCap,
+        color: '#A29BFE',
+      },
+      {
+        id: 'general',
+        label: 'General Wellness',
+        icon: faSun,
+        color: '#FFE66D',
+      },
     ],
   },
   {
@@ -54,9 +75,19 @@ const QUESTIONS = [
     subtitle: 'This helps us personalize your experience',
     type: 'single',
     options: [
-      { id: 'chronic_fatigue', label: 'Chronic Fatigue', icon: faBatteryHalf, color: '#636E72' },
+      {
+        id: 'chronic_fatigue',
+        label: 'Chronic Fatigue',
+        icon: faBatteryHalf,
+        color: '#636E72',
+      },
       { id: 'me_cfs', label: 'ME/CFS', icon: faBatteryHalf, color: '#9B59B6' },
-      { id: 'post_covid', label: 'Post-COVID Recovery', icon: faVirus, color: '#00B894' },
+      {
+        id: 'post_covid',
+        label: 'Post-COVID Recovery',
+        icon: faVirus,
+        color: '#00B894',
+      },
       { id: 'burnout', label: 'Burnout', icon: faFire, color: '#FF6B6B' },
       { id: 'none', label: 'None of these', icon: faBan, color: '#B2BEC3' },
     ],
@@ -64,7 +95,7 @@ const QUESTIONS = [
   {
     id: 'wakeupTime',
     title: 'When do you usually wake up?',
-    subtitle: 'We\'ll schedule your rest reminders accordingly',
+    subtitle: "We'll schedule your rest reminders accordingly",
     type: 'time',
   },
   {
@@ -75,7 +106,13 @@ const QUESTIONS = [
     options: [
       { id: '60', label: 'Every hour', icon: faClock, color: '#FF6B6B' },
       { id: '90', label: 'Every 1.5 hours', icon: faClock, color: '#FFE66D' },
-      { id: '120', label: 'Every 2 hours', icon: faClock, color: '#4ECDC4', recommended: true },
+      {
+        id: '120',
+        label: 'Every 2 hours',
+        icon: faClock,
+        color: '#4ECDC4',
+        recommended: true,
+      },
       { id: '180', label: 'Every 3 hours', icon: faClock, color: '#74B9FF' },
     ],
   },
@@ -87,20 +124,89 @@ const QUESTIONS = [
     options: [
       { id: '10', label: '10 minutes', icon: faHourglass, color: '#74B9FF' },
       { id: '15', label: '15 minutes', icon: faHourglass, color: '#FFE66D' },
-      { id: '20', label: '20 minutes', icon: faHourglass, color: '#4ECDC4', recommended: true },
+      {
+        id: '20',
+        label: '20 minutes',
+        icon: faHourglass,
+        color: '#4ECDC4',
+        recommended: true,
+      },
       { id: '30', label: '30 minutes', icon: faHourglass, color: '#A29BFE' },
     ],
   },
   {
+    id: 'streakMode',
+    title: 'How should we track your streak?',
+    subtitle:
+      'Pick the goal style that fits you best — you can change this later in settings',
+    type: 'single',
+    options: [
+      {
+        id: STREAK_MODES.RESTS,
+        label: 'Rests per day',
+        icon: faBullseye,
+        color: '#4ECDC4',
+        recommended: true,
+      },
+      {
+        id: STREAK_MODES.MINUTES,
+        label: 'Minutes rested per day',
+        icon: faClock,
+        color: '#A29BFE',
+      },
+    ],
+  },
+  {
     id: 'dailyGoal',
-    title: 'What\'s your daily rest goal?',
+    title: "What's your daily rest goal?",
     subtitle: 'How many rests do you want to complete each day?',
     type: 'single',
+    hiddenIf: answers => answers.streakMode === STREAK_MODES.MINUTES,
     options: [
       { id: '2', label: '2 rests per day', icon: faBullseye, color: '#74B9FF' },
       { id: '3', label: '3 rests per day', icon: faBullseye, color: '#FFE66D' },
-      { id: '4', label: '4 rests per day', icon: faBullseye, color: '#4ECDC4', recommended: true },
+      {
+        id: '4',
+        label: '4 rests per day',
+        icon: faBullseye,
+        color: '#4ECDC4',
+        recommended: true,
+      },
       { id: '5', label: '5 rests per day', icon: faBullseye, color: '#A29BFE' },
+    ],
+  },
+  {
+    id: 'dailyMinutesGoal',
+    title: "What's your daily rest goal?",
+    subtitle: 'How many total minutes do you want to rest each day?',
+    type: 'single',
+    hiddenIf: answers => answers.streakMode !== STREAK_MODES.MINUTES,
+    options: [
+      {
+        id: '30',
+        label: '30 minutes per day',
+        icon: faHourglass,
+        color: '#74B9FF',
+      },
+      {
+        id: '60',
+        label: '60 minutes per day',
+        icon: faHourglass,
+        color: '#4ECDC4',
+        recommended: true,
+      },
+      {
+        id: '90',
+        label: '90 minutes per day',
+        icon: faHourglass,
+        color: '#FFE66D',
+      },
+      {
+        id: '120',
+        label: '120 minutes per day',
+        icon: faHourglass,
+        color: '#A29BFE',
+      },
     ],
   },
   {
@@ -111,7 +217,13 @@ const QUESTIONS = [
     options: [
       { id: 'light', label: 'Light Mode', icon: faSun, color: '#FFE66D' },
       { id: 'dark', label: 'Dark Mode', icon: faMoon, color: '#6C5CE7' },
-      { id: 'auto', label: 'Automatic', icon: faCircleHalfStroke, color: '#4ECDC4', recommended: true },
+      {
+        id: 'auto',
+        label: 'Automatic',
+        icon: faCircleHalfStroke,
+        color: '#4ECDC4',
+        recommended: true,
+      },
     ],
   },
 ];
@@ -124,7 +236,9 @@ const OnboardingScreen = ({ onComplete }) => {
     wakeupTime: { hour: 7, minute: 0 },
     restInterval: '120',
     restDuration: '20',
+    streakMode: STREAK_MODES.RESTS,
     dailyGoal: '4',
+    dailyMinutesGoal: String(DEFAULT_DAILY_MINUTES_GOAL),
     theme: 'dark',
   });
   const scrollViewRef = useRef(null);
@@ -141,15 +255,35 @@ const OnboardingScreen = ({ onComplete }) => {
     inputBackground: '#F0F0F0',
   };
 
-  const currentQuestion = QUESTIONS[currentStep];
-  const isLastStep = currentStep === QUESTIONS.length - 1;
-  const canProceed = currentQuestion.type === 'time' 
-    ? true 
-    : answers[currentQuestion.id] !== null;
+  // Some questions are conditional. We compute the visible questions list
+  // based on current answers; navigation works on QUESTIONS indices but skips
+  // hidden steps. Progress is calculated against visible steps only.
+  const isQuestionVisible = (q, ans) => !q.hiddenIf || !q.hiddenIf(ans);
+  const visibleQuestions = QUESTIONS.filter((q) => isQuestionVisible(q, answers));
+  const visibleCount = Math.max(visibleQuestions.length, 1);
 
-  const animateProgress = (step) => {
+  const currentQuestion = QUESTIONS[currentStep];
+  const visibleIndex = Math.max(
+    visibleQuestions.findIndex((q) => q.id === currentQuestion?.id),
+    0,
+  );
+
+  const findNextVisibleStep = (from, dir) => {
+    let i = from + dir;
+    while (i >= 0 && i < QUESTIONS.length && !isQuestionVisible(QUESTIONS[i], answers)) {
+      i += dir;
+    }
+    return i;
+  };
+
+  const isLastStep = findNextVisibleStep(currentStep, 1) >= QUESTIONS.length;
+  const canProceed = currentQuestion?.type === 'time' 
+    ? true 
+    : answers[currentQuestion?.id] !== null && answers[currentQuestion?.id] !== undefined;
+
+  const animateProgress = (vIndex) => {
     Animated.timing(progressAnim, {
-      toValue: (step + 1) / QUESTIONS.length,
+      toValue: (vIndex + 1) / visibleCount,
       duration: 300,
       useNativeDriver: false,
     }).start();
@@ -160,18 +294,24 @@ const OnboardingScreen = ({ onComplete }) => {
       await saveOnboardingData();
       onComplete();
     } else {
-      const nextStep = currentStep + 1;
+      const nextStep = findNextVisibleStep(currentStep, 1);
+      if (nextStep >= QUESTIONS.length) return;
       setCurrentStep(nextStep);
-      animateProgress(nextStep);
+      const nextVisibleIndex = visibleQuestions.findIndex(
+        (q) => q.id === QUESTIONS[nextStep].id,
+      );
+      animateProgress(nextVisibleIndex >= 0 ? nextVisibleIndex : visibleIndex + 1);
     }
   };
 
   const handleBack = () => {
-    if (currentStep > 0) {
-      const prevStep = currentStep - 1;
-      setCurrentStep(prevStep);
-      animateProgress(prevStep);
-    }
+    const prevStep = findNextVisibleStep(currentStep, -1);
+    if (prevStep < 0) return;
+    setCurrentStep(prevStep);
+    const prevVisibleIndex = visibleQuestions.findIndex(
+      (q) => q.id === QUESTIONS[prevStep].id,
+    );
+    animateProgress(prevVisibleIndex >= 0 ? prevVisibleIndex : Math.max(visibleIndex - 1, 0));
   };
 
   const handleOptionSelect = (optionId) => {
@@ -214,6 +354,8 @@ const OnboardingScreen = ({ onComplete }) => {
     settings.restInterval = parseInt(answers.restInterval, 10);
     settings.restDuration = parseInt(answers.restDuration, 10);
     settings.dailyGoal = parseInt(answers.dailyGoal, 10);
+    settings.streakMode = answers.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS;
+    settings.dailyMinutesGoal = parseInt(answers.dailyMinutesGoal, 10) || DEFAULT_DAILY_MINUTES_GOAL;
     settings.wakeupNotificationEnabled = true;
     await StorageService.setItem('settings', settings);
     
@@ -381,7 +523,7 @@ const OnboardingScreen = ({ onComplete }) => {
           />
         </View>
         <Text style={[styles.progressText, { color: colors.textSecondary }]}>
-          {currentStep + 1} of {QUESTIONS.length}
+          {visibleIndex + 1} of {visibleCount}
         </Text>
       </View>
 

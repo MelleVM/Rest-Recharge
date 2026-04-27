@@ -36,9 +36,11 @@ import { faRotateLeft } from '@fortawesome/free-solid-svg-icons/faRotateLeft';
 import { faMoon } from '@fortawesome/free-solid-svg-icons/faMoon';
 import { faPalette } from '@fortawesome/free-solid-svg-icons/faPalette';
 import { faCircleHalfStroke } from '@fortawesome/free-solid-svg-icons/faCircleHalfStroke';
+import { faChartSimple } from '@fortawesome/free-solid-svg-icons/faChartSimple';
 import PushNotification from 'react-native-push-notification';
 import StorageService from '../utils/StorageService';
 import NotificationService from '../utils/NotificationService';
+import { STREAK_MODES, DEFAULT_DAILY_MINUTES_GOAL } from '../utils/StreakCalculator';
 import { ToastEvent } from '../components/RewardToast';
 import { ResetEvent } from '../utils/EventEmitters';
 import { useAppTheme } from '../context/ThemeContext';
@@ -172,6 +174,8 @@ const SettingsScreen = ({ navigation }) => {
   const [restInterval, setRestInterval] = useState(120);
   const [restDuration, setRestDuration] = useState(20);
   const [dailyGoal, setDailyGoal] = useState(4);
+  const [streakMode, setStreakMode] = useState(STREAK_MODES.RESTS);
+  const [dailyMinutesGoal, setDailyMinutesGoal] = useState(DEFAULT_DAILY_MINUTES_GOAL);
   const [activeModal, setActiveModal] = useState(null);
   
   // Profile/Onboarding data
@@ -215,6 +219,8 @@ const SettingsScreen = ({ navigation }) => {
       setRestInterval(settings.restInterval ?? 120);
       setRestDuration(settings.restDuration ?? 20);
       setDailyGoal(settings.dailyGoal ?? 4);
+      setStreakMode(settings.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS);
+      setDailyMinutesGoal(settings.dailyMinutesGoal ?? DEFAULT_DAILY_MINUTES_GOAL);
       
       // Load onboarding/profile data
       const onboardingData = await StorageService.getItem('onboardingData');
@@ -362,13 +368,19 @@ const SettingsScreen = ({ navigation }) => {
 
   const saveSettings = useCallback(async () => {
     try {
-      const settings = { 
-        notificationsEnabled, 
+      // Merge with existing settings so fields not managed by this screen
+      // (e.g. alarmSoundEnabled, temporaryInterval) are preserved.
+      const existingSettings = await NotificationService.getSettings();
+      const settings = {
+        ...existingSettings,
+        notificationsEnabled,
         vibrationEnabled,
         wakeupNotificationEnabled,
         restInterval,
         restDuration,
-        dailyGoal
+        dailyGoal,
+        streakMode,
+        dailyMinutesGoal,
       };
       await StorageService.setItem('settings', settings);
 
@@ -391,7 +403,7 @@ const SettingsScreen = ({ navigation }) => {
     } catch (error) {
       console.log('Error saving settings:', error);
     }
-  }, [notificationsEnabled, vibrationEnabled, wakeupNotificationEnabled, restInterval, restDuration, dailyGoal]);
+  }, [notificationsEnabled, vibrationEnabled, wakeupNotificationEnabled, restInterval, restDuration, dailyGoal, streakMode, dailyMinutesGoal]);
 
   useEffect(() => {
     saveSettings();
@@ -431,6 +443,8 @@ const SettingsScreen = ({ navigation }) => {
               setRestInterval(120);
               setRestDuration(20);
               setDailyGoal(4);
+              setStreakMode(STREAK_MODES.RESTS);
+              setDailyMinutesGoal(DEFAULT_DAILY_MINUTES_GOAL);
               setPurpose(null);
               setCondition(null);
               setUsualWakeupTime({ hour: 7, minute: 0 });
@@ -470,6 +484,21 @@ const SettingsScreen = ({ navigation }) => {
     const newGoal = parseInt(value, 10);
     if (!isNaN(newGoal) && newGoal > 0 && newGoal <= 10) {
       setDailyGoal(newGoal);
+    }
+    setActiveModal(null);
+  };
+
+  const handleDailyMinutesGoalSave = (value) => {
+    const newGoal = parseInt(value, 10);
+    if (!isNaN(newGoal) && newGoal > 0 && newGoal <= 1440) {
+      setDailyMinutesGoal(newGoal);
+    }
+    setActiveModal(null);
+  };
+
+  const handleStreakModeSelect = (mode) => {
+    if (mode === STREAK_MODES.MINUTES || mode === STREAK_MODES.RESTS) {
+      setStreakMode(mode);
     }
     setActiveModal(null);
   };
@@ -620,13 +649,33 @@ const SettingsScreen = ({ navigation }) => {
           />
           <View style={[styles.divider, { backgroundColor: colors.divider }]} />
           <SettingItem
-            icon={faBullseye}
-            iconBg="#10B981"
-            title="Daily Goal"
-            subtitle={`${dailyGoal} rests per day`}
+            icon={faChartSimple}
+            iconBg="#8B5CF6"
+            title="Streak Mode"
+            subtitle={streakMode === STREAK_MODES.MINUTES ? 'Based on minutes rested per day' : 'Based on rests per day'}
             rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
-            onPress={() => setActiveModal('dailyGoal')}
+            onPress={() => setActiveModal('streakMode')}
           />
+          <View style={[styles.divider, { backgroundColor: colors.divider }]} />
+          {streakMode === STREAK_MODES.MINUTES ? (
+            <SettingItem
+              icon={faBullseye}
+              iconBg="#10B981"
+              title="Daily Goal"
+              subtitle={`${dailyMinutesGoal} minutes per day`}
+              rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
+              onPress={() => setActiveModal('dailyMinutesGoal')}
+            />
+          ) : (
+            <SettingItem
+              icon={faBullseye}
+              iconBg="#10B981"
+              title="Daily Goal"
+              subtitle={`${dailyGoal} rests per day`}
+              rightComponent={<FontAwesomeIcon icon={faChevronRight} size={16} color={colors.textMuted} />}
+              onPress={() => setActiveModal('dailyGoal')}
+            />
+          )}
         </Surface>
 
         <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Appearance</Text>
@@ -764,6 +813,66 @@ const SettingsScreen = ({ navigation }) => {
         label="Rests per day"
         note="How many rests you want to complete each day to maintain your streak"
       />
+
+      <InputModal
+        visible={activeModal === 'dailyMinutesGoal'}
+        onClose={() => setActiveModal(null)}
+        title="Set Daily Minutes Goal"
+        value={dailyMinutesGoal.toString()}
+        onSave={handleDailyMinutesGoalSave}
+        label="Minutes per day"
+        note="How many total minutes you want to rest each day to maintain your streak"
+      />
+
+      {/* Streak Mode Selection Modal */}
+      <Modal
+        animationType="fade"
+        transparent={true}
+        visible={activeModal === 'streakMode'}
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <View style={[styles.modalOverlay, { backgroundColor: colors.modalOverlay }]}>
+          <View style={[styles.modalContent, { backgroundColor: colors.surface }]}>
+            <View style={[styles.modalHeader, { borderBottomColor: colors.divider }]}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>Streak Mode</Text>
+              <TouchableOpacity onPress={() => setActiveModal(null)} style={[styles.closeButton, { backgroundColor: colors.inputBackground }]}>
+                <FontAwesomeIcon icon={faTimes} size={22} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+            <View style={styles.modalBody}>
+              <Text style={[styles.inputNote, { color: colors.textMuted, marginBottom: 12 }]}>
+                Choose how your daily goal and streak are tracked.
+              </Text>
+              {[
+                { id: STREAK_MODES.RESTS, label: 'Rests per day', description: 'Streak is kept by completing N rests each day', icon: faBullseye, color: '#10B981' },
+                { id: STREAK_MODES.MINUTES, label: 'Minutes per day', description: 'Streak is kept by resting N minutes each day', icon: faClock, color: '#8B5CF6' },
+              ].map((option) => (
+                <TouchableOpacity
+                  key={option.id}
+                  style={[
+                    styles.optionItem,
+                    { backgroundColor: colors.inputBackground },
+                    streakMode === option.id && styles.optionItemSelected,
+                    streakMode === option.id && { borderColor: option.color },
+                  ]}
+                  onPress={() => handleStreakModeSelect(option.id)}
+                >
+                  <View style={[styles.optionIcon, { backgroundColor: option.color + '20' }]}>
+                    <FontAwesomeIcon icon={option.icon} size={22} color={option.color} />
+                  </View>
+                  <View style={{ flex: 1, marginLeft: 12 }}>
+                    <Text style={[styles.optionLabel, { color: colors.text, marginLeft: 0, flex: 0 }]}>{option.label}</Text>
+                    <Text style={[styles.inputNote, { color: colors.textMuted, marginTop: 2 }]}>{option.description}</Text>
+                  </View>
+                  {streakMode === option.id && (
+                    <FontAwesomeIcon icon={faCheck} size={18} color={option.color} />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+          </View>
+        </View>
+      </Modal>
 
       {/* Purpose Selection Modal */}
       <Modal

@@ -30,6 +30,13 @@ import { FONTS } from '../styles/fonts';
 import { RestModeEvent, PendingUnlocksEvent } from '../utils/EventEmitters';
 import { getFlowersInUnlockOrder } from '../config/flowerConfig';
 import { useAppTheme } from '../context/ThemeContext';
+import {
+  STREAK_MODES,
+  DEFAULT_DAILY_MINUTES_GOAL,
+  calculateStreakData as calculateStreakFromHistory,
+  isDayGoalMet,
+  formatDailyTotalLabel,
+} from '../utils/StreakCalculator';
 
 console.log('[TimerScreen] Module loaded');
 
@@ -85,6 +92,8 @@ const TimerScreen = () => {
   const [showDailyGoalModal, setShowDailyGoalModal] = useState(false);
   const [isStopwatchMode, setIsStopwatchMode] = useState(false);
   const [dailyGoal, setDailyGoal] = useState(4);
+  const [streakMode, setStreakMode] = useState(STREAK_MODES.RESTS);
+  const [dailyMinutesGoal, setDailyMinutesGoal] = useState(DEFAULT_DAILY_MINUTES_GOAL);
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
   const [restHistory, setRestHistory] = useState([]);
   const bonusRestRef = useRef(false);
@@ -166,50 +175,9 @@ const TimerScreen = () => {
     };
   };
 
-  const calculateStreakData = (history, goal) => {
-    const today = new Date();
-    const dailyRestCounts = {};
-    
-    history.forEach(rest => {
-      const dateKey = rest.date;
-      dailyRestCounts[dateKey] = (dailyRestCounts[dateKey] || 0) + 1;
-    });
-    
-    let currentStreak = 0;
-    let checkDate = new Date(today);
-    
-    while (true) {
-      const dateKey = checkDate.toLocaleDateString();
-      const restsOnDay = dailyRestCounts[dateKey] || 0;
-      
-      if (restsOnDay >= goal) {
-        currentStreak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        if (isSameDay(checkDate, today)) {
-          checkDate.setDate(checkDate.getDate() - 1);
-          continue;
-        }
-        break;
-      }
-    }
-    
-    let longestStreak = currentStreak;
-    let tempStreak = 0;
-    const sortedDates = Object.keys(dailyRestCounts).sort((a, b) => new Date(a) - new Date(b));
-    
-    for (let i = 0; i < sortedDates.length; i++) {
-      const dateKey = sortedDates[i];
-      if (dailyRestCounts[dateKey] >= goal) {
-        tempStreak++;
-        longestStreak = Math.max(longestStreak, tempStreak);
-      } else {
-        tempStreak = 0;
-      }
-    }
-    
-    return { currentStreak, longestStreak };
-  };
+  // Streak calculation now uses shared util (mode-aware).
+  const calculateStreakData = (history, settings) =>
+    calculateStreakFromHistory(history, settings);
 
   const requestNotificationPermission = async () => {
     if (Platform.OS === 'android' && Platform.Version >= 33) {
@@ -279,6 +247,9 @@ const TimerScreen = () => {
 
         const settings = await NotificationService.getSettings();
         setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
+        setStreakMode(settings.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS);
+        setDailyMinutesGoal(settings.dailyMinutesGoal ?? DEFAULT_DAILY_MINUTES_GOAL);
+        setDailyGoal(settings.dailyGoal ?? 4);
         
         // Only update duration if timer is not active
         if (!isActiveRef.current) {
@@ -337,6 +308,9 @@ const TimerScreen = () => {
     setDurationMinutes(loadedDurationMinutes);
     setTotalTime(durationSeconds);
     setAlarmSoundEnabled(settings.alarmSoundEnabled ?? true);
+    setStreakMode(settings.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS);
+    setDailyMinutesGoal(settings.dailyMinutesGoal ?? DEFAULT_DAILY_MINUTES_GOAL);
+    setDailyGoal(settings.dailyGoal ?? 4);
     
     // Check for active stopwatch state first
     const stopwatchState = await StorageService.getItem('stopwatchState');
@@ -373,6 +347,14 @@ const TimerScreen = () => {
         endTimeRef.current = timerState.endTime;
         setTime(timerState.remaining);
         setIsActive(true);
+        // Restore the start duration if available, otherwise calculate from endTime and current time
+        if (timerState.startDuration !== undefined) {
+          startDurationRef.current = timerState.startDuration;
+        } else {
+          // Fallback: calculate original duration from endTime
+          const now = Date.now();
+          startDurationRef.current = Math.floor((timerState.endTime - now) / 1000) + timerState.remaining;
+        }
         startTimerLoop();
       }
     } else {
@@ -454,15 +436,22 @@ const TimerScreen = () => {
     try {
       const history = await StorageService.getItem('restHistory') || [];
       const todayKey = new Date(timestamp).toLocaleDateString();
-      const todayRestsBeforeAdd = history.filter(r => r.date === todayKey).length;
-      
+
       // Get the actual duration that was completed
       const settings = await StorageService.getItem('settings') || {};
       const restDuration = customDuration || settings.restDuration || 20;
       const goal = settings.dailyGoal || 4;
-      
+      const streakSettings = {
+        streakMode: settings.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS,
+        dailyGoal: goal,
+        dailyMinutesGoal: settings.dailyMinutesGoal ?? DEFAULT_DAILY_MINUTES_GOAL,
+      };
+
       console.log('📝 saveRestToHistory called - customDuration:', customDuration, 'final duration:', restDuration);
-      
+
+      // Snapshot pre-add state for goal-met diff (mode-aware).
+      const wasGoalMetBefore = isDayGoalMet(history, todayKey, streakSettings);
+
       history.push({
         timestamp,
         date: todayKey,
@@ -470,15 +459,29 @@ const TimerScreen = () => {
         duration: restDuration, // Store duration in minutes
       });
       await StorageService.setItem('restHistory', history);
-      
-      // Check if daily goal was just reached
-      const todayRestsAfterAdd = history.filter(r => r.date === todayKey).length;
-      
-      if (todayRestsBeforeAdd < goal && todayRestsAfterAdd >= goal) {
+
+      // Keep the all-time `stats.totalRests` counter in sync with rest history.
+      // Without this, completing a rest via the timer would not increment the
+      // total shown on the Progress screen (HomeScreen handles its own writes).
+      try {
+        const storedStats = (await StorageService.getItem('stats')) || { totalRests: 0 };
+        const previousTotal = storedStats.totalRests || 0;
+        const reconciledTotal = Math.max(previousTotal + 1, history.length);
+        await StorageService.setItem('stats', { ...storedStats, totalRests: reconciledTotal });
+      } catch (statsErr) {
+        console.log('Error updating totalRests stat:', statsErr);
+      }
+
+      // Check if daily goal was just reached (mode-aware).
+      const isGoalMetNow = isDayGoalMet(history, todayKey, streakSettings);
+
+      if (!wasGoalMetBefore && isGoalMetNow) {
         // Update state and show modal on TimerScreen
         setDailyGoal(goal);
+        setStreakMode(streakSettings.streakMode);
+        setDailyMinutesGoal(streakSettings.dailyMinutesGoal);
         setRestHistory(history);
-        const streak = calculateStreakData(history, goal);
+        const streak = calculateStreakData(history, streakSettings);
         setStreakData(streak);
         setShowDailyGoalModal(true);
       }
@@ -493,6 +496,10 @@ const TimerScreen = () => {
     
     // Get the stored completion time, or use current time as fallback
     const completionTime = await StorageService.getItem('lastCompletionTime') || Date.now();
+    
+    // Get the stored start duration to calculate rested time
+    const storedStartDuration = await StorageService.getItem('timerStartDuration');
+    const actualStartDuration = storedStartDuration || startDurationRef.current;
     
     // Save to history
     await saveRestToHistory(completionTime);
@@ -537,9 +544,9 @@ const TimerScreen = () => {
       lastEnergyUpdate: Date.now(),
     });
     
-    // Calculate rested time
-    const restedMins = Math.floor(startDurationRef.current / 60);
-    const restedSecs = startDurationRef.current % 60;
+    // Calculate rested time using the stored start duration
+    const restedMins = Math.floor(actualStartDuration / 60);
+    const restedSecs = actualStartDuration % 60;
     const restedTime = restedSecs > 0 
       ? `${restedMins}m ${restedSecs}s`
       : `${restedMins} minute${restedMins !== 1 ? 's' : ''}`;
@@ -721,7 +728,7 @@ const TimerScreen = () => {
         
         const isBonusRest = bonusRestRef.current;
         console.log('Starting timer, bonusRestRef.current:', isBonusRest, 'bonusRest state:', bonusRest);
-        await NotificationService.startTimerNotification(newEndTime, false, isBonusRest);
+        await NotificationService.startTimerNotification(newEndTime, false, isBonusRest, time);
         startTimerLoop();
       }
     }
@@ -1311,37 +1318,6 @@ const TimerScreen = () => {
                           thumbColor="#FFFFFF"
                         />
                       </View>
-
-                      <View style={[styles.settingDivider, { backgroundColor: colors.inputBackground }]} />
-
-                      <View style={styles.settingRow}>
-                        <View style={styles.settingLeft}>
-                          <FontAwesomeIcon
-                            icon={faCalendarPlus}
-                            size={20}
-                            color="#4ECDC4"
-                          />
-                          <View style={styles.settingTextContainer}>
-                            <Text style={[styles.settingLabel, { color: colors.text }]}>
-                              Bonus Rest
-                            </Text>
-                            <Text
-                              style={[
-                                styles.settingDescription,
-                                { color: colors.textSecondary },
-                              ]}
-                            >
-                              Keep current reminder schedule
-                            </Text>
-                          </View>
-                        </View>
-                        <Switch
-                          value={bonusRest}
-                          onValueChange={setBonusRest}
-                          trackColor={{ false: colors.textMuted, true: '#4ECDC4' }}
-                          thumbColor="#FFFFFF"
-                        />
-                      </View>
                     </>
                   )}
                 </View>
@@ -1394,7 +1370,9 @@ const TimerScreen = () => {
             <View style={styles.dailyGoalCelebration}>
               <Text style={[styles.dailyGoalTitle, { color: colors.text }]}>Goal Achieved!</Text>
               <Text style={[styles.dailyGoalSubtitle, { color: colors.textSecondary }]}>
-                You completed {dailyGoal} rests today
+                {streakMode === STREAK_MODES.MINUTES
+                  ? `You rested ${formatDailyTotalLabel(restHistory, { streakMode, dailyGoal, dailyMinutesGoal })} today`
+                  : `You completed ${dailyGoal} rests today`}
               </Text>
             </View>
             

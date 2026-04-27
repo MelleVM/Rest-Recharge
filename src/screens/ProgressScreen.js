@@ -27,6 +27,14 @@ import StorageService from '../utils/StorageService';
 import { useAppTheme } from '../context/ThemeContext';
 import { FONTS } from '../styles/fonts';
 import RestProgressGraph from '../components/RestProgressGraph';
+import {
+  STREAK_MODES,
+  DEFAULT_DAILY_MINUTES_GOAL,
+  calculateStreakData as calculateStreakFromHistory,
+  getActiveStreakConfig,
+  getDailyTotal,
+  aggregateDailyTotals,
+} from '../utils/StreakCalculator';
 
 const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
@@ -55,7 +63,9 @@ const ProgressScreen = () => {
 
   const [stats, setStats] = useState({ totalRests: 0 });
   const [dailyGoal, setDailyGoal] = useState(4);
-  const [todayRests, setTodayRests] = useState(0);
+  const [streakMode, setStreakMode] = useState(STREAK_MODES.RESTS);
+  const [dailyMinutesGoal, setDailyMinutesGoal] = useState(DEFAULT_DAILY_MINUTES_GOAL);
+  const [todayValue, setTodayValue] = useState(0);
   const [streakData, setStreakData] = useState({ currentStreak: 0, longestStreak: 0 });
   const [weekData, setWeekData] = useState([]);
   const [restHistory, setRestHistory] = useState([]);
@@ -76,8 +86,14 @@ const ProgressScreen = () => {
       // Load settings
       const settings = await StorageService.getItem('settings') || {};
       const goal = settings.dailyGoal || 4;
+      const mode = settings.streakMode === STREAK_MODES.MINUTES ? STREAK_MODES.MINUTES : STREAK_MODES.RESTS;
+      const minutesGoal = settings.dailyMinutesGoal ?? DEFAULT_DAILY_MINUTES_GOAL;
       const defaultDuration = settings.restDuration || 20;
       setDailyGoal(goal);
+      setStreakMode(mode);
+      setDailyMinutesGoal(minutesGoal);
+      const streakSettings = { streakMode: mode, dailyGoal: goal, dailyMinutesGoal: minutesGoal };
+      const activeGoal = getActiveStreakConfig(streakSettings).goal;
 
       // Load rest history and migrate old entries (only if they don't have duration)
       let history = await StorageService.getItem('restHistory') || [];
@@ -105,26 +121,36 @@ const ProgressScreen = () => {
       }
       
       console.log(`Total rests in history: ${history.length}, Sample:`, history[0]);
-      
-      setRestHistory(history);
-      
-      // Calculate today's rests
-      const todayKey = new Date().toLocaleDateString();
-      const todayCount = history.filter(r => r.date === todayKey).length;
-      setTodayRests(todayCount);
 
-      // Calculate streak
-      const streak = calculateStreakData(history, goal);
+      setRestHistory(history);
+
+      // Reconcile `stats.totalRests` against the canonical rest history. If
+      // a rest was ever logged without bumping the counter (e.g. older builds,
+      // background timer completions), the displayed total would lag behind.
+      if ((storedStats.totalRests || 0) < history.length) {
+        const reconciledStats = { ...storedStats, totalRests: history.length };
+        await StorageService.setItem('stats', reconciledStats);
+        setStats(reconciledStats);
+      }
+      
+      // Calculate today's value (rests or minutes depending on mode)
+      const todayKey = new Date().toLocaleDateString();
+      const todayDailyValue = getDailyTotal(history, todayKey, streakSettings);
+      setTodayValue(todayDailyValue);
+
+      // Calculate streak using shared util
+      const streak = calculateStreakFromHistory(history, streakSettings);
       setStreakData(streak);
 
-      // Calculate week data
+      // Calculate week data (mode-aware totals + goalMet)
+      const dailyTotals = aggregateDailyTotals(history, mode);
       const week = getLast7Days().map(date => {
         const dateKey = date.toLocaleDateString();
-        const count = history.filter(r => r.date === dateKey).length;
+        const value = dailyTotals[dateKey] || 0;
         return {
           date,
-          count,
-          goalMet: count >= goal,
+          count: value,
+          goalMet: value >= activeGoal,
           isToday: dateKey === todayKey,
         };
       });
@@ -144,64 +170,27 @@ const ProgressScreen = () => {
     return days;
   };
 
-  const calculateStreakData = (history, goal) => {
-    const today = new Date();
-    const dailyRestCounts = {};
-    
-    history.forEach(rest => {
-      const dateKey = rest.date;
-      dailyRestCounts[dateKey] = (dailyRestCounts[dateKey] || 0) + 1;
-    });
-    
-    let currentStreak = 0;
-    let checkDate = new Date(today);
-    
-    while (true) {
-      const dateKey = checkDate.toLocaleDateString();
-      const restsOnDay = dailyRestCounts[dateKey] || 0;
-      
-      if (restsOnDay >= goal) {
-        currentStreak++;
-        checkDate.setDate(checkDate.getDate() - 1);
-      } else {
-        if (dateKey === today.toLocaleDateString()) {
-          checkDate.setDate(checkDate.getDate() - 1);
-          continue;
-        }
-        break;
-      }
-    }
-    
-    let longestStreak = currentStreak;
-    let tempStreak = 0;
-    const sortedDates = Object.keys(dailyRestCounts).sort((a, b) => new Date(a) - new Date(b));
-    
-    for (let i = 0; i < sortedDates.length; i++) {
-      const dateKey = sortedDates[i];
-      if (dailyRestCounts[dateKey] >= goal) {
-        tempStreak++;
-        longestStreak = Math.max(longestStreak, tempStreak);
-      } else {
-        tempStreak = 0;
-      }
-    }
-    
-    return { currentStreak, longestStreak };
-  };
+  // Active streak config (mode + goal) used by the UI below.
+  const streakSettings = { streakMode, dailyGoal, dailyMinutesGoal };
+  const { mode: activeMode, goal: activeGoal } = getActiveStreakConfig(streakSettings);
+  const goalMetToday = todayValue >= activeGoal;
 
   // Progress ring dimensions
   const ringSize = SCREEN_WIDTH * 0.55;
   const strokeWidth = 14;
   const radius = (ringSize - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const progress = Math.min(todayRests / dailyGoal, 1);
+  const progress = Math.min(activeGoal > 0 ? todayValue / activeGoal : 0, 1);
   const strokeDashoffset = circumference * (1 - progress);
 
   // Share progress
   const handleShare = async () => {
     try {
+      const todayLine = activeMode === STREAK_MODES.MINUTES
+        ? `• Today: ${todayValue}/${activeGoal} min`
+        : `• Today: ${todayValue}/${activeGoal} rests`;
       const message = `My Rest & Recharge Progress\n\n` +
-        `• Today: ${todayRests}/${dailyGoal} rests\n` +
+        `${todayLine}\n` +
         `• Current streak: ${streakData.currentStreak} days\n` +
         `• Best streak: ${streakData.longestStreak} days\n` +
         `• Total rests: ${stats.totalRests}\n\n` +
@@ -293,12 +282,12 @@ const ProgressScreen = () => {
             </Svg>
             <View style={styles.ringContent}>
               <Text style={[styles.ringNumber, { color: colors.text }]}>
-                {todayRests}
+                {todayValue}
               </Text>
               <Text style={[styles.ringLabel, { color: colors.textSecondary }]}>
-                of {dailyGoal} rests
+                of {activeGoal} {activeMode === STREAK_MODES.MINUTES ? 'min' : 'rests'}
               </Text>
-              {todayRests >= dailyGoal && (
+              {goalMetToday && (
                 <View style={styles.goalMetBadge}>
                   <FontAwesomeIcon icon={faCheck} size={12} color="#FFFFFF" />
                   <Text style={styles.goalMetText}>Goal met!</Text>
@@ -338,7 +327,7 @@ const ProgressScreen = () => {
         {activeTab === 'streak' && (
           <>
             {/* Streak Card */}
-            <View style={[styles.streakCard, { backgroundColor: colors.surface }]}>
+            <View style={[styles.streakCard, { backgroundColor: colors.surface, marginTop: 16 }]}>
               <View style={styles.streakMain}>
                 <View style={[styles.fireIconContainer, { backgroundColor: isDarkMode ? 'rgba(251, 146, 60, 0.15)' : '#FFF7ED' }]}>
                   <FontAwesomeIcon icon={faFire} size={28} color="#F97316" />
@@ -399,12 +388,18 @@ const ProgressScreen = () => {
         {/* Graph Tab Content */}
         {activeTab === 'graph' && (
           <View style={{ marginTop: 16 }}>
-            <RestProgressGraph restHistory={restHistory} dailyGoal={dailyGoal} />
+            <RestProgressGraph
+              restHistory={restHistory}
+              dailyGoal={dailyGoal}
+              streakMode={streakMode}
+              dailyMinutesGoal={dailyMinutesGoal}
+            />
           </View>
         )}
 
         {/* Total Rests & Time */}
         <View style={[styles.totalCard, { backgroundColor: colors.surface }]}>
+          <Text style={[styles.cardTitle, { color: colors.text }]}>All Time</Text>
           <View style={styles.totalRow}>
             <View style={styles.totalItem}>
               <Text style={[styles.totalNumber, { color: colors.text }]}>{stats.totalRests}</Text>
